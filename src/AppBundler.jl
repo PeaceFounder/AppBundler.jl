@@ -218,6 +218,7 @@ function copy_app(source, destination)
     for i in readdir(source)
 
         (i == "build") && continue
+        (i == "meta") && continue
 
         cp(joinpath(source, i), joinpath(destination, i))
     end
@@ -226,13 +227,13 @@ function copy_app(source, destination)
 end
 
 
-function bundle_app(platform::MacOS, app_dir, bundle_dir; version = VERSION, app_name = basename(app_dir))
+function bundle_app(platform::MacOS, source, destination; version = VERSION, app_name = basename(source))
 
     #app_name = basename(app_dir)
-    mkpath(bundle_dir)
+    rm(joinpath(destination), recursive=true, force=true)
+    mkpath(destination)
 
-    contents = joinpath(bundle_dir, "$app_name.app", "Contents")
-    rm(joinpath(bundle_dir, "$app_name.app"), recursive=true, force=true)
+    contents = joinpath(destination, "Contents")
     mkpath(contents)
     
     mkdir(contents * "/Frameworks")
@@ -240,29 +241,107 @@ function bundle_app(platform::MacOS, app_dir, bundle_dir; version = VERSION, app
     mkdir(contents * "/MacOS")
 
     mkdir(contents * "/Frameworks/packages")
-    retrieve_packages(app_dir, contents * "/Frameworks/packages")
+    retrieve_packages(source, contents * "/Frameworks/packages")
 
     mkdir(contents * "/Frameworks/artifacts")
     retrieve_artifacts(platform, contents * "/Frameworks/packages", contents * "/Frameworks/artifacts")
     
     retrieve_julia(platform, contents * "/Frameworks"; version)
 
-    cp(joinpath(app_dir, "icon.icns"), joinpath(contents, "Resources", "icon.icns"))
-    cp(joinpath(dirname(@__DIR__), "templates", "init.jl"), joinpath(contents, "Frameworks", "init.jl"))
+    cp(joinpath(source, "meta", "icon.icns"), joinpath(contents, "Resources", "icon.icns"))
+    cp(joinpath(source, "meta", "init.jl"), joinpath(contents, "Frameworks", "init.jl"))
+    cp(joinpath(source, "meta", "configure.jl"), joinpath(contents, "Frameworks", "configure.jl"))
 
-    fill_template_save("MAIN_BASH", joinpath(contents, "MacOS", app_name); APP_NAME = app_name)
+
+    fill_template_save("macos/MAIN_BASH", joinpath(contents, "MacOS", app_name); APP_NAME = app_name)
     chmod(joinpath(contents, "MacOS", app_name), 0o755)
 
-    copy_app(app_dir, joinpath(contents, "Frameworks", app_name))
+    copy_app(source, joinpath(contents, "Frameworks", app_name))
 
     APP_NAME = app_name
     BUILD_NUMBER = 1
     BUNDLE_IDENTIFIER = "com.example." * lowercase(APP_NAME)
 
-    fill_template_save("Info.plist", joinpath(contents, "Info.plist"); BUILD_NUMBER, BUNDLE_IDENTIFIER, APP_NAME)
+    fill_template_save("macos/Info.plist", joinpath(contents, "Info.plist"); BUILD_NUMBER, BUNDLE_IDENTIFIER, APP_NAME)
 
     return nothing
 end
+
+
+function bundle_app(platform::Linux, source, destination; version = VERSION, app_name = basename(source), debug = false)
+
+    # bundle_dir
+
+    #bundle_name = basename(destination)
+
+    #app_dir = joinpath(bundle_dir, app_name)
+    app_dir = joinpath(tempdir(), app_name)
+    rm(app_dir, recursive=true, force=true)
+
+    mkpath(app_dir)
+    mkdir(joinpath(app_dir, "bin"))
+    mkdir(joinpath(app_dir, "meta"))
+    mkdir(joinpath(app_dir, "lib"))
+    
+
+    mkdir(joinpath(app_dir, "lib", "packages"))
+    retrieve_packages(source, joinpath(app_dir, "lib", "packages"))
+
+    mkdir(joinpath(app_dir, "lib", "artifacts"))
+    retrieve_artifacts(platform, joinpath(app_dir, "lib", "packages"), joinpath(app_dir, "lib", "artifacts"))
+
+    retrieve_julia(platform, joinpath(app_dir, "lib"); version)
+
+    cp(joinpath(source, "meta", "icon.png"), joinpath(app_dir, "meta", "icon.png"))
+    cp(joinpath(source, "meta", "init.jl"), joinpath(app_dir, "meta", "init.jl"))
+    cp(joinpath(source, "meta", "configure.jl"), joinpath(app_dir, "meta", "configure.jl"))
+
+    
+    fill_template_save("linux/main", joinpath(app_dir, "bin", app_name); APP_NAME = app_name)
+    chmod(joinpath(app_dir, "bin", app_name), 0o755)
+
+    copy_app(source, joinpath(app_dir, "lib", app_name))
+
+    # Now I need to fill in a .desktop and the snap.yml file.
+    
+    mkdir(joinpath(app_dir, "meta", "gui"))
+    fill_template_save("linux/main.desktop", joinpath(app_dir, "meta", "gui", "$app_name.desktop"); APP_NAME = app_name)
+
+    fill_template_save("linux/snap.yaml", joinpath(app_dir, "meta", "snap.yaml"); APP_NAME = app_name)
+
+    mkdir(joinpath(app_dir, "meta", "hooks"))
+    fill_template_save("linux/configure", joinpath(app_dir, "meta", "hooks", "configure"); APP_NAME = app_name)
+    chmod(joinpath(app_dir, "meta", "hooks", "configure"), 0o755)
+
+
+    if debug
+        mv(app_dir, destination)
+    else
+        squash_snap(app_dir, destination)
+    end
+
+    return
+end
+
+import squashfs_tools_jll
+
+
+function squash_snap(source, destination)
+    
+    if squashfs_tools_jll.is_available()    
+        mksquashfs = squashfs_tools_jll.mksquashfs()
+    else
+        @info "squashfs-tools not available from jll. Attempting to use mksquashfs from the system."
+        mksquashfs = "mksquashfs"
+    end
+
+    run(`$mksquashfs $source $destination -noappend -comp xz`)
+
+    return
+end
+
+
+
 
 bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)
 

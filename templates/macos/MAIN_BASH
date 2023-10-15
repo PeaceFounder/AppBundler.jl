@@ -2,10 +2,12 @@
 
 SCRIPT_DIR=$(dirname "$0")
 
-export APP_NAME={{:APP_NAME}}
+APP_NAME={{:APP_NAME}}
 
-export JULIA_HOME="$SCRIPT_DIR/../Frameworks/julia"
+JULIA_HOME="$SCRIPT_DIR/../Frameworks/julia"
 JULIA="$JULIA_HOME/bin/julia"
+
+export USER_DATA="~/.config/$APP_NAME/"
 
 export JULIA_LOAD_PATH="$SCRIPT_DIR/../Frameworks/packages:@stdlib:@" 
 export JULIA_PROJECT="$SCRIPT_DIR/../Frameworks/$APP_NAME"

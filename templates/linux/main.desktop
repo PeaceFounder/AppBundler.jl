@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name={{:APP_NAME}}
+Exec={{:APP_NAME}}
+Icon=${SNAP}/meta/icon.png
+Type=Application
+Categories=Utility;
