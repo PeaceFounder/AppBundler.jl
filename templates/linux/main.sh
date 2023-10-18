@@ -16,4 +16,4 @@ export JULIA_DEPOT_PATH="$SNAP_USER_COMMON/cache/"
 export JULIA_DEPOT_PATH="$JULIA_DEPOT_PATH:$SNAP_DATA/cache/"
 export JULIA_DEPOT_PATH="$JULIA_DEPOT_PATH:$SNAP/lib/"
 
-$JULIA --startup-file=no -L "$SNAP/meta/init.jl" $JULIA_MAIN
+$JULIA --startup-file=no -L "$SNAP/lib/startup/init.jl" $JULIA_MAIN

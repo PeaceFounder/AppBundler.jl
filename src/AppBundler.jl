@@ -14,6 +14,13 @@ import Artifacts
 using Tar
 using CodecZlib
 
+using Scratch
+
+DOWNLOAD_CACHE = ""
+
+function __init__()
+    global DOWNLOAD_CACHE = get_scratch!(@__MODULE__, "AppBundler")
+end
 
 function extract_tar_gz(archive_path::String)
 
@@ -23,21 +30,31 @@ function extract_tar_gz(archive_path::String)
     end
 end
 
-# packages need to be from seperate directory
+julia_tarballs() = DOWNLOAD_CACHE * "/julia-tarballs/"
+artifacts_cache() = DOWNLOAD_CACHE * "/artifacts/"
 
-julia_tarballs() = tempdir() * "/julia-tarballs/"
-artifacts_cache() = tempdir() * "/artifacts/"
-
-
-function retrieve_packages(app_dir, packages_dir)
+function retrieve_packages(app_dir, packages_dir; splash_screen=false)
 
     app_name = basename(app_dir)
     OLD_PROJECT = Base.active_project()
 
+    TEMP_ENV = joinpath(tempdir(), "temp_env")
+
     try
-        #ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0 # Just for convinience in situations where the 
-        Pkg.activate(app_dir)
+
+        mkdir(TEMP_ENV)
+        cp(joinpath(app_dir, "Project.toml"), joinpath(TEMP_ENV, "Project.toml"), force=true)
+        cp(joinpath(app_dir, "Manifest.toml"), joinpath(TEMP_ENV, "Manifest.toml"), force=true)
+        symlink(joinpath(app_dir, "src"), joinpath(TEMP_ENV, "src"), dir_target=true)
+        
+        ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
+        #Pkg.activate(app_dir)
+        Pkg.activate(TEMP_ENV)
         Pkg.instantiate()
+
+        if splash_screen
+            Pkg.add(["GLFW", "GLAbstraction"]; preserve=Pkg.PRESERVE_ALL)
+        end
 
         for (uuid, pkginfo) in Pkg.dependencies()
             if !(uuid in keys(Pkg.Types.stdlibs()))
@@ -47,6 +64,8 @@ function retrieve_packages(app_dir, packages_dir)
 
     finally
         Pkg.activate(OLD_PROJECT)
+        rm(TEMP_ENV, recursive=true, force=true)
+        ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 1
     end
 
 end
@@ -226,10 +245,18 @@ function copy_app(source, destination)
     return
 end
 
+function update(source, destination)
 
-function bundle_app(platform::MacOS, source, destination; version = VERSION, app_name = basename(source))
+    if isfile(source)
+        cp(source, destination, force=true)
+    end
 
-    #app_name = basename(app_dir)
+    return
+end
+
+
+function bundle_app(platform::MacOS, source, destination; version = VERSION, app_name = basename(source), splash_screen=false)
+
     rm(joinpath(destination), recursive=true, force=true)
     mkpath(destination)
 
@@ -241,20 +268,25 @@ function bundle_app(platform::MacOS, source, destination; version = VERSION, app
     mkdir(contents * "/MacOS")
 
     mkdir(contents * "/Frameworks/packages")
-    retrieve_packages(source, contents * "/Frameworks/packages")
+    retrieve_packages(source, contents * "/Frameworks/packages"; splash_screen)
 
     mkdir(contents * "/Frameworks/artifacts")
     retrieve_artifacts(platform, contents * "/Frameworks/packages", contents * "/Frameworks/artifacts")
     
     retrieve_julia(platform, contents * "/Frameworks"; version)
 
-    cp(joinpath(source, "meta", "icon.icns"), joinpath(contents, "Resources", "icon.icns"))
-    cp(joinpath(source, "meta", "init.jl"), joinpath(contents, "Frameworks", "init.jl"))
-    cp(joinpath(source, "meta", "configure.jl"), joinpath(contents, "Frameworks", "configure.jl"))
-
-
-    fill_template_save("macos/MAIN_BASH", joinpath(contents, "MacOS", app_name); APP_NAME = app_name)
+    update(joinpath(source, "meta", "icon.icns"), joinpath(contents, "Resources", "icon.icns"))
+    
+    cp(joinpath(dirname(@__DIR__), "templates", "startup"), joinpath(contents, "Frameworks", "startup"))
+    update(joinpath(source, "meta", "init.jl"), joinpath(contents, "Frameworks", "startup", "init.jl"))
+    update(joinpath(source, "meta", "precompile.jl"), joinpath(contents, "Frameworks", "startup", "precompile.jl"))
+    
+    
+    fill_template_save("macos/main.sh", joinpath(contents, "MacOS", app_name); APP_NAME = app_name, SPLASH_SCREEN = splash_screen)
     chmod(joinpath(contents, "MacOS", app_name), 0o755)
+
+    fill_template_save("macos/precompile.sh", joinpath(contents, "MacOS", "precompile"); APP_NAME = app_name)
+    chmod(joinpath(contents, "MacOS", "precompile"), 0o755)
 
     copy_app(source, joinpath(contents, "Frameworks", app_name))
 
@@ -270,11 +302,8 @@ end
 
 function bundle_app(platform::Linux, source, destination; version = VERSION, app_name = basename(source), debug = false)
 
-    # bundle_dir
+    rm(destination, recursive=true, force=true)
 
-    #bundle_name = basename(destination)
-
-    #app_dir = joinpath(bundle_dir, app_name)
     app_dir = joinpath(tempdir(), app_name)
     rm(app_dir, recursive=true, force=true)
 
@@ -292,25 +321,31 @@ function bundle_app(platform::Linux, source, destination; version = VERSION, app
 
     retrieve_julia(platform, joinpath(app_dir, "lib"); version)
 
-    cp(joinpath(source, "meta", "icon.png"), joinpath(app_dir, "meta", "icon.png"))
-    cp(joinpath(source, "meta", "init.jl"), joinpath(app_dir, "meta", "init.jl"))
-    cp(joinpath(source, "meta", "configure.jl"), joinpath(app_dir, "meta", "configure.jl"))
+    update(joinpath(source, "meta", "icon.png"), joinpath(app_dir, "meta", "icon.png"))
 
     
-    fill_template_save("linux/main", joinpath(app_dir, "bin", app_name); APP_NAME = app_name)
+    # CHANIGE
+    cp(joinpath(dirname(@__DIR__), "templates", "startup"), joinpath(app_dir, "lib", "startup"))    
+    update(joinpath(source, "meta", "init.jl"), joinpath(app_dir, "lib", "startup", "init.jl")) # CHANGED
+    update(joinpath(source, "meta", "precompile.jl"), joinpath(app_dir, "lib", "startup", "precompile.jl")) #CHAN
+
+    
+    fill_template_save("linux/main.sh", joinpath(app_dir, "bin", app_name); APP_NAME = app_name)
     chmod(joinpath(app_dir, "bin", app_name), 0o755)
+
+    fill_template_save("linux/precompile.sh", joinpath(app_dir, "bin", "precompile"); APP_NAME = app_name)
+    chmod(joinpath(app_dir, "bin", "precompile"), 0o755)
+
 
     copy_app(source, joinpath(app_dir, "lib", app_name))
 
-    # Now I need to fill in a .desktop and the snap.yml file.
-    
     mkdir(joinpath(app_dir, "meta", "gui"))
     fill_template_save("linux/main.desktop", joinpath(app_dir, "meta", "gui", "$app_name.desktop"); APP_NAME = app_name)
 
     fill_template_save("linux/snap.yaml", joinpath(app_dir, "meta", "snap.yaml"); APP_NAME = app_name)
 
     mkdir(joinpath(app_dir, "meta", "hooks"))
-    fill_template_save("linux/configure", joinpath(app_dir, "meta", "hooks", "configure"); APP_NAME = app_name)
+    fill_template_save("linux/configure.sh", joinpath(app_dir, "meta", "hooks", "configure"); APP_NAME = app_name)
     chmod(joinpath(app_dir, "meta", "hooks", "configure"), 0o755)
 
 
@@ -339,8 +374,6 @@ function squash_snap(source, destination)
 
     return
 end
-
-
 
 
 bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)

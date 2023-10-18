@@ -5,18 +5,15 @@ SCRIPT_DIR=$(dirname "$0")
 APP_NAME={{:APP_NAME}}
 
 JULIA_HOME="$SCRIPT_DIR/../Frameworks/julia"
-JULIA="$JULIA_HOME/bin/julia"
+export JULIA="$JULIA_HOME/bin/julia"
 
 export USER_DATA="~/.config/$APP_NAME/"
 
 export JULIA_LOAD_PATH="$SCRIPT_DIR/../Frameworks/packages:@stdlib:@" 
 export JULIA_PROJECT="$SCRIPT_DIR/../Frameworks/$APP_NAME"
 
-export JULIA_ARTIFACT_OVERRIDE="$SCRIPT_DIR/../Frameworks/artifacts"
-
 JULIA_MAIN="$SCRIPT_DIR/../Frameworks/$APP_NAME/main.jl"
 
-export JULIA_DEPOT_PATH="~/.cache/$APP_NAME"
-export JULIA_DEPOT_PATH="$JULIA_DEPOT_PATH:$SCRIPT_DIR/../Frameworks/"
+export JULIA_DEPOT_PATH="$SCRIPT_DIR/../Frameworks/"
 
-$JULIA --startup-file=no -L "$SCRIPT_DIR/../Frameworks/init.jl" $JULIA_MAIN
+$JULIA --startup-file=no "$SCRIPT_DIR/../Frameworks/precompile.jl"

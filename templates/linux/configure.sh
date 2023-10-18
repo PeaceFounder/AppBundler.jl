@@ -9,7 +9,7 @@ export JULIA_PROJECT="$SNAP/lib/$APP_NAME"
 export JULIA_DEPOT_PATH="$SNAP_DATA/cache/"
 export JULIA_DEPOT_PATH="$JULIA_DEPOT_PATH:$SNAP/lib/"
 
-$JULIA --startup-file=no "$SNAP/meta/configure.jl"
+$JULIA --startup-file=no "$SNAP/lib/startup/precompile.jl"
 
 echo "Precompilation finished" > $SNAP_DATA/configure.log
 

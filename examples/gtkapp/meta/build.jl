@@ -1,16 +1,12 @@
+using AppBundler
+
 import Pkg
 import Pkg.BinaryPlatforms: Linux, MacOS, Windows
 
 old_env = Base.active_project()
 
 try
-    temp_env = mktempdir()
-    Pkg.activate(temp_env)
 
-    Pkg.develop(path=joinpath(homedir(), "BtSync", "PeaceFounder", "GitHub", "AppBundler"))
-
-    using AppBundler
-            
     APP_DIR = dirname(@__DIR__)
 
     BUILD_DIR = joinpath(APP_DIR, "build")
