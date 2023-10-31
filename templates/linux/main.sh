@@ -1,14 +1,12 @@
 #!/bin/bash
 
-APP_NAME={{:APP_NAME}}
+APP_NAME={{APP_NAME}}
 export USER_DATA=$SNAP_USER_DATA
 
 JULIA="$SNAP/lib/julia/bin/julia"
 
 export JULIA_LOAD_PATH="$SNAP/lib/packages:@stdlib:@" 
 export JULIA_PROJECT="$SNAP/lib/$APP_NAME"
-
-export JULIA_ARTIFACT_OVERRIDE="$SNAP/lib/artifacts"
 
 JULIA_MAIN="$SNAP/lib/$APP_NAME/main.jl"
 

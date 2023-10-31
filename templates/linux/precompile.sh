@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SNAP="$(dirname "$0")/../"
-APP_NAME={{:APP_NAME}}
+APP_NAME={{APP_NAME}}
 
 JULIA="$SNAP/lib/julia/bin/julia"
 

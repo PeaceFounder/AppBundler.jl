@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" 
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+         xmlns:uap11="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+
+  <Identity Name="{{BUNDLE_IDENTIFIER}}" 
+            Publisher="{{PUBLISHER}}" 
+            Version="{{APP_VERSION}}.{{BUILD_NUMBER}}" />
+
+  <Properties>
+    <DisplayName>{{APP_DISPLAY_NAME}}</DisplayName>
+    <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
+    <Logo>assets\icon.png</Logo>
+  </Properties>
+
+  <Dependencies> 
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.10240.0" MaxVersionTested="10.0.19041.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+
+    <Application EntryPoint="Windows.FullTrustApplication" 
+		 Executable="julia\bin\julia.exe" 
+		 Id="{{APP_NAME}}" 
+		 uap10:RuntimeBehavior="packagedClassicApp" 
+		 uap10:Subsystem="windows" 
+		 uap10:SupportsMultipleInstances="true" 
+		 uap10:TrustLevel="mediumIL"
+		 uap11:Parameters="--startup-file=no --eval=&quot;include(joinpath(dirname(dirname(Sys.BINDIR)), \&quot;main.jl\&quot;)) &quot;"> <!-- use -i for returning into console -->
+
+     <uap:VisualElements DisplayName="{{APP_DISPLAY_NAME}}" 
+                         Square150x150Logo="assets\icon.png"
+                         Square44x44Logo="assets\icon.png"
+                         BackgroundColor="transparent"
+                         Description="{{APP_DESCRIPTION}}">
+       <uap:DefaultTile
+           Wide310x150Logo="assets\icon.png"
+           ShortName="{{APP_DISPLAY_NAME}}"
+           Square71x71Logo="assets\icon.png"
+           Square310x310Logo="assets\icon.png">
+         <uap:ShowNameOnTiles>
+           <uap:ShowOn Tile="square150x150Logo"/>
+           <uap:ShowOn Tile="wide310x150Logo"/>
+           <uap:ShowOn Tile="square310x310Logo"/>
+         </uap:ShowNameOnTiles>
+       </uap:DefaultTile>
+       <uap:SplashScreen Image="assets\icon.png"/>
+     </uap:VisualElements>
+
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust"/>
+  </Capabilities>
+
+</Package>

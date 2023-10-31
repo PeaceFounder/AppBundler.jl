@@ -1,15 +1,15 @@
-name: {{:APP_NAME}}
+name: {{APP_NAME}}
 base: core22
-version: '0.1'
-summary: My awesome app
-description: A longer description of my app.
+version: '{{APP_VERSION}}'
+summary: {{APP_SUMMARY}} 
+description: {{APP_DESCRIPTION}} #A longer description of my app.
 grade: devel
 confinement: classic # devmode
 
 apps:
-  {{:APP_NAME}}:
-    command: bin/{{:APP_NAME}}
-    desktop: meta/gui/{{:APP_NAME}}.desktop
+  {{APP_NAME}}:
+    command: bin/{{APP_NAME}}
+    desktop: meta/gui/{{APP_NAME}}.desktop
     plugs:
       - opengl
       - desktop

@@ -4,26 +4,26 @@
 <dict>
     <!-- The name of the application, as it appears in the Finder. -->
     <key>CFBundleDisplayName</key>
-    <string>{{:APP_NAME}}</string>
+    <string>{{APP_DISPLAY_NAME}}</string>
     
     <!-- A unique identifier for the app, usually in reverse DNS format. -->
     <key>CFBundleIdentifier</key>
-    <string>{{:BUNDLE_IDENTIFIER}}</string>
+    <string>{{BUNDLE_IDENTIFIER}}</string>
 
     <!-- The version number of the application. -->
     <key>CFBundleShortVersionString</key>
-    <string>{{:BUNDLE_VERSION}}</string>
+    <string>{{APP_VERSION}}</string>
 
     <!-- The build number of the application. -->
     <key>CFBundleVersion</key>
-    <string>{{:BUILD_NUMBER}}</string>
+    <string>{{BUILD_NUMBER}}</string>
 
     <!-- The icon file for the application. -->
     <key>CFBundleIconFile</key>
     <string>icon.icns</string>
 
     <key>CFBundleExecutable</key>
-    <string>{{:APP_NAME}}</string>
+    <string>{{APP_NAME}}</string>
 
     <!-- The principal class that serves as the entry point for the app. (For Cocoa apps) -->
     <key>NSPrincipalClass</key>
@@ -33,7 +33,5 @@
     <key>NSMainNibFile</key>
     <string>MainMenu</string>
     
-    <!-- ... other keys and values as needed ... -->
-
 </dict>
 </plist>

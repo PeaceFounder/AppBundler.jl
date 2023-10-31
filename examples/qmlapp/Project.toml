@@ -5,3 +5,12 @@ version = "0.1.0"
 
 [deps]
 QML = "2db162a6-7e43-52c3-8d84-290c1c42d82a"
+
+[bundle]
+APP_DISPLAY_NAME = "QML App"
+APP_SUMMARY = "Summary of the app"
+APP_DESCRIPTION = "Longer description of the app"
+BUNDLE_IDENTIFIER = "org.appbundler.qmlapp"
+PUBLISHER = "CN=JanisErdmanis"
+PUBLISHER_DISPLAY_NAME = "Janis Erdmanis"
+WITH_SPLASH_SCREEN = true

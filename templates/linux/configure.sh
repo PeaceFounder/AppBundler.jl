@@ -1,6 +1,6 @@
 #!/bin/bash
 
-APP_NAME={{:APP_NAME}}
+APP_NAME={{APP_NAME}}
 JULIA="$SNAP/lib/julia/bin/julia"
 
 export JULIA_LOAD_PATH="$SNAP/lib/packages:@stdlib:@" 

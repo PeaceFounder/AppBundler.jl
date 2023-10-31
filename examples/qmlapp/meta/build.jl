@@ -1,23 +1,16 @@
 using AppBundler
 
-import Pkg
 import Pkg.BinaryPlatforms: Linux, MacOS, Windows
 
-old_env = Base.active_project()
+APP_DIR = dirname(@__DIR__)
 
-try
-            
-    APP_DIR = dirname(@__DIR__)
+BUILD_DIR = joinpath(APP_DIR, "build")
+mkpath(BUILD_DIR)
 
-    BUILD_DIR = joinpath(APP_DIR, "build")
-    mkpath(BUILD_DIR)
+AppBundler.bundle_app(MacOS(:x86_64), APP_DIR, "$BUILD_DIR/qmlapp-x64.app")
+AppBundler.bundle_app(MacOS(:aarch64), APP_DIR, "$BUILD_DIR/qmlapp-arm64.app")
 
-    AppBundler.bundle_app(MacOS(:x86_64), APP_DIR, "$BUILD_DIR/qmlapp-x64.app", splash_screen=true)
-    AppBundler.bundle_app(MacOS(:aarch64), APP_DIR, "$BUILD_DIR/qmlapp-arm64.app", splash_screen=true)
+AppBundler.bundle_app(Linux(:x86_64), APP_DIR, "$BUILD_DIR/qmlapp-x64.snap")
+AppBundler.bundle_app(Linux(:aarch64), APP_DIR, "$BUILD_DIR/qmlapp-arm64.snap")
 
-    AppBundler.bundle_app(Linux(:x86_64), APP_DIR, "$BUILD_DIR/qmlapp-x64.snap")
-    AppBundler.bundle_app(Linux(:aarch64), APP_DIR, "$BUILD_DIR/qmlapp-arm64.snap")
-        
-finally 
-    Pkg.activate(old_env)
-end
+AppBundler.bundle_app(Windows(:x86_64), APP_DIR, "$BUILD_DIR/qmlapp-win64.zip")

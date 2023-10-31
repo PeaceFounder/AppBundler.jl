@@ -3,13 +3,15 @@
 SCRIPT_DIR=$(dirname "$0")
 BUNDLE_DIR=$(realpath $(dirname $(dirname $SCRIPT_DIR)))
 
-APP_NAME={{:APP_NAME}}
-SPLASH_SCREEN={{:SPLASH_SCREEN}}
+APP_NAME={{APP_NAME}}
+WITH_SPLASH_SCREEN={{WITH_SPLASH_SCREEN}}
 
 JULIA_HOME="$SCRIPT_DIR/../Frameworks/julia"
 export JULIA="$JULIA_HOME/bin/julia"
 
-export USER_DATA="~/.config/$APP_NAME/"
+HOME=realpath ~
+export USER_DATA="$HOME/.config/$APP_NAME"
+mkdir -p "$USER_DATA"
 
 export JULIA_LOAD_PATH="$SCRIPT_DIR/../Frameworks/packages:@stdlib:@" 
 export JULIA_PROJECT="$SCRIPT_DIR/../Frameworks/$APP_NAME"
@@ -21,7 +23,6 @@ JULIA_MAIN="$SCRIPT_DIR/../Frameworks/$APP_NAME/main.jl"
 CACHE_DIR="$(realpath ~)/.cache/$APP_NAME"
 
 export JULIA_DEPOT_PATH="$CACHE_DIR:$SCRIPT_DIR/../Frameworks/"
-#export SPLASH_SCREEN="$SCRIPT_DIR/../Frameworks/startup/SplashScreen/SplashScreen.jl"
 
 PRECOMPILED="$CACHE_DIR/precompiled"
 
@@ -31,7 +32,7 @@ if [ -e $PRECOMPILED ] || [ -d "$SCRIPT_DIR/../Frameworks/compiled" ]; then
     
 else
 
-    if $SPLASH_SCREEN ; then
+    if $WITH_SPLASH_SCREEN ; then
         $JULIA --startup-file=no "$SCRIPT_DIR/../Frameworks/startup/configure.jl"
     else
         $JULIA --startup-file=no "$SCRIPT_DIR/../Frameworks/startup/precompile.jl"

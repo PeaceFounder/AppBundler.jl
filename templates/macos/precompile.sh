@@ -2,7 +2,7 @@
 
 SCRIPT_DIR=$(dirname "$0")
 
-APP_NAME={{:APP_NAME}}
+APP_NAME={{APP_NAME}}
 
 JULIA_HOME="$SCRIPT_DIR/../Frameworks/julia"
 export JULIA="$JULIA_HOME/bin/julia"
