@@ -24,3 +24,5 @@ hooks:
       - network
       - opengl
       - wayland
+
+plugs:

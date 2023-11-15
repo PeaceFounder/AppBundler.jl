@@ -9,4 +9,7 @@ export JULIA_LOAD_PATH="$SNAP/lib/packages:@stdlib:@"
 export JULIA_PROJECT="$SNAP/lib/$APP_NAME"
 export JULIA_DEPOT_PATH="$SNAP/lib/"
 
+# Let's force precompilation for wayland even on headless system
+export WAYLAND_DISPLAY=wayland-0
+
 $JULIA --startup-file=no "$SNAP/lib/startup/precompile.jl"

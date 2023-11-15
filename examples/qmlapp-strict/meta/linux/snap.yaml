@@ -1,0 +1,47 @@
+name: {{APP_NAME}}
+base: core22
+version: '{{APP_VERSION}}'
+summary: {{APP_SUMMARY}}
+description: {{APP_DESCRIPTION}}
+grade: devel
+confinement: devmode
+
+architectures:
+- amd64
+
+apps:
+  {{APP_NAME}}:
+    command: bin/{{APP_NAME}}
+    desktop: meta/gui/{{APP_NAME}}.desktop
+    plugs:
+    - opengl
+    - wayland
+    - network
+    - graphics-core22
+    - desktop
+
+environment:
+  __EGL_VENDOR_LIBRARY_DIRS: $SNAP/graphics/usr/share/glvnd/egl_vendor.d   
+  LIBGL_DRIVERS_PATH: $SNAP/graphics/usr/lib/x86_64-linux-gnu/dri
+  LD_LIBRARY_PATH: $SNAP/graphics/usr/lib/:$SNAP/graphics/usr/lib/x86_64-linux-gnu/
+  PATH: $SNAP/bin/:$PATH
+  QT_QPA_PLATFORM: wayland
+
+hooks:
+  configure:
+    plugs:
+    - opengl
+    - wayland
+    - graphics-core22
+
+plugs:
+  graphics-core22:
+    interface: content
+    target: $SNAP/graphics
+    default-provider: mesa-core22
+
+layout:
+  /usr/share/libdrm:
+    bind: $SNAP/graphics/libdrm
+  /usr/share/drirc.d:
+    bind: $SNAP/graphics/drirc.d

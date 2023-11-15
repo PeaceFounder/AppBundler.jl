@@ -1,0 +1,16 @@
+name = "QMLApp-Strict"
+uuid = "f2327db0-a815-49ae-b1d5-b75d60dca6ce"
+authors = ["Janis Erdmanis <janiserdmanis@protonmail.ch>"]
+version = "0.1.0"
+
+[deps]
+QML = "2db162a6-7e43-52c3-8d84-290c1c42d82a"
+
+[bundle]
+APP_DISPLAY_NAME = "QML App Strict"
+APP_SUMMARY = "Summary of the app"
+APP_DESCRIPTION = "Longer description of the app"
+BUNDLE_IDENTIFIER = "org.appbundler.qmlapp"
+PUBLISHER = "CN=JanisErdmanis"
+PUBLISHER_DISPLAY_NAME = "Janis Erdmanis"
+WITH_SPLASH_SCREEN = true

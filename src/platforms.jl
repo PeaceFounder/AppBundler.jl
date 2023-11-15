@@ -58,6 +58,7 @@ function bundle_app(platform::Linux, source, destination; julia_version = VERSIO
 
     add_rule!(bundle, "precompile.jl", "lib/startup/precompile.jl")
     add_rule!(bundle, "startup", "lib/startup") 
+    add_rule!(bundle, "linux/wayland-launch.sh", "bin/wayland-launch", template=true, executable=true) 
     add_rule!(bundle, "linux/main.sh", "bin/$app_name", template=true, executable=true)
     add_rule!(bundle, "linux/precompile.sh", "bin/precompile", template=true, executable=true)
 
