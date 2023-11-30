@@ -17,10 +17,9 @@ p7zip_jll = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 squashfs_tools_jll = "eed32e3e-a7c5-5bf9-9121-5cf3ab653887"
 
 [compat]
-CedecZlib = "0.7"
 Mustache = "1"
 Scratch = "1.2"
-ZipFile = "0.1"
+ZipFile = "0.10"
 squashfs_tools_jll = "4.6"
 Downloads = "1.6"
 Pkg = "1.9"
