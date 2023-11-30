@@ -6,9 +6,6 @@ description: {{APP_DESCRIPTION}}
 grade: devel
 confinement: devmode
 
-architectures:
-- amd64
-
 apps:
   {{APP_NAME}}:
     command: bin/{{APP_NAME}}
@@ -23,18 +20,18 @@ apps:
 
 environment:
   __EGL_VENDOR_LIBRARY_DIRS: $SNAP/graphics/usr/share/glvnd/egl_vendor.d   
-  LIBGL_DRIVERS_PATH: $SNAP/graphics/usr/lib/x86_64-linux-gnu/dri
-  LD_LIBRARY_PATH: $SNAP/graphics/usr/lib/:$SNAP/graphics/usr/lib/x86_64-linux-gnu/
+  LIBGL_DRIVERS_PATH: $SNAP/graphics/usr/lib/{{ARCH_TRIPLET}}/dri
+  LD_LIBRARY_PATH: $SNAP/graphics/usr/lib/:$SNAP/graphics/usr/lib/{{ARCH_TRIPLET}}/
   PATH: $SNAP/bin/:$PATH
   QT_QPA_PLATFORM: xcb
 
-# hooks:
-#   configure:
-#     plugs:
-#     - opengl
-#     - wayland
-#     - x11
-#     - graphics-core22
+hooks:
+  configure:
+    plugs:
+    - opengl
+    - wayland
+    - x11
+    - graphics-core22
 
 plugs:
   graphics-core22:

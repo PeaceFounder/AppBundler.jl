@@ -100,3 +100,16 @@ function squash_snap(source, destination)
 end
 
 
+function linux_arch_triplet(arch::Symbol)
+
+    if arch == :aarch64
+        return "aarch64-linux-gnu"
+    elseif arch == :x86_64
+        return "x86_64-linux-gnu"
+    elseif arch == :i686
+        return "i386-linux-gnu"
+    else
+        error("Unuported arhitecture $arch")
+    end
+
+end

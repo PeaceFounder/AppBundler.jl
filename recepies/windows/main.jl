@@ -1,6 +1,5 @@
-ENV["BUNDLE_IDENTIFIER"] = "{{BUNDLE_IDENTIFIER}}" #"JanisErdmanis.Julia" # com.company.qmlapp
+ENV["BUNDLE_IDENTIFIER"] = "{{BUNDLE_IDENTIFIER}}"
 ENV["APP_NAME"] = "{{APP_NAME}}"
-#ENV["APP_DISPLAY_NAME"] = {{:APP_DISPLAY_NAME}} #"qmlapp"
 
 ENV["ROOT"] = dirname(dirname(Sys.BINDIR))
 ENV["JULIA"] = joinpath(Sys.BINDIR, "julia.exe") 
@@ -67,13 +66,13 @@ ENV["JULIA_LOAD_PATH"] = join(LOAD_PATH, ";")
 
 PRECOMPILED = joinpath(ENV["USER_DATA"], "cache", "precompiled")
 
-# Need to install ModernGL for windows
 if !(isdir(joinpath(ENV["ROOT"], "compiled")) || isfile(PRECOMPILED))
 
     @info "Precompiling..."
 
+    # 3D acceleration needs to be enabled in windows for OpenGL
     if WITH_SPLASH_SCREEN
-    
+            
         # include("startup/SplashScreen/SplashScreen.jl")
         # splash_window = SplashScreen.create_splash_window()
         # include("startup/precompile.jl")

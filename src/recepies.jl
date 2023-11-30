@@ -15,24 +15,28 @@ function bundle_app(platform::MacOS, source, destination; julia_version = VERSIO
     mkpath(destination)
     app_dir = "$destination/Contents"
 
-    bundle = Bundle(joinpath(dirname(@__DIR__), "templates"), joinpath(source, "meta"))
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recepies"), joinpath(source, "meta"))
     
     add_rule!(bundle, "macos/Resources", "Resources")
     add_rule!(bundle, "icon.icns", "Resources/icon.icns")
     
-    add_rule!(bundle, "precompile.jl", "Frameworks/startup/precompile.jl")
-    add_rule!(bundle, "startup", "Frameworks/startup")
+    add_rule!(bundle, "precompile.jl", "Libraries/startup/precompile.jl")
+    add_rule!(bundle, "startup", "Libraries/startup")
 
     add_rule!(bundle, "macos/main.sh", "MacOS/$app_name", template=true, executable=true)
     add_rule!(bundle, "macos/precompile.sh", "MacOS/precompile", template=true, executable=true)
     add_rule!(bundle, "macos/Info.plist", "Info.plist", template=true)
 
+    add_rule!(bundle, "macos/launcher.c", "Resources/launcher.c")
+    add_rule!(bundle, "macos/Entitlements.plist", "Resources/Entitlements.plist")
+    add_rule!(bundle, "macos/dmg_settings.py", "Resources/dmg_settings.py")
+
     build(bundle, app_dir, parameters)
 
-    copy_app(source, "$app_dir/Frameworks/$app_name")
-    retrieve_julia(platform, "$app_dir/Frameworks/julia"; version = julia_version)
-    retrieve_packages(source, "$app_dir/Frameworks/packages"; with_splash_screen)
-    retrieve_artifacts(platform, "$app_dir/Frameworks/packages", "$app_dir/Frameworks/artifacts")
+    copy_app(source, "$app_dir/Libraries/$app_name")
+    retrieve_julia(platform, "$app_dir/Libraries/julia"; version = julia_version)
+    retrieve_packages(source, "$app_dir/Libraries/packages"; with_splash_screen)
+    retrieve_artifacts(platform, "$app_dir/Libraries/packages", "$app_dir/Libraries/artifacts")
 
     return
 end
@@ -45,6 +49,7 @@ function bundle_app(platform::Linux, source, destination; julia_version = VERSIO
     # This may not be DRY enough
     parameters = get_bundle_parameters("$source/Project.toml")
     app_name = parameters["APP_NAME"]
+    parameters["ARCH_TRIPLET"] = linux_arch_triplet(arch(platform))
 
     if compress
         app_dir = joinpath(tempdir(), basename(destination)[1:end-4])
@@ -54,7 +59,7 @@ function bundle_app(platform::Linux, source, destination; julia_version = VERSIO
     end
     mkpath(app_dir)
 
-    bundle = Bundle(joinpath(dirname(@__DIR__), "templates"), joinpath(source, "meta"))
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recepies"), joinpath(source, "meta"))
 
     add_rule!(bundle, "precompile.jl", "lib/startup/precompile.jl")
     add_rule!(bundle, "startup", "lib/startup") 
@@ -107,7 +112,7 @@ function bundle_app(platform::Windows, source, destination; julia_version = VERS
     end
     mkpath(app_dir)
 
-    bundle = Bundle(joinpath(dirname(@__DIR__), "templates"), joinpath(source, "meta"))
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recepies"), joinpath(source, "meta"))
 
     add_rule!(bundle, "precompile.jl", "startup/precompile.jl")
     add_rule!(bundle, "startup", "startup") 
