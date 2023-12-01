@@ -15,7 +15,7 @@ function bundle_app(platform::MacOS, source, destination; julia_version = VERSIO
     mkpath(destination)
     app_dir = "$destination/Contents"
 
-    bundle = Bundle(joinpath(dirname(@__DIR__), "recepies"), joinpath(source, "meta"))
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
     
     add_rule!(bundle, "macos/Resources", "Resources")
     add_rule!(bundle, "icon.icns", "Resources/icon.icns")
@@ -59,7 +59,7 @@ function bundle_app(platform::Linux, source, destination; julia_version = VERSIO
     end
     mkpath(app_dir)
 
-    bundle = Bundle(joinpath(dirname(@__DIR__), "recepies"), joinpath(source, "meta"))
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
 
     add_rule!(bundle, "precompile.jl", "lib/startup/precompile.jl")
     add_rule!(bundle, "startup", "lib/startup") 
@@ -112,7 +112,7 @@ function bundle_app(platform::Windows, source, destination; julia_version = VERS
     end
     mkpath(app_dir)
 
-    bundle = Bundle(joinpath(dirname(@__DIR__), "recepies"), joinpath(source, "meta"))
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
 
     add_rule!(bundle, "precompile.jl", "startup/precompile.jl")
     add_rule!(bundle, "startup", "startup") 

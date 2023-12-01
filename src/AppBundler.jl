@@ -16,7 +16,7 @@ artifacts_cache() = DOWNLOAD_CACHE * "/artifacts/"
 include("utils.jl")
 include("deps.jl")
 include("bundler.jl")
-include("recepies.jl")
+include("recipes.jl")
 
 bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)
 
