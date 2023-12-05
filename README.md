@@ -45,6 +45,8 @@ After the bundle is created, it needs to be finalised on the host system, where 
 3. Code signing can be performed with `codesign`. `Resources/Entitlements.plist` file contains entitlements which should be used when signing the final bundle.
 4. For the creation of a dmg bundle, the `dmgbuild` is recommended, which can be installed conveniently with `pip install dmgbuild`. For convenience, `Resources/dmg_settings.py` is provided, which allows to `dmgbuild -s "MyApp/Contents/Resources/dmg_settings.py" -D app="MyApp" "MyApp Installer" "MyApp.dmg"`
 
+The signing certificate can be obtained from Apple by subscribing to its developer program. Alternatively, for development purposes, you can generate a self-signing certificate. Follow [offciial instructions of Apple](https://support.apple.com/en-gb/guide/keychain-access/kyca8916/mac), set *Certificate Type* to *Code Signing` and fill out the rest of the parameters as [instructed on youtube](https://www.youtube.com/watch?v=OpR9-onRZko). 
+
 ### Linux
 
 1. If the application is compressed into the snap, use `unsquashfs myapp.snap`
