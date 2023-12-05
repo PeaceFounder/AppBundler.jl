@@ -21,10 +21,10 @@ A bundle can be created with `AppBundler.bundle_app` function as follows:
 ```julia
 import AppBundler
 import Pkg.BinaryPlatforms: Linux, MacOS, Windows
-bundle_app(MacOS(:x86_64), APP_DIR, "$BUILD_DIR/gtkapp-x64.app")
+bundle_app(MacOS(:x86_64), "MyApp", "build/MyApp-x64.app")
 ```
 
-The first argument is a platform for which the bundle is being made; in this case, MacOS; the second `APP_DIR` is the location for the project, and `BUILD_DIR` is the location where the bundles will be stored. For Linux, the extension `.snap` and Windows `.zip` for destination determines whether the output is compressed, which can be overridden by `compress=false` in the keyword arguments. 
+The first argument is a platform for which the bundle is being made; in this case, MacOS; `MyApp` is the location for the project, and `build/MyApp-x64.app` is the location where the bundles will be stored. For Linux, the extension `.snap` and Windows `.zip` for destination determines whether the output is compressed, which can be overridden by `compress=false` in the keyword arguments. 
 
 The resulting bundles can be easily tested on the resulting platforms. The testing phase works without any postprocessing as follows:
 
