@@ -61,7 +61,7 @@ function merge(source::AbstractString, target::AbstractString)
         if isdir(src_path)
             # If the item is a directory and doesn't exist in the target, create it
             if !isdir(dest_path)
-                mkdir(dest_path)
+                mkpath(dest_path)
             end
             # Recursively merge subdirectories
             merge(src_path, dest_path)
@@ -69,7 +69,7 @@ function merge(source::AbstractString, target::AbstractString)
             # If the item is a file and doesn't exist in the target, copy it
             if !isfile(dest_path)
                 #println("$src_path => $dest_path")
-                isdir(dirname(dest_path)) || mkdir(dirname(dest_path))
+                isdir(dirname(dest_path)) || mkpath(dirname(dest_path))
                 cp(src_path, dest_path)
             end
         end
