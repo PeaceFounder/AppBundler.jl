@@ -2,7 +2,9 @@ import Downloads
 import Artifacts
 
 import Pkg
-import Base.BinaryPlatforms: AbstractPlatform, Platform, os, arch, wordsize
+import Base.BinaryPlatforms: AbstractPlatform, Platform, os, arch, wordsize, HostPlatform
+
+using Base.Sys: isapple, islinux, iswindows
 
 function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
 
@@ -79,41 +81,19 @@ function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_d
 end
 
 
-ismacos(platform::AbstractPlatform) = os(platform) == "macos"
-islinux(platform::AbstractPlatform) = os(platform) == "linux" 
-iswindows(platform::AbstractPlatform) = os(p,atform) == "windows"
+const ismacos = Sys.isapple
 
-function platform_type(platform::Platform)
-    if islinux(platform)
-
-        return Linux(Symbol(arch(platform)))
-
-    elseif ismacos(platform)
-
-        return MacOS(Symbol(arch(platform)))
-
-    elseif iswindows(platform)
-        
-        return Windows(Symbol(platform))
-
-    else
-        return platform
-    end
+function platform_type(platform::AbstractPlatform)
+    return Val(Symbol(os(platform)))
 end
 
 
-function HostPlatform()
-
-    platform = Base.BinaryPlatforms.HostPlatform()
-
-    return platform_type(platform)
+function julia_download_url(platform::AbstractPlatform, version::VersionNumber)
+    julia_download_url(platform_type(platform), platform, version)
 end
 
 
-julia_download_url(platform::Platform, version::VersionNumber) = julia_download_url(platform_type(platform), version)
-
-
-function julia_download_url(platform::Linux, version::VersionNumber)
+function julia_download_url(::Linux, platform::AbstractPlatform, version::VersionNumber)
 
     if arch(platform) == :x86_64
 
@@ -136,7 +116,7 @@ function julia_download_url(platform::Linux, version::VersionNumber)
 end
 
 
-function julia_download_url(platform::MacOS, version::VersionNumber)
+function julia_download_url(::MacOS, platform::AbstractPlatform, version::VersionNumber)
 
     if arch(platform) == :x86_64
 
@@ -159,7 +139,7 @@ function julia_download_url(platform::MacOS, version::VersionNumber)
 end
 
 
-function julia_download_url(platform::Windows, version::VersionNumber)
+function julia_download_url(::Windows, platform::AbstractPlatform, version::VersionNumber)
 
     folder = "winnt/x$(wordsize(platform))"
     archive_name = "julia-$(version)-win$(wordsize(platform)).zip"

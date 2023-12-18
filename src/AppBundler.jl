@@ -1,8 +1,11 @@
 module AppBundler
 
 # using Infiltrator
-import Pkg.BinaryPlatforms: Linux, Windows, MacOS
 using Scratch
+
+const Linux = Val{:linux}
+const Windows = Val{:windows}
+const MacOS = Val{:macos}
 
 DOWNLOAD_CACHE = ""
 
