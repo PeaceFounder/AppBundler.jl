@@ -1,4 +1,8 @@
-function bundle_app(platform::MacOS, source, destination; julia_version = VERSION, with_splash_screen = nothing)
+function bundle_app(platform::AbstractPlatform, source, destination; julia_version = VERSION, with_splash_screen = nothing)
+    bundle_app(platform_type(platform), platform, source, destination; julia_verison, with_splash_screen)
+end
+
+function bundle_apps(::MacOS, platform::AbstractPlatform, source, destination; julia_version = VERSION, with_splash_screen = nothing)
 
     rm(destination, recursive=true, force=true)
 
@@ -42,7 +46,7 @@ function bundle_app(platform::MacOS, source, destination; julia_version = VERSIO
 end
 
 
-function bundle_app(platform::Linux, source, destination; julia_version = VERSION, compress::Bool = isext(destination, ".snap"))
+function bundle_app(::Linux, platform::AbstractPlatform, source, destination; julia_version = VERSION, compress::Bool = isext(destination, ".snap"))
 
     rm(destination, recursive=true, force=true)
 
@@ -91,7 +95,7 @@ function bundle_app(platform::Linux, source, destination; julia_version = VERSIO
 end
 
 
-function bundle_app(platform::Windows, source, destination; julia_version = VERSION, with_splash_screen=nothing, compress::Bool = isext(destination, ".zip"))
+function bundle_app(::Windows, platform::AbstractPlatform, source, destination; julia_version = VERSION, with_splash_screen=nothing, compress::Bool = isext(destination, ".zip"))
 
     rm(destination, recursive=true, force=true)
 
