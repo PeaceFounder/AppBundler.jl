@@ -26,8 +26,6 @@ mkdir -p "$USER_DATA"
 export JULIA_LOAD_PATH="$SCRIPT_DIR/../Libraries/packages:@stdlib:@" 
 export JULIA_PROJECT="$SCRIPT_DIR/../Libraries/$APP_NAME"
 
-# export JULIA_ARTIFACT_OVERRIDE="$SCRIPT_DIR/../Libraries/artifacts"
-
 JULIA_MAIN="$SCRIPT_DIR/../Libraries/$APP_NAME/main.jl"
 
 export JULIA_DEPOT_PATH="$CACHE_DIR:$SCRIPT_DIR/../Libraries/"

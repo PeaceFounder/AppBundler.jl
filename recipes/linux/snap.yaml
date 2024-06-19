@@ -2,7 +2,7 @@ name: {{APP_NAME}}
 base: core22
 version: '{{APP_VERSION}}'
 summary: {{APP_SUMMARY}} 
-description: {{APP_DESCRIPTION}} #A longer description of my app.
+description: {{APP_DESCRIPTION}}
 grade: devel
 confinement: classic 
 

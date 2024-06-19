@@ -1,4 +1,4 @@
-function bundle_app(platform::MacOS, source, destination; julia_version = VERSION, with_splash_screen = nothing)
+function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing)
 
     rm(destination, recursive=true, force=true)
 
@@ -34,7 +34,7 @@ function bundle_app(platform::MacOS, source, destination; julia_version = VERSIO
     build(bundle, app_dir, parameters)
 
     copy_app(source, "$app_dir/Libraries/$app_name")
-    retrieve_julia(platform, "$app_dir/Libraries/julia"; version = julia_version)
+    retrieve_julia(platform, "$app_dir/Libraries/julia")
     retrieve_packages(source, "$app_dir/Libraries/packages"; with_splash_screen)
     retrieve_artifacts(platform, "$app_dir/Libraries/packages", "$app_dir/Libraries/artifacts")
 
@@ -42,12 +42,13 @@ function bundle_app(platform::MacOS, source, destination; julia_version = VERSIO
 end
 
 
-function bundle_app(platform::Linux, source, destination; julia_version = VERSION, compress::Bool = isext(destination, ".snap"))
+function bundle_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"))
 
     rm(destination, recursive=true, force=true)
 
     # This may not be DRY enough
     parameters = get_bundle_parameters("$source/Project.toml")
+    parameters["APP_NAME"] = lowercase(parameters["APP_NAME"]) # necessary for a snap name
     app_name = parameters["APP_NAME"]
     parameters["ARCH_TRIPLET"] = linux_arch_triplet(arch(platform))
 
@@ -77,7 +78,7 @@ function bundle_app(platform::Linux, source, destination; julia_version = VERSIO
     build(bundle, app_dir, parameters)
     
     copy_app(source, "$app_dir/lib/$app_name")
-    retrieve_julia(platform, "$app_dir/lib/julia"; version = julia_version)
+    retrieve_julia(platform, "$app_dir/lib/julia")
     retrieve_packages(source, "$app_dir/lib/packages")
     retrieve_artifacts(platform, "$app_dir/lib/packages", "$app_dir/lib/artifacts")
 
@@ -91,7 +92,7 @@ function bundle_app(platform::Linux, source, destination; julia_version = VERSIO
 end
 
 
-function bundle_app(platform::Windows, source, destination; julia_version = VERSION, with_splash_screen=nothing, compress::Bool = isext(destination, ".zip"))
+function bundle_app(platform::Windows, source, destination; with_splash_screen=nothing, compress::Bool = isext(destination, ".zip"))
 
     rm(destination, recursive=true, force=true)
 
@@ -125,7 +126,7 @@ function bundle_app(platform::Windows, source, destination; julia_version = VERS
     
     build(bundle, app_dir, parameters)
     
-    retrieve_julia(platform, "$app_dir/julia"; version = julia_version)
+    retrieve_julia(platform, "$app_dir/julia")
     mv("$app_dir/julia/libexec/julia/lld.exe", "$app_dir/julia/bin/lld.exe") # lld.exe can't find shared libraries in UWP
     
     retrieve_packages(source, "$app_dir/packages"; with_splash_screen)

@@ -1,6 +1,8 @@
 import Downloads
 import Artifacts
 
+using Infiltrator
+
 import Pkg
 import Base.BinaryPlatforms: AbstractPlatform, Platform, os, arch, wordsize
 
@@ -47,6 +49,11 @@ end
 # That way one could avoid downloading twice when it is deployed as a build script
 function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_dir; artifacts_cache_dir = artifacts_cache())
 
+    if !haskey(platform, "julia_version")
+        platform = deepcopy(platform)
+        platform["julia_version"] = join([VERSION.major, VERSION.minor, VERSION.patch], ".")
+    end
+
     mkdir(artifacts_dir)
 
     try
@@ -61,9 +68,7 @@ function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_d
                 artifacts = Artifacts.select_downloadable_artifacts(artifacts_toml; platform)
                 
                 for name in keys(artifacts)
-
                     hash = artifacts[name]["git-tree-sha1"]
-
                     Pkg.Artifacts.ensure_artifact_installed(name, artifacts[name], artifacts_toml) 
                     cp(joinpath(artifacts_cache(), hash), joinpath(artifacts_dir, hash), force=true)
                 end
@@ -170,8 +175,24 @@ function julia_download_url(platform::Windows, version::VersionNumber)
     return url
 end
 
+function julia_version(platform::AbstractPlatform)
+    
+    if haskey(platform, "julia_version")
+        version = VersionNumber(platform["julia_version"])
+    else
+        version = VERSION
+    end
 
-function retrieve_julia(platform::AbstractPlatform, julia_dir; version::VersionNumber = VERSION) 
+    # if version.major == VERSION.major && version.minor == VERSION.minor && version > VERSION
+    #     return VERSION
+    # else
+    #     return version
+    # end
+
+    return version
+end
+
+function retrieve_julia(platform::AbstractPlatform, julia_dir; version = julia_version(platform)) 
 
     base_url = "https://julialang-s3.julialang.org/bin"
 
