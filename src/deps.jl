@@ -1,8 +1,6 @@
 import Downloads
 import Artifacts
 
-using Infiltrator
-
 import Pkg
 import Base.BinaryPlatforms: AbstractPlatform, Platform, os, arch, wordsize
 
