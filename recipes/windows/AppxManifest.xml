@@ -32,7 +32,7 @@
 		 uap10:Subsystem="windows" 
 		 uap10:SupportsMultipleInstances="true" 
 		 uap10:TrustLevel="mediumIL"
-		 uap11:Parameters="--startup-file=no --eval=&quot;include(joinpath(dirname(dirname(Sys.BINDIR)), \&quot;main.jl\&quot;)) &quot;"> <!-- use -i for returning into console -->
+		 uap11:Parameters="--startup-file=no {{FLAGS}} --eval=&quot;include(joinpath(dirname(dirname(Sys.BINDIR)), \&quot;main.jl\&quot;)) &quot;"> <!-- use -i for returning into console -->
 
      <uap:VisualElements DisplayName="{{APP_DISPLAY_NAME}}" 
                          Square150x150Logo="assets\icon.png"

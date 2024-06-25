@@ -1,7 +1,7 @@
 ENV["BUNDLE_IDENTIFIER"] = "{{BUNDLE_IDENTIFIER}}"
 ENV["APP_DIR_NAME"] = "{{APP_DIR_NAME}}"
 
-ENV["ROOT"] = @__DIR__ #dirname(dirname(Sys.BINDIR))
+ENV["ROOT"] = @__DIR__ 
 ENV["JULIA"] = joinpath(Sys.BINDIR, "julia.exe") 
 ENV["JULIA_DEBUG"] = "loading"
 
@@ -98,9 +98,11 @@ include("startup/precompile.jl")
 
 end
 
-# Need to test that it works as expected
-# redirect_stdout()
-# redirect_stderr()
+if !WINDOWS_STARTUP.debug
+    redirect_stdout()
+    redirect_stderr()
 
-include(joinpath(@__DIR__, "startup", "init.jl")) # One may set up a logging there
+    include(joinpath(@__DIR__, "startup", "init.jl")) # One may set up a logging there
+end
+
 include(joinpath(@__DIR__, ENV["APP_DIR_NAME"], "main.jl"))

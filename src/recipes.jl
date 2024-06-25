@@ -92,13 +92,15 @@ function bundle_app(platform::Linux, source, destination; compress::Bool = isext
 end
 
 
-function bundle_app(platform::Windows, source, destination; with_splash_screen=nothing, compress::Bool = isext(destination, ".zip"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, flags::String = "", debug::Bool = false)
+function bundle_app(platform::Windows, source, destination; with_splash_screen=nothing, compress::Bool = isext(destination, ".zip"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false)
 
     rm(destination, recursive=true, force=true)
 
     parameters = get_bundle_parameters("$source/Project.toml")
-    parameters["FLAGS"] = flags
-    parameters["DEBUG"] = debug
+    parameters["DEBUG"] = debug ? "true" : "false"
+    if debug
+        parameters["FLAGS"] = "-i"
+    end
 
     app_name = parameters["APP_NAME"]
 
@@ -135,19 +137,14 @@ function bundle_app(platform::Windows, source, destination; with_splash_screen=n
     retrieve_packages(source, "$app_dir/packages"; with_splash_screen)
     retrieve_artifacts(platform, "$app_dir/packages", "$app_dir/artifacts")
 
-    #copy_app(source, joinpath(app_dir, app_name))
     copy_app(source, joinpath(app_dir, parameters["APP_DIR_NAME"]))
-    #copy_app(source, joinpath(app_dir, basename(realpath(source))))
 
-    # I could check integrity here
     ensure_windows_compatability(app_dir; path_length_threshold, skip_long_paths)
     
     if compress
         @info "Compressing into a zip archive"
         zip_directory(app_dir, destination)
         rm(app_dir, recursive=true, force=true)
-    else
-        mv(app_dir, destination)
     end
     
     return
