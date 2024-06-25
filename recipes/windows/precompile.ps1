@@ -1,10 +1,7 @@
-$APP_NAME="{{APP_NAME}}"
-$ROOT=$PSScriptRoot
-
 $JULIA="$PSScriptRoot\julia\bin\julia.exe"
 
-$env:JULIA_LOAD_PATH="$ROOT\packages;@stdlib;@"
-$env:JULIA_DEPOT_PATH="$ROOT"
-$env:JULIA_PROJECT="$ROOT\$APP_NAME"
+$env:JULIA_LOAD_PATH="$PSScriptRoot\packages;@stdlib;@"
+$env:JULIA_DEPOT_PATH="$PSScriptRoot"
+$env:JULIA_PROJECT="$PSScriptRoot\{{APP_DIR_NAME}}"
 
-& $JULIA --startup-file=no "$ROOT\startup\precompile.jl"
+& $JULIA --startup-file=no "$PSScriptRoot\startup\precompile.jl"

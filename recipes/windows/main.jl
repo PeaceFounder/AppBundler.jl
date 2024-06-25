@@ -1,10 +1,13 @@
 ENV["BUNDLE_IDENTIFIER"] = "{{BUNDLE_IDENTIFIER}}"
-ENV["APP_NAME"] = "{{APP_NAME}}"
+ENV["APP_DIR_NAME"] = "{{APP_DIR_NAME}}"
 
-ENV["ROOT"] = dirname(dirname(Sys.BINDIR))
+ENV["ROOT"] = @__DIR__ #dirname(dirname(Sys.BINDIR))
 ENV["JULIA"] = joinpath(Sys.BINDIR, "julia.exe") 
+ENV["JULIA_DEBUG"] = "loading"
 
 module WINDOWS_STARTUP
+
+const debug = {{DEBUG}}
 
 const WITH_SPLASH_SCREEN={{WITH_SPLASH_SCREEN}}
 
@@ -48,25 +51,31 @@ end
 
 @assert isdir(ENV["USER_DATA"]) "User data directory USER_DATA = $USER_DATA does not exist."
 
-logfile = open(joinpath(ENV["USER_DATA"], "startup.log"), "w")
-redirect_stdout(logfile)
-redirect_stderr(logfile)
+if !debug # In case od debug the output is better being shown on the screen
+    logfile = open(joinpath(ENV["USER_DATA"], "startup.log"), "w")
+    redirect_stdout(logfile)
+    redirect_stderr(logfile)
+    println("LOGFILE INITIALIZED")
+end
 
-#import Dates
-println("LOGFILE INITIALIZED")
+println("User data directory: " * ENV["USER_DATA"]) 
 
 popfirst!(DEPOT_PATH)
-pushfirst!(DEPOT_PATH, ENV["ROOT"])
+pushfirst!(DEPOT_PATH, @__DIR__)
 pushfirst!(DEPOT_PATH, joinpath(ENV["USER_DATA"], "cache"))
 ENV["JULIA_DEPOT_PATH"] = join(DEPOT_PATH, ";")
 
-pushfirst!(LOAD_PATH, joinpath(ENV["ROOT"])) # Needed for the app
-pushfirst!(LOAD_PATH, joinpath(ENV["ROOT"], "packages"))
+pushfirst!(LOAD_PATH, @__DIR__) # Needed for the app
+pushfirst!(LOAD_PATH, joinpath(@__DIR__, "packages"))
 ENV["JULIA_LOAD_PATH"] = join(LOAD_PATH, ";")
 
 PRECOMPILED = joinpath(ENV["USER_DATA"], "cache", "precompiled")
 
-if !(isdir(joinpath(ENV["ROOT"], "compiled")) || isfile(PRECOMPILED))
+if !WINDOWS_STARTUP.debug
+    rm(dirname(PRECOMPILED), recursive=true, force=true)
+end
+
+if WITH_SPLASH_SCREEN && ( !(isdir(joinpath(@__DIR__, "compiled")) || isfile(PRECOMPILED)) )
 
     @info "Precompiling..."
 
@@ -80,18 +89,18 @@ if !(isdir(joinpath(ENV["ROOT"], "compiled")) || isfile(PRECOMPILED))
 
         include("startup/configure.jl")
         touch(PRECOMPILED)
-
-    else
-        include("startup/precompile.jl")
     end
 end
 
-@info "Precompilation Finished"
-
-redirect_stdout()
-redirect_stderr()
+@info "Loading startup modules"
+include("startup/precompile.jl")
+@info "Loading succcesfull"
 
 end
 
-include(joinpath(ENV["ROOT"], "startup", "init.jl")) # One may set up a logging there
-include(joinpath(ENV["ROOT"], ENV["APP_NAME"], "main.jl"))
+# Need to test that it works as expected
+# redirect_stdout()
+# redirect_stderr()
+
+include(joinpath(@__DIR__, "startup", "init.jl")) # One may set up a logging there
+include(joinpath(@__DIR__, ENV["APP_DIR_NAME"], "main.jl"))

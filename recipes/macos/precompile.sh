@@ -16,4 +16,4 @@ JULIA_MAIN="$SCRIPT_DIR/../Libraries/$APP_NAME/main.jl"
 
 export JULIA_DEPOT_PATH="$SCRIPT_DIR/../Libraries/"
 
-$JULIA --startup-file=no --pkgimages=no "$SCRIPT_DIR/../Libraries/startup/precompile.jl"
+$JULIA --startup-file=no "$SCRIPT_DIR/../Libraries/startup/precompile.jl"

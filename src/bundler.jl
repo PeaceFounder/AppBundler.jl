@@ -139,7 +139,8 @@ function get_bundle_parameters(project_toml)
     parameters = Dict{String, Any}()
 
     app_name = haskey(toml_dict, "APP_NAME") ? toml_dict["APP_NAME"] : haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
-    parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-")) 
+    parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
+    parameters["APP_DIR_NAME"] = haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
 
     parameters["APP_VERSION"] = haskey(toml_dict, "version") ? toml_dict["version"] : "0.0.1"
 

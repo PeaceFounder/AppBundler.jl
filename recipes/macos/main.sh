@@ -34,14 +34,14 @@ PRECOMPILED="$CACHE_DIR/precompiled"
 
 if [ -e $PRECOMPILED ] || [ -d "$SCRIPT_DIR/../Libraries/compiled" ]; then
 
-    $JULIA --startup-file=no --pkgimages=no -L "$SCRIPT_DIR/../Libraries/startup/init.jl" $JULIA_MAIN
+    $JULIA --startup-file=no -L "$SCRIPT_DIR/../Libraries/startup/init.jl" $JULIA_MAIN
     
 else
 
     if $WITH_SPLASH_SCREEN ; then
-        $JULIA --startup-file=no --pkgimages=no "$SCRIPT_DIR/../Libraries/startup/configure.jl"
+        $JULIA --startup-file=no "$SCRIPT_DIR/../Libraries/startup/configure.jl"
     else
-        $JULIA --startup-file=no --pkgimages=no "$SCRIPT_DIR/../Libraries/startup/precompile.jl"
+        $JULIA --startup-file=no "$SCRIPT_DIR/../Libraries/startup/precompile.jl"
     fi
 
     mkdir -p $(dirname $PRECOMPILED)
