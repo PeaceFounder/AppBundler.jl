@@ -137,7 +137,7 @@ function bundle_app(platform::Windows, source, destination; with_splash_screen=n
     retrieve_packages(source, "$app_dir/packages"; with_splash_screen)
     retrieve_artifacts(platform, "$app_dir/packages", "$app_dir/artifacts")
 
-    copy_app(source, joinpath(app_dir, parameters["APP_DIR_NAME"]))
+    copy_app(source, "$app_dir/$app_name")
 
     ensure_windows_compatability(app_dir; path_length_threshold, skip_long_paths)
     

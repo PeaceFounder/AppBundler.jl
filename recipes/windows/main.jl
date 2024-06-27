@@ -1,5 +1,6 @@
+
 ENV["BUNDLE_IDENTIFIER"] = "{{BUNDLE_IDENTIFIER}}"
-ENV["APP_DIR_NAME"] = "{{APP_DIR_NAME}}"
+ENV["APP_NAME"] = "{{APP_NAME}}"
 
 ENV["ROOT"] = @__DIR__ 
 ENV["JULIA"] = joinpath(Sys.BINDIR, "julia.exe") 
@@ -60,14 +61,35 @@ end
 
 println("User data directory: " * ENV["USER_DATA"]) 
 
-popfirst!(DEPOT_PATH)
-pushfirst!(DEPOT_PATH, @__DIR__)
-pushfirst!(DEPOT_PATH, joinpath(ENV["USER_DATA"], "cache"))
-ENV["JULIA_DEPOT_PATH"] = join(DEPOT_PATH, ";")
+Base.ACTIVE_PROJECT[] = joinpath(@__DIR__, ENV["APP_NAME"])
 
-pushfirst!(LOAD_PATH, @__DIR__) # Needed for the app
-pushfirst!(LOAD_PATH, joinpath(@__DIR__, "packages"))
+empty!(LOAD_PATH)
+append!(LOAD_PATH, [
+    joinpath(@__DIR__, "packages"),
+    "@",
+    "@stdlib"
+])
+
+empty!(DEPOT_PATH)
+append!(DEPOT_PATH, [
+    joinpath(ENV["USER_DATA"], "cache"),
+    @__DIR__
+])
+        
+# Setting up environment variables in case one starts subproceeses with `run`
+ENV["JULIA_PROJECT"] = Base.ACTIVE_PROJECT[]
+ENV["JULIA_DEPOT_PATH"] = join(DEPOT_PATH, ";")
 ENV["JULIA_LOAD_PATH"] = join(LOAD_PATH, ";")
+
+println("DEPOT_PATH:")
+for i in DEPOT_PATH
+    println("\t$i")
+end
+
+println("LOAD_PATH:")
+for i in LOAD_PATH
+    println("\t$i")
+end
 
 PRECOMPILED = joinpath(ENV["USER_DATA"], "cache", "precompiled")
 
@@ -104,5 +126,4 @@ if !WINDOWS_STARTUP.debug
 
     include(joinpath(@__DIR__, "startup", "init.jl")) # One may set up a logging there
 end
-
-include(joinpath(@__DIR__, ENV["APP_DIR_NAME"], "main.jl"))
+include(joinpath(@__DIR__, ENV["APP_NAME"], "main.jl"))
