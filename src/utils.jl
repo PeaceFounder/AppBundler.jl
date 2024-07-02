@@ -194,3 +194,43 @@ function linux_arch_triplet(arch::Symbol)
     end
 
 end
+
+
+function ensure_track_content_fpath(file_path::AbstractString)
+
+    function transform_dependency(match)
+        e = Meta.parse(match)
+        return "include_dependency($(e.args[2]), track_content=true)"
+    end
+
+    content = read(file_path, String)
+    new_content = replace(content, r"include_dependency.*" => transform_dependency)
+    
+    if content != new_content
+
+        chmod(file_path, 0o644)
+        write(file_path, new_content)
+        chmod(file_path, 0o444)
+        @info "include_dependency updated $file_path"
+
+    end
+end
+
+
+function ensure_track_content(dir_path::AbstractString)
+
+    for (root, dirs, files) in walkdir(dir_path)
+        for file in files
+            if endswith(file, ".jl")
+                file_path = joinpath(root, file)
+                try
+                    ensure_track_content_fpath(file_path)
+                catch 
+                    @info "include_dependency skipped $file_path"
+                end
+            end
+        end
+    end
+
+    return
+end

@@ -140,6 +140,11 @@ function bundle_app(platform::Windows, source, destination; with_splash_screen=n
     copy_app(source, "$app_dir/$app_name")
 
     ensure_windows_compatability(app_dir; path_length_threshold, skip_long_paths)
+    ensure_track_content("$app_dir/packages") # workaround until release with trcack_content patch is available
+
+    if debug
+        touch(joinpath(app_dir, "debug"))
+    end
     
     if compress
         @info "Compressing into a zip archive"
