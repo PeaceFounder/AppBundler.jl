@@ -121,9 +121,9 @@ include("startup/precompile.jl")
 end
 
 if !WINDOWS_STARTUP.debug
-    redirect_stdout()
-    redirect_stderr()
-
+    # If uncommented uppon error the application crashes
+    # redirect_stdout()
+    # redirect_stderr()
     include(joinpath(@__DIR__, "startup", "init.jl")) # One may set up a logging there
 end
 include(joinpath(@__DIR__, ENV["APP_NAME"], "main.jl"))
