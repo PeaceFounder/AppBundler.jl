@@ -14,3 +14,4 @@ AppBundler.bundle_app(Linux(:x86_64), APP_DIR, "$BUILD_DIR/qmlapp-x64.snap")
 AppBundler.bundle_app(Linux(:aarch64), APP_DIR, "$BUILD_DIR/qmlapp-arm64.snap")
 
 AppBundler.bundle_app(Windows(:x86_64), APP_DIR, "$BUILD_DIR/qmlapp-win64.zip")
+#AppBundler.bundle_app(Windows(:x86_64), APP_DIR, "$BUILD_DIR/qmlapp-win64")
