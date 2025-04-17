@@ -1,3 +1,10 @@
+using AppBundlerUtils_jll
+
+function get_macos_launcher_path(arch)
+    return AppBundlerUtils_jll.macos_launcher_path
+end
+
+
 function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing)
 
     rm(destination, recursive=true, force=true)
@@ -23,7 +30,7 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
     add_rule!(bundle, "precompile.jl", "Libraries/startup/precompile.jl")
     add_rule!(bundle, "startup", "Libraries/startup")
 
-    add_rule!(bundle, "macos/main.sh", "Libraries/$app_name", template=true, executable=true)
+    add_rule!(bundle, "macos/main.sh", "Libraries/main", template=true, executable=true)
     add_rule!(bundle, "macos/precompile.sh", "MacOS/precompile", template=true, executable=true)
     add_rule!(bundle, "macos/Info.plist", "Info.plist", template=true)
 
@@ -37,6 +44,12 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
     retrieve_julia(platform, "$app_dir/Libraries/julia")
     retrieve_packages(source, "$app_dir/Libraries/packages"; with_splash_screen)
     retrieve_artifacts(platform, "$app_dir/Libraries/packages", "$app_dir/Libraries/artifacts")
+
+    
+    arch = "arm64"
+    launcher_path = get_macos_launcher_path(arch)
+    cp(launcher_path, joinpath(destination, "Contents/MacOS/$app_name"); force=true)
+    chmod(joinpath(destination, "Contents/MacOS/$app_name"), 0o755)
 
     return
 end
