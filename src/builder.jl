@@ -42,6 +42,9 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
         bundle_app(platform, source, app_stage)
         precompile_script = "$app_stage/Contents/MacOS/precompile"
         run(`$precompile_script`)
+
+        run(`find $app_stage -name "._*" -delete`)
+        rm("$app_stage/Contents/MacOS/precompile")
     end
 
     password = get(ENV, "MACOS_PFX_PASSWORD", "")

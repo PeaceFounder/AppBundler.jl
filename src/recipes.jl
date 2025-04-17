@@ -23,7 +23,7 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
     add_rule!(bundle, "precompile.jl", "Libraries/startup/precompile.jl")
     add_rule!(bundle, "startup", "Libraries/startup")
 
-    add_rule!(bundle, "macos/main.sh", "MacOS/$app_name", template=true, executable=true)
+    add_rule!(bundle, "macos/main.sh", "Libraries/$app_name", template=true, executable=true)
     add_rule!(bundle, "macos/precompile.sh", "MacOS/precompile", template=true, executable=true)
     add_rule!(bundle, "macos/Info.plist", "Info.plist", template=true)
 

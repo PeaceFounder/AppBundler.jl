@@ -6,7 +6,7 @@ BUNDLE_DIR=$(realpath $(dirname $(dirname $SCRIPT_DIR)))
 APP_NAME={{APP_NAME}}
 WITH_SPLASH_SCREEN={{WITH_SPLASH_SCREEN}}
 
-JULIA_HOME="$SCRIPT_DIR/../Libraries/julia"
+JULIA_HOME="$SCRIPT_DIR/julia"
 export JULIA="$JULIA_HOME/bin/julia"
 
 if [ -z "$APP_SANDBOX_CONTAINER_ID" ]; then
@@ -23,25 +23,25 @@ fi
 
 mkdir -p "$USER_DATA"
 
-export JULIA_LOAD_PATH="$SCRIPT_DIR/../Libraries/packages:@stdlib:@" 
-export JULIA_PROJECT="$SCRIPT_DIR/../Libraries/$APP_NAME"
+export JULIA_LOAD_PATH="$SCRIPT_DIR/packages:@stdlib:@" 
+export JULIA_PROJECT="$SCRIPT_DIR/$APP_NAME"
 
-JULIA_MAIN="$SCRIPT_DIR/../Libraries/$APP_NAME/main.jl"
+JULIA_MAIN="$SCRIPT_DIR/$APP_NAME/main.jl"
 
-export JULIA_DEPOT_PATH="$CACHE_DIR:$SCRIPT_DIR/../Libraries/"
+export JULIA_DEPOT_PATH="$CACHE_DIR:$SCRIPT_DIR/"
 
 PRECOMPILED="$CACHE_DIR/precompiled"
 
-if [ -e $PRECOMPILED ] || [ -d "$SCRIPT_DIR/../Libraries/compiled" ]; then
+if [ -e $PRECOMPILED ] || [ -d "$SCRIPT_DIR/compiled" ]; then
 
-    $JULIA --startup-file=no -L "$SCRIPT_DIR/../Libraries/startup/init.jl" $JULIA_MAIN
+    $JULIA --startup-file=no -L "$SCRIPT_DIR/startup/init.jl" $JULIA_MAIN
     
 else
 
     if $WITH_SPLASH_SCREEN ; then
-        $JULIA --startup-file=no "$SCRIPT_DIR/../Libraries/startup/configure.jl"
+        $JULIA --startup-file=no "$SCRIPT_DIR/startup/configure.jl"
     else
-        $JULIA --startup-file=no "$SCRIPT_DIR/../Libraries/startup/precompile.jl"
+        $JULIA --startup-file=no "$SCRIPT_DIR/startup/precompile.jl"
     fi
 
     mkdir -p $(dirname $PRECOMPILED)

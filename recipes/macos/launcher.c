@@ -10,7 +10,8 @@ const int PATH_MAX = 1024;
 
 int main(void) {
   // Hardcoded relative path to the executable
-  char *relativeExecutablePath = "main";  
+  //char *relativeExecutablePath = "main";  
+  char *relativeExecutablePath = "../Libraries/main";  
 
   char launcherPath[PATH_MAX];
   uint32_t size = sizeof(launcherPath);
