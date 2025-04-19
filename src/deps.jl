@@ -3,6 +3,7 @@ import Artifacts
 
 import Pkg
 import Base.BinaryPlatforms: AbstractPlatform, Platform, os, arch, wordsize
+using AppBundlerUtils_jll
 
 function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
 
@@ -221,6 +222,28 @@ function copy_app(source, destination)
         (i == "meta") && continue
 
         cp(joinpath(source, i), joinpath(destination, i))
+    end
+
+    return
+end
+
+
+function retrieve_macos_launcher(platform::AbstractPlatform, destination)
+
+    artifacts_toml = joinpath(dirname(dirname(pathof(AppBundlerUtils_jll))), "Artifacts.toml")
+    artifacts = Artifacts.select_downloadable_artifacts(artifacts_toml; platform)["AppBundlerUtils"]
+
+    try 
+
+        Artifacts.ARTIFACTS_DIR_OVERRIDE[] = artifacts_cache()
+        
+        hash = artifacts["git-tree-sha1"]
+        Pkg.Artifacts.ensure_artifact_installed("AppBundlerUtils", artifacts, artifacts_toml) 
+        cp(joinpath(artifacts_cache(), hash, "bin", "macos_launcher"), destination, force=true)
+        chmod(destination, 0o755)
+
+    finally
+        Artifacts.ARTIFACTS_DIR_OVERRIDE[] = nothing
     end
 
     return

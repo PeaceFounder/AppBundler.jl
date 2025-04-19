@@ -1,9 +1,6 @@
-using AppBundlerUtils_jll
-
-function get_macos_launcher_path(arch)
-    return AppBundlerUtils_jll.macos_launcher_path
-end
-
+# function get_macos_launcher_path(arch)
+#     return AppBundlerUtils_jll.macos_launcher_path
+# end
 
 function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing)
 
@@ -46,10 +43,12 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
     retrieve_artifacts(platform, "$app_dir/Libraries/packages", "$app_dir/Libraries/artifacts")
 
     
-    arch = "arm64"
-    launcher_path = get_macos_launcher_path(arch)
-    cp(launcher_path, joinpath(destination, "Contents/MacOS/$app_name"); force=true)
-    chmod(joinpath(destination, "Contents/MacOS/$app_name"), 0o755)
+    retrieve_macos_launcher(platform, joinpath(destination, "Contents/MacOS/$app_name"))
+
+    # arch = "arm64"
+    # launcher_path = get_macos_launcher_path(arch)
+    # cp(launcher_path, joinpath(destination, "Contents/MacOS/$app_name"); force=true)
+    # chmod(joinpath(destination, "Contents/MacOS/$app_name"), 0o755)
 
     return
 end

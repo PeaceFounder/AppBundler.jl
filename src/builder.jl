@@ -1,7 +1,8 @@
 using libdmg_hfsplus_jll: dmg
-using xorriso_jll: xorriso
+using Xorriso_jll: xorriso
 using rcodesign_jll: rcodesign
-using Clang_jll: clang
+
+
 
 function generate_self_signing_pfx(source, destination; password = "PASSWORD")
 
@@ -13,6 +14,10 @@ end
 # if unset a self signing certificate could be used instead
 # placing it at the meta folder as macos.pfx seems like a good option
 function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), compression =:lzma, debug = true, precompile = true)
+
+    if precompile && (!Sys.isapple() || (Sys.ARCH == "x86_64" && arch(platform) != Sys.ARCH))
+        error("Precompilation can only be done on MacOS as currently Julia does not support cross compilation. Set `precompile=false` to make a bundle without precompilation.")
+    end
 
     # warn that precompilation can not happen on the host system as desitnation is different
     appname = splitext(basename(destination))[1]
@@ -31,10 +36,14 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
         bundle_app(platform, source, app_stage)
 
         if precompile
+            @info "Precompiling"
             precompile_script = "$app_stage/Contents/MacOS/precompile"
             run(`$precompile_script`)
+        else
+            @info "Precompilation disabled. Precompilation will happen on the desitination system at first launch."
         end
 
+        # I could write tests and check them with thoose ones
         run(`find $app_stage -name "._*" -delete`)
         rm("$app_stage/Contents/MacOS/precompile")
     end
