@@ -40,7 +40,17 @@ if Sys.isunix()
 
     end
     
-    
+
+    @info "Testing examples"
+
+    @info "GTKApp"
+    @eval include("../examples/gtkapp/meta/build.jl")
+    @info "Mousetrap"
+    @eval include("../examples/mousetrap/meta/build.jl")
+    @info "QMLApp"
+    @eval include("../examples/qmlapp/meta/build.jl")
+    @info "GLApp"
+    @eval include("../examples/glapp/meta/build.jl")
 
 end
 

@@ -8,7 +8,7 @@ function generate_self_signing_pfx(source, destination; password = "PASSWORD")
 
 end
 
-function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), compression =:lzma, debug = true, precompile = true, incremental = true)
+function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), compression =:lzma, debug = false, precompile = true, incremental = true)
 
     if precompile && (!Sys.isapple() || (Sys.ARCH == "x86_64" && arch(platform) != Sys.ARCH))
         error("Precompilation can only be done on MacOS as currently Julia does not support cross compilation. Set `precompile=false` to make a bundle without precompilation.")
@@ -38,7 +38,7 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
             end
 
             julia = "$app_stage/Contents/Libraries/julia/bin/julia"
-            startup = "$app_stage/Contents/Libraries/julia/etc/julia/startup.jl"
+            #startup = "$app_stage/Contents/Libraries/julia/etc/julia/startup.jl"
             
             # Run the command with the modified environment
             # withenv("JULIA_DEBUG" => "loading") do
@@ -49,9 +49,8 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
             @info "Precompilation disabled. Precompilation will happen on the desitination system at first launch."
         end
 
-        # I could write tests and check them with thoose ones
+        # May not the only ones
         run(`find $app_stage -name "._*" -delete`)
-        #rm("$app_stage/Contents/MacOS/precompile")
     end
 
     password = get(ENV, "MACOS_PFX_PASSWORD", "")
@@ -86,3 +85,34 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
 
     return
 end
+
+
+function build_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"))
+
+    rm(destination, recursive=true, force=true)
+
+    if compress
+        app_dir = joinpath(tempdir(), basename(destination)[1:end-4])
+        rm(app_dir, recursive=true, force=true)
+    else
+        app_dir = destination 
+    end
+    mkpath(app_dir)
+
+    @info "Bundling the application"
+
+    bundle_app(platform, source, app_dir)
+    
+    # ToDo: refactor precompilation
+    
+    if compress
+        @info "Squashing into a snap archive"
+        squash_snap(app_dir, destination)
+        rm(app_dir, recursive=true, force=true)
+    end
+
+    return
+end
+
+# ToDo: MSIX building functionality
+build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".zip"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false) = bundle_app(platform, source, destination; compress, path_length_threshold, skip_long_paths, debug)

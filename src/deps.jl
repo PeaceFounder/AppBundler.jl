@@ -4,6 +4,7 @@ import Artifacts
 import Pkg
 import Base.BinaryPlatforms: AbstractPlatform, Platform, os, arch, wordsize
 using AppBundlerUtils_jll
+using UUIDs
 
 function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
 
@@ -227,7 +228,22 @@ function copy_app(source, destination)
     # Creating a module if it does not exists
 
     toml_dict = TOML.parsefile(joinpath(source, "Project.toml"))
-    module_name = get(toml_dict, "name", dirname(source))
+
+    # This may be temporary
+    if haskey(toml_dict, "name")
+        module_name = toml_dict["name"]
+    else
+        @warn "Name of the application not found in Project.toml"
+        rm(joinpath(destination, "Project.toml"))
+        toml_dict["name"] = basename(destination)
+        toml_dict["uuid"] = string(uuid4())
+
+        open(joinpath(destination, "Project.toml"), "w") do io
+            TOML.print(io, toml_dict)
+        end
+    end
+    
+    module_name = toml_dict["name"]
 
     path = joinpath(destination, "src/$module_name.jl")
 

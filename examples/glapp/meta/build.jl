@@ -7,4 +7,4 @@ APP_DIR = dirname(@__DIR__)
 BUILD_DIR = joinpath(APP_DIR, "build")
 mkpath(BUILD_DIR)
 
-AppBundler.bundle_app(Linux(:x86_64), APP_DIR, "$BUILD_DIR/glapp-x64.snap")
+AppBundler.build_app(Linux(:x86_64), APP_DIR, "$BUILD_DIR/glapp-x64.snap")

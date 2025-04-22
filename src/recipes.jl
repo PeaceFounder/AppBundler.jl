@@ -44,9 +44,9 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
 end
 
 
-function bundle_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"))
+function bundle_app(platform::Linux, source, app_dir)
 
-    rm(destination, recursive=true, force=true)
+    rm(app_dir, recursive=true, force=true)
 
     # This may not be DRY enough
     parameters = get_bundle_parameters("$source/Project.toml")
@@ -54,13 +54,13 @@ function bundle_app(platform::Linux, source, destination; compress::Bool = isext
     app_name = parameters["APP_NAME"]
     parameters["ARCH_TRIPLET"] = linux_arch_triplet(arch(platform))
 
-    if compress
-        app_dir = joinpath(tempdir(), basename(destination)[1:end-4])
-        rm(app_dir, recursive=true, force=true)
-    else
-        app_dir = destination 
-    end
-    mkpath(app_dir)
+    # if compress
+    #     app_dir = joinpath(tempdir(), basename(destination)[1:end-4])
+    #     rm(app_dir, recursive=true, force=true)
+    # else
+    #     app_dir = destination 
+    # end
+    # mkpath(app_dir)
 
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
 
@@ -83,12 +83,6 @@ function bundle_app(platform::Linux, source, destination; compress::Bool = isext
     retrieve_julia(platform, "$app_dir/lib/julia")
     retrieve_packages(source, "$app_dir/lib/packages")
     retrieve_artifacts(platform, "$app_dir/lib/packages", "$app_dir/lib/artifacts")
-
-    if compress
-        @info "Squashing into a snap archive"
-        squash_snap(app_dir, destination)
-        rm(app_dir, recursive=true, force=true)
-    end
 
     return
 end
