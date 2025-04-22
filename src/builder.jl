@@ -2,16 +2,12 @@ using libdmg_hfsplus_jll: dmg
 using Xorriso_jll: xorriso
 using rcodesign_jll: rcodesign
 
-
 function generate_self_signing_pfx(source, destination; password = "PASSWORD")
 
     run(`$(rcodesign()) generate-self-signed-certificate --person-name="AppBundler" --p12-file="$destination" --p12-password="$password"`)
 
 end
 
-# MACOS_PFX_PASSWORD = ...
-# if unset a self signing certificate could be used instead
-# placing it at the meta folder as macos.pfx seems like a good option
 function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), compression =:lzma, debug = true, precompile = true, incremental = true)
 
     if precompile && (!Sys.isapple() || (Sys.ARCH == "x86_64" && arch(platform) != Sys.ARCH))

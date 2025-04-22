@@ -23,6 +23,7 @@ include("deps.jl")
 include("bundler.jl")
 include("recipes.jl")
 include("builder.jl")
+include("setup.jl")
 
 bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)
 
