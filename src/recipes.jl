@@ -1,13 +1,10 @@
-# function get_macos_launcher_path(arch)
-#     return AppBundlerUtils_jll.macos_launcher_path
-# end
-
 function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing)
 
     rm(destination, recursive=true, force=true)
 
     parameters = get_bundle_parameters("$source/Project.toml")
     app_name = parameters["APP_NAME"]
+    module_name = parameters["MODULE_NAME"]
 
     if isnothing(with_splash_screen) 
         with_splash_screen = parse(Bool, parameters["WITH_SPLASH_SCREEN"]) # When not set take a value 
@@ -24,31 +21,24 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
     add_rule!(bundle, "macos/Resources", "Resources")
     add_rule!(bundle, "icon.icns", "Resources/icon.icns")
     
-    add_rule!(bundle, "precompile.jl", "Libraries/startup/precompile.jl")
     add_rule!(bundle, "startup", "Libraries/startup")
 
     add_rule!(bundle, "macos/main.sh", "Libraries/main", template=true, executable=true)
-    add_rule!(bundle, "macos/precompile.sh", "MacOS/precompile", template=true, executable=true)
     add_rule!(bundle, "macos/Info.plist", "Info.plist", template=true)
 
-    add_rule!(bundle, "macos/launcher.c", "Resources/launcher.c")
-    add_rule!(bundle, "macos/Entitlements.plist", "Resources/Entitlements.plist")
-    add_rule!(bundle, "macos/dmg_settings.py", "Resources/dmg_settings.py")
-
+    mkpath("$app_dir/Libraries")
+    copy_app(source, "$app_dir/Libraries/$module_name")
+    retrieve_julia(platform, "$app_dir/Libraries/julia")
+    
+    add_rule!(bundle, "macos/startup.jl", "$app_dir/Libraries/julia/etc/julia/startup.jl", template=true, override=true)
+    
     build(bundle, app_dir, parameters)
 
-    copy_app(source, "$app_dir/Libraries/$app_name")
-    retrieve_julia(platform, "$app_dir/Libraries/julia")
     retrieve_packages(source, "$app_dir/Libraries/packages"; with_splash_screen)
     retrieve_artifacts(platform, "$app_dir/Libraries/packages", "$app_dir/Libraries/artifacts")
 
-    
+    mkdir(joinpath(destination, "Contents/MacOS"))
     retrieve_macos_launcher(platform, joinpath(destination, "Contents/MacOS/$app_name"))
-
-    # arch = "arm64"
-    # launcher_path = get_macos_launcher_path(arch)
-    # cp(launcher_path, joinpath(destination, "Contents/MacOS/$app_name"); force=true)
-    # chmod(joinpath(destination, "Contents/MacOS/$app_name"), 0o755)
 
     return
 end

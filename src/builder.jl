@@ -3,7 +3,6 @@ using Xorriso_jll: xorriso
 using rcodesign_jll: rcodesign
 
 
-
 function generate_self_signing_pfx(source, destination; password = "PASSWORD")
 
     run(`$(rcodesign()) generate-self-signed-certificate --person-name="AppBundler" --p12-file="$destination" --p12-password="$password"`)
@@ -13,7 +12,7 @@ end
 # MACOS_PFX_PASSWORD = ...
 # if unset a self signing certificate could be used instead
 # placing it at the meta folder as macos.pfx seems like a good option
-function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), compression =:lzma, debug = true, precompile = true)
+function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), compression =:lzma, debug = true, precompile = true, incremental = true)
 
     if precompile && (!Sys.isapple() || (Sys.ARCH == "x86_64" && arch(platform) != Sys.ARCH))
         error("Precompilation can only be done on MacOS as currently Julia does not support cross compilation. Set `precompile=false` to make a bundle without precompilation.")
@@ -37,15 +36,26 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
 
         if precompile
             @info "Precompiling"
-            precompile_script = "$app_stage/Contents/MacOS/precompile"
-            run(`$precompile_script`)
+
+            if !incremental
+                rm("$app_stage/Contents/Libraries/julia/share/julia/compiled", recursive=true)
+            end
+
+            julia = "$app_stage/Contents/Libraries/julia/bin/julia"
+            startup = "$app_stage/Contents/Libraries/julia/etc/julia/startup.jl"
+            
+            # Run the command with the modified environment
+            # withenv("JULIA_DEBUG" => "loading") do
+            run(`$julia --eval '_precompile()'`)
+            # end
+            
         else
             @info "Precompilation disabled. Precompilation will happen on the desitination system at first launch."
         end
 
         # I could write tests and check them with thoose ones
         run(`find $app_stage -name "._*" -delete`)
-        rm("$app_stage/Contents/MacOS/precompile")
+        #rm("$app_stage/Contents/MacOS/precompile")
     end
 
     password = get(ENV, "MACOS_PFX_PASSWORD", "")
@@ -57,7 +67,15 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
         generate_self_signing_pfx(source, pfx_path; password = "")
     end
 
-    run(`$(rcodesign()) sign --shallow --p12-file "$pfx_path" --p12-password "$password" --entitlements-xml-path "$app_stage/Contents/Resources/Entitlements.plist" "$app_stage"`)
+    entitlements_path = joinpath(source, "meta/macos/Entitlements.plist")
+    if isfile(entitlements_path)
+        @info "Using entitlements $entitlements_path"
+    else
+        @info "No override found at $entitlements_path; using default override"
+        entitlements_path = joinpath(dirname(@__DIR__), "recipes/macos/Entitlements.plist")
+    end
+
+    run(`$(rcodesign()) sign --shallow --p12-file "$pfx_path" --p12-password "$password" --entitlements-xml-path "$entitlements_path" "$app_stage"`)
 
     if compress
         rm(joinpath(dirname(app_stage), "Applications"); force=true)
@@ -72,5 +90,3 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
 
     return
 end
-
-

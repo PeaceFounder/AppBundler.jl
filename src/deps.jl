@@ -224,6 +224,28 @@ function copy_app(source, destination)
         cp(joinpath(source, i), joinpath(destination, i))
     end
 
+    # Creating a module if it does not exists
+
+    toml_dict = TOML.parsefile(joinpath(source, "Project.toml"))
+    module_name = get(toml_dict, "name", dirname(source))
+
+    path = joinpath(destination, "src/$module_name.jl")
+
+    if !isfile(path)
+
+        mkpath(joinpath(destination, "src"))
+
+        dependencies = toml_dict["deps"]
+        deps = join(["using $i" for i in keys(dependencies)], "\n")
+
+        write(path, """
+        module $module_name
+        $deps
+        end
+        """)
+
+    end
+
     return
 end
 
