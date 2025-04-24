@@ -5,7 +5,7 @@ ShowToolbar = false
 ShowStatusBar = false
 ShowTabView = false
 PreviewPaneVisibility = false
-WindowBounds = "{{200, 120}, {600, 360}}"
+WindowBounds = "{ {200, 120}, {600, 360} }"
 SidebarWidth = 180
 ShowPathbar = false
 

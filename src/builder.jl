@@ -17,7 +17,8 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
     parameters = get_bundle_parameters("$source/Project.toml")
 
     # warn that precompilation can not happen on the host system as desitnation is different
-    appname = splitext(basename(destination))[1]
+    #appname = splitext(basename(destination))[1]
+    appname = parameters["APP_NAME"]
     
     staging_dir = debug ? dirname(destination) : joinpath(tempdir(), appname) 
     app_stage = compress ? joinpath(staging_dir, "$appname/$appname.app") : destination
@@ -112,6 +113,8 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
                     end
                 end
 
+                @show ds
+
             end
         end
 
@@ -120,7 +123,9 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
         add_rule!(bundle, "macos/DS_Store", ".DS_Store")
         build(bundle, dirname(app_stage), Dict())
 
-        run(`$(xorriso()) -as mkisofs -V "$appname Installer" -hfsplus -hfsplus-file-creator-type APPL APPL $(basename(app_stage)) -hfs-bless-by x / -relaxed-filenames -no-pad -o $iso_stage $(dirname(app_stage))`)
+        installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
+
+        run(`$(xorriso()) -as mkisofs -V "$installer_title" -hfsplus -hfsplus-file-creator-type APPL APPL $(basename(app_stage)) -hfs-bless-by x / -relaxed-filenames -no-pad -o $iso_stage $(dirname(app_stage))`)
 
         run(`$(dmg()) dmg $iso_stage $destination --compression=lzma`)
 
