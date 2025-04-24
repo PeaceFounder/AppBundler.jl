@@ -93,9 +93,6 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
             end
 
             dsstore_toml = Mustache.render(String(read(dsstore_toml_template)), parameters)
-
-            println(dsstore_toml)
-
             dsstore_dict = TOML.parse(dsstore_toml)
             
             DSStore.open_dsstore(dsstore_destination, "w+") do ds
@@ -109,8 +106,6 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
                         ds[file_key, entry_key] = file_dict[entry_key]
                     end
                 end
-
-                @show ds
 
             end
         end

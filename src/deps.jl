@@ -230,13 +230,20 @@ function copy_app(source, destination)
     toml_dict = TOML.parsefile(joinpath(source, "Project.toml"))
 
     # This may be temporary
-    if haskey(toml_dict, "name")
+    if haskey(toml_dict, "name") && haskey(toml_dict, "uuid")
         module_name = toml_dict["name"]
     else
-        @warn "Name of the application not found in Project.toml"
-        rm(joinpath(destination, "Project.toml"))
-        toml_dict["name"] = basename(destination)
-        toml_dict["uuid"] = string(uuid4())
+        #rm(joinpath(destination, "Project.toml"))
+
+        if !haskey(toml_dict, "name")
+            @warn "Name of the application not found in Project.toml"
+            toml_dict["name"] = basename(destination)
+        end
+
+        if !haskey(toml_dict, "uuid")
+            @info "Assigning UUID for the Project.toml"
+            toml_dict["uuid"] = string(uuid4())
+        end
 
         open(joinpath(destination, "Project.toml"), "w") do io
             TOML.print(io, toml_dict)
