@@ -98,9 +98,6 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
 
             dsstore_dict = TOML.parse(dsstore_toml)
             
-            #dsstore_dict["."]["icvl"] = ("type", "icnv")
-            #dsstore_dict["."]["vSrn"] = ("long", 1)
-
             DSStore.open_dsstore(dsstore_destination, "w+") do ds
 
                 ds[".", "icvl"] = ("type", "icnv")

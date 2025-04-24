@@ -6,8 +6,7 @@ src_dir = joinpath(dirname(@__DIR__), "examples/gtkapp")
 build_dir = joinpath(tempdir(), "gtkapp_build")
 rm(build_dir; recursive=true, force=true)
 
-#build_app(MacOS(:x86_64), src_dir, joinpath(build_dir, "gtkapp.dmg"); debug = true, precompile = Sys.isapple())
-build_app(MacOS(:x86_64), src_dir, joinpath(build_dir, "gtkapp.dmg"); debug = true, precompile = true)
+build_app(MacOS(:x86_64), src_dir, joinpath(build_dir, "gtkapp.dmg"); debug = true, precompile = Sys.isapple())
 
 app_dir = joinpath(build_dir, "gtkapp/gtkapp.app")
 
