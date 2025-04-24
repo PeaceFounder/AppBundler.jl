@@ -14,6 +14,8 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
         error("Precompilation can only be done on MacOS as currently Julia does not support cross compilation. Set `precompile=false` to make a bundle without precompilation.")
     end
 
+    parameters = get_bundle_parameters("$source/Project.toml")
+
     # warn that precompilation can not happen on the host system as desitnation is different
     appname = splitext(basename(destination))[1]
     
@@ -28,7 +30,7 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
     end
 
     if !isdir(app_stage)
-        bundle_app(platform, source, app_stage)
+        bundle_app(platform, source, app_stage; parameters)
 
         if precompile
             @info "Precompiling"
@@ -76,7 +78,49 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
         rm(joinpath(dirname(app_stage), "Applications"); force=true)
         symlink("/Applications", joinpath(dirname(app_stage), "Applications"); dir_target=true)
 
-        run(`$(xorriso()) -as mkisofs -V "MyApp" -hfsplus -hfsplus-file-creator-type APPL APPL $(basename(app_stage)) -hfs-bless-by x / -relaxed-filenames -no-pad -o $iso_stage $(dirname(app_stage))`)
+        direct_override = joinpath(source, "meta/macos/DS_Store")
+        dsstore_destination = joinpath(dirname(app_stage), ".DS_Store")
+        rm(dsstore_destination, force=true)
+
+        if isfile(direct_override)
+            cp(direct_override, dsstore_destination)
+        else
+            dsstore_toml_template = joinpath(source, "meta/macos/DS_Store.toml")
+            
+            if !isfile(dsstore_toml_template)
+                dsstore_toml_template = joinpath(dirname(@__DIR__), "recipes/macos/DS_Store.toml")
+            end
+
+            dsstore_toml = Mustache.render(String(read(dsstore_toml_template)), parameters)
+
+            println(dsstore_toml)
+
+            dsstore_dict = TOML.parse(dsstore_toml)
+            
+            #dsstore_dict["."]["icvl"] = ("type", "icnv")
+            #dsstore_dict["."]["vSrn"] = ("long", 1)
+
+            DSStore.open_dsstore(dsstore_destination, "w+") do ds
+
+                ds[".", "icvl"] = ("type", "icnv")
+                ds[".", "vSrn"] = ("long", 1)
+
+                for file_key in keys(dsstore_dict)
+                    file_dict = dsstore_dict[file_key]
+                    for entry_key in keys(file_dict)
+                        ds[file_key, entry_key] = file_dict[entry_key]
+                    end
+                end
+
+            end
+        end
+
+
+        bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
+        add_rule!(bundle, "macos/DS_Store", ".DS_Store")
+        build(bundle, dirname(app_stage), Dict())
+
+        run(`$(xorriso()) -as mkisofs -V "$appname Installer" -hfsplus -hfsplus-file-creator-type APPL APPL $(basename(app_stage)) -hfs-bless-by x / -relaxed-filenames -no-pad -o $iso_stage $(dirname(app_stage))`)
 
         run(`$(dmg()) dmg $iso_stage $destination --compression=lzma`)
 

@@ -1,8 +1,8 @@
-function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing)
+function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing, parameters = get_bundle_parameters("$source/Project.toml"))
 
     rm(destination, recursive=true, force=true)
 
-    parameters = get_bundle_parameters("$source/Project.toml")
+
     app_name = parameters["APP_NAME"]
     module_name = parameters["MODULE_NAME"]
 
