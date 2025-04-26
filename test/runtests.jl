@@ -26,6 +26,9 @@ if Sys.isunix()
         include("dmg.jl")
     end
 
+    @time @safetestset "Snap building tests" begin
+        include("snap.jl")
+    end
 
     if get(ENV, "JULIA_RUN_EXAMPLES", "false") == "true"
         @info "Running extensive example tests"

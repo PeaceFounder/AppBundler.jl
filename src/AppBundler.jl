@@ -11,7 +11,8 @@ julia_tarballs() = joinpath(DOWNLOAD_CACHE, "julia-tarballs")
 artifacts_cache() = joinpath(DOWNLOAD_CACHE, "artifacts")
 
 include("Utils/DSStore.jl")
-
+include("Utils/DMGPack.jl")
+include("Utils/SnapPack.jl")
 
 include("utils.jl")
 include("deps.jl")
