@@ -1,5 +1,5 @@
 """
-    bundle_app(platform::MacOS, source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
+    bundle_app(platform::MacOS, source, destination; parameters)
 
 Bundle a Julia application into a macOS .app bundle structure.
 
