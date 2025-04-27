@@ -15,7 +15,7 @@ The function uses a template-based approach for creating the bundle structure. T
 - `destination::String`: Path where the .app bundle should be created
 
 # Keyword Arguments
-- `parameters::Dict = get_bundle_parameters("$source/Project.toml")`: Application parameters extracted 
+- `parameters::Dict = get_bundle_parameters("\$source/Project.toml")`: Application parameters extracted 
   from Project.toml, including app name, display name, version, and other metadata
 
 # Notes
