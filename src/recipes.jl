@@ -1,7 +1,36 @@
+"""
+    bundle_app(platform::MacOS, source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
+
+Bundle a Julia application into a macOS .app bundle structure.
+
+This function transforms Julia source code into a macOS application bundle (.app), creating the proper directory hierarchy and configuration files required by macOS. It sets up a complete standalone application that can be distributed and run on macOS without requiring a separate Julia installation. The function handles all aspects of the bundling process, including embedding the Julia runtime, copying application code, retrieving necessary packages and artifacts, and creating the required metadata files.
+
+The source directory is expected to contain a `main.jl` file, which serves as the entry point to the application. This file will be executed when the application is launched. The function also expects the source directory to have a valid `Project.toml` file from which it extracts application metadata.
+
+The function uses a template-based approach for creating the bundle structure. Template files such as `Info.plist`, launcher scripts, and other resources are sourced from the `AppBundler/recipes/macos` directory by default. These templates can be customized by providing overrides in a `meta/macos` directory within the source directory. This allows for application-specific customization of the bundle while maintaining a standard structure.
+
+# Arguments
+- `platform::MacOS`: MacOS platform specification, including architecture information and a target Julia version
+- `source::String`: Path to the source directory containing the application's source code, Project.toml, and `main.jl`
+- `destination::String`: Path where the .app bundle should be created
+
+# Keyword Arguments
+- `parameters::Dict = get_bundle_parameters("$source/Project.toml")`: Application parameters extracted 
+  from Project.toml, including app name, display name, version, and other metadata
+
+# Notes
+- Creates a standard macOS .app bundle with structure:
+  - `Contents/`: Main bundle contents
+    - `MacOS/`: Contains the executable launcher
+    - `Resources/`: Application resources and icons
+    - `Libraries/`: Includes Julia runtime, application module code, packages, and artifacts
+    - `Info.plist`: Bundle configuration
+
+This function is typically called by the higher-level `build_app` function which handles additional operations like code signing, precompilation, and DMG packaging
+"""
 function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing, parameters = get_bundle_parameters("$source/Project.toml"))
 
     rm(destination, recursive=true, force=true)
-
 
     app_name = parameters["APP_NAME"]
     module_name = parameters["MODULE_NAME"]
