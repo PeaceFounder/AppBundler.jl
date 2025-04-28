@@ -1,7 +1,7 @@
 name = "AppBundler"
 uuid = "40eb83ae-c93a-480c-8f39-f018b568f472"
 authors = ["Janis Erdmanis <janiserdmanis@protonmail.ch>"]
-version = "0.1.5"
+version = "0.2.0"
 
 [deps]
 AppBundlerUtils_jll = "20612f45-4fe6-500a-af5c-19078bfe0d65"
@@ -14,7 +14,6 @@ Mustache = "ffc61752-8dc7-55ee-8c37-f3e9cdd09e70"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Scratch = "6c6a2e73-6563-6170-7368-637461726353"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tar = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
@@ -36,7 +35,6 @@ Mustache = "1"
 Pkg = "1.9"
 PyCall = "1.96.4"
 Random = "1.11.0"
-SafeTestsets = "0.1.0"
 Scratch = "1.2"
 TOML = "1"
 Tar = "1"
@@ -51,6 +49,7 @@ squashfs_tools_jll = "4.6"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 
 [targets]
-test = ["Test"]
+test = ["Test", "SafeTestsets"]
