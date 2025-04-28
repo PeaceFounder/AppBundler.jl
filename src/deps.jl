@@ -3,6 +3,8 @@ import Artifacts
 
 import Pkg
 import Base.BinaryPlatforms: AbstractPlatform, Platform, os, arch, wordsize
+using AppBundlerUtils_jll
+using UUIDs
 
 function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
 
@@ -221,6 +223,72 @@ function copy_app(source, destination)
         (i == "meta") && continue
 
         cp(joinpath(source, i), joinpath(destination, i))
+    end
+
+    # Creating a module if it does not exists
+
+    toml_dict = TOML.parsefile(joinpath(source, "Project.toml"))
+
+    # This may be temporary
+    if haskey(toml_dict, "name") && haskey(toml_dict, "uuid")
+        module_name = toml_dict["name"]
+    else
+        #rm(joinpath(destination, "Project.toml"))
+
+        if !haskey(toml_dict, "name")
+            @warn "Name of the application not found in Project.toml"
+            toml_dict["name"] = basename(destination)
+        end
+
+        if !haskey(toml_dict, "uuid")
+            @info "Assigning UUID for the Project.toml"
+            toml_dict["uuid"] = string(uuid4())
+        end
+
+        open(joinpath(destination, "Project.toml"), "w") do io
+            TOML.print(io, toml_dict)
+        end
+    end
+    
+    module_name = toml_dict["name"]
+
+    path = joinpath(destination, "src/$module_name.jl")
+
+    if !isfile(path)
+
+        mkpath(joinpath(destination, "src"))
+
+        dependencies = toml_dict["deps"]
+        deps = join(["using $i" for i in keys(dependencies)], "\n")
+
+        write(path, """
+        module $module_name
+        $deps
+        end
+        """)
+
+    end
+
+    return
+end
+
+
+function retrieve_macos_launcher(platform::AbstractPlatform, destination)
+
+    artifacts_toml = joinpath(dirname(dirname(pathof(AppBundlerUtils_jll))), "Artifacts.toml")
+    artifacts = Artifacts.select_downloadable_artifacts(artifacts_toml; platform)["AppBundlerUtils"]
+
+    try 
+
+        Artifacts.ARTIFACTS_DIR_OVERRIDE[] = artifacts_cache()
+        
+        hash = artifacts["git-tree-sha1"]
+        Pkg.Artifacts.ensure_artifact_installed("AppBundlerUtils", artifacts, artifacts_toml) 
+        cp(joinpath(artifacts_cache(), hash, "bin", "macos_launcher"), destination, force=true)
+        chmod(destination, 0o755)
+
+    finally
+        Artifacts.ARTIFACTS_DIR_OVERRIDE[] = nothing
     end
 
     return

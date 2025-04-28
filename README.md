@@ -36,14 +36,29 @@ Note that you will face difficulties when using `AppBundler` from Windows for Li
 
 ## Post Processing
 
+
 After the bundle is created, it needs to be finalised on the host system, where precompilation and, usually, bundle signing must be performed.
+
 
 ### MacOS
 
-1. Precompilation can be done `myapp.app/Contents/MacOS/precompile`, which will generate a compilation cache in `myapp.app/Contents/Frameworks/compiled` folder. As a hack, precompilation can be done from the `/Applications/MyApp` folder so that users would not need to wait for precompilation when starting the app (untested).
-2. Before an application can be signed, we need to create an executable which can store signatures in metadata. Rename the bash launcher script as `MacOS/main` and compile `Resources/launcher.c` using `gcc` and move the executable to the launcher location `MacOS/myapp`. The executable will start `MacOS/main; thus, little can go wrong there.
-3. Code signing can be performed with `codesign`. `Resources/Entitlements.plist` file contains entitlements which should be used when signing the final bundle.
-4. For the creation of a dmg bundle, the `dmgbuild` is recommended, which can be installed conveniently with `pip install dmgbuild`. For convenience, `Resources/dmg_settings.py` is provided, which allows to `dmgbuild -s "MyApp/Contents/Resources/dmg_settings.py" -D app="MyApp" "MyApp Installer" "MyApp.dmg"`
+MacOS bundling has been fully automated with the `build_app` function, which handles bundling, precompilation, code signing, and DMG creation in one step:
+
+```julia
+import AppBundler
+import Pkg.BinaryPlatforms: MacOS
+
+# Create a .app bundle
+AppBundler.build_app(MacOS(:x86_64), "MyApp", "build/MyApp.app")
+
+# Create a .dmg installer with automatic LZMA compression
+AppBundler.build_app(MacOS(:x86_64), "MyApp", "build/MyApp.dmg")
+```
+The function automatically detects whether to create a DMG based on the destination file extension. For code signing, the function looks for a certificate at `MyApp/meta/macos/certificate.pfx` and uses the `MACOS_PFX_PASSWORD` environment variable for the password if available.
+
+For custom DMG appearance, you can provide: A custom DS_Store file at `MyApp/meta/macos/DS_Store`, or A `DS_Store` configuration in TOML format at `MyApp/meta/macos/DS_Store.toml` Custom entitlements can be specified at `MyApp/meta/macos/Entitlements.plist`. 
+
+The precompilation is is enabled by default and errors if it can not be performed on the host system. For cross-platform building, you can disable precompilation with the `precompile=false` option. In future, Julia may implement crosss compilation which would make this option redundant.
 
 The signing certificate can be obtained from Apple by subscribing to its developer program. Alternatively, for development purposes, you can generate a self-signing certificate. Follow [official instructions of Apple](https://support.apple.com/en-gb/guide/keychain-access/kyca8916/mac), set *Certificate Type* to *Code Signing* and fill out the rest of the parameters as [instructed on youtube](https://www.youtube.com/watch?v=OpR9-onRZko). 
 
@@ -94,3 +109,7 @@ New-Alias -Name editbin -Value "C:\Program Files\Microsoft Visual Studio\2022\Co
 5. Sign the bundle `signtool sign /fd SHA256 /a /f JanisErdmanis.pfx /p "PASSWORD" myapp.msix`
 
 When self-signed, the resulting bundle can not immediately be installed as the certificate is not binding to the trusted anchors of the system. This can be resolved by installing the certificate to the system from the MSIX package itself, which is described in https://www.advancedinstaller.com/install-test-certificate-from-msix.html
+
+## Acknowledgments
+
+This work is supported by the European Union in the Next Generation Internet initiative ([NGI0 Entrust](https://ngi.eu/ngi-projects/ngi-zero-entrust/)), via NLnet [Julia-AppBundler](https://nlnet.nl/project/Julia-AppBundler/) project.

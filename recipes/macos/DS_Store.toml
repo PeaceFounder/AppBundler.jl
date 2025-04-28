@@ -1,0 +1,34 @@
+[".".bwsp]
+ShowSidebar = false
+ContainerShowSidebar = false
+ShowToolbar = false
+ShowStatusBar = false
+ShowTabView = false
+PreviewPaneVisibility = false
+WindowBounds = "{ {200, 120}, {600, 360} }"
+SidebarWidth = 180
+ShowPathbar = false
+
+[".".icvp]
+backgroundColorGreen = 1.0
+gridSpacing = 100.0
+iconSize = 180.0 
+labelOnBottom = true
+scrollPositionX = 0.0
+viewOptionsVersion = 1
+textSize = 16.0
+showIconPreview = false
+backgroundColorRed = 1.0
+gridOffsetX = 0.0
+backgroundColorBlue = 1.0
+scrollPositionY = 0.0
+gridOffsetY = 0.0
+arrangeBy = "none"
+showItemInfo =false
+backgroundType = 0
+
+["Applications"]
+Iloc = [432, 150]
+
+["{{APP_NAME}}.app"]
+Iloc = [161, 150]

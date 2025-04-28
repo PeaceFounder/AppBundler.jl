@@ -6,6 +6,7 @@ struct Rule
     dest::String
     template::Bool
     executable::Bool
+    override::Bool
 end
 
 isvalid(rule::Rule, default::String, override::String) =  ispath(joinpath(default, rule.origin)) || ispath(joinpath(override, rule.origin))
@@ -19,7 +20,7 @@ end
 Bundle(default::String, override::String) = Bundle(default, override, Rule[])
 
 add_rule!(bundle::Bundle, rule::Rule) = push!(bundle.rules, rule)
-add_rule!(bundle::Bundle, origin, dest; template=false, executable=false) = add_rule!(bundle, Rule(origin, dest, template, executable))
+add_rule!(bundle::Bundle, origin, dest; template=false, executable=false, override=false) = add_rule!(bundle, Rule(origin, dest, template, executable, override))
 
 function issubpath(path::String, subpath::String)
 
@@ -137,6 +138,8 @@ function get_bundle_parameters(project_toml)
     toml_dict = TOML.parsefile(project_toml)
 
     parameters = Dict{String, Any}()
+
+    parameters["MODULE_NAME"] = get(toml_dict, "name", "MainEntry")
 
     app_name = haskey(toml_dict, "APP_NAME") ? toml_dict["APP_NAME"] : haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
     parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))

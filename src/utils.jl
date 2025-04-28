@@ -36,7 +36,6 @@ function extract_zip(archive_path::String)
     output_directory = joinpath(tempdir(), "zip_archive")
     rm(output_directory, recursive=true, force=true)
 
-
     for entry in zip.files
         if entry.method == ZipFile.Store
             outpath = joinpath(output_directory, entry.name)
@@ -48,6 +47,7 @@ function extract_zip(archive_path::String)
     for entry in zip.files
         if entry.method == ZipFile.Deflate
             outpath = joinpath(output_directory, entry.name)
+            mkpath(dirname(outpath)) # Shouldn't be needed
 
             open(outpath, "w") do out_file
                 write(out_file, read(entry))
@@ -164,22 +164,21 @@ function zip_directory(src_dir::AbstractString, output_zip::AbstractString; path
 end
 
 
-import squashfs_tools_jll
+# import squashfs_tools_jll
 
-function squash_snap(source, destination)
+# function squash_snap(source, destination)
     
-    if squashfs_tools_jll.is_available()    
-        mksquashfs = squashfs_tools_jll.mksquashfs()
-    else
-        @info "squashfs-tools not available from jll. Attempting to use mksquashfs from the system."
-        mksquashfs = "mksquashfs"
-    end
+#     if squashfs_tools_jll.is_available()    
+#         mksquashfs = squashfs_tools_jll.mksquashfs()
+#     else
+#         @info "squashfs-tools not available from jll. Attempting to use mksquashfs from the system."
+#         mksquashfs = "mksquashfs"
+#     end
 
-    run(`$mksquashfs $source $destination -noappend -comp xz`)
+#     run(`$mksquashfs $source $destination -noappend -comp xz`)
 
-    return
-end
-
+#     return
+# end
 
 function linux_arch_triplet(arch::Symbol)
 
@@ -194,7 +193,6 @@ function linux_arch_triplet(arch::Symbol)
     end
 
 end
-
 
 function ensure_track_content_fpath(file_path::AbstractString)
 
