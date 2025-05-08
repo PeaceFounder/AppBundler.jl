@@ -13,6 +13,7 @@ artifacts_cache() = joinpath(DOWNLOAD_CACHE, "artifacts")
 include("Utils/DSStore.jl")
 include("Utils/DMGPack.jl")
 include("Utils/SnapPack.jl")
+include("Utils/MSIXPack.jl")
 
 include("utils.jl")
 include("deps.jl")
