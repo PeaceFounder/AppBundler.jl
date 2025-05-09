@@ -59,7 +59,7 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
     copy_app(source, "$app_dir/Libraries/$module_name")
     retrieve_julia(platform, "$app_dir/Libraries/julia")
     
-    add_rule!(bundle, "macos/startup.jl", "$app_dir/Libraries/julia/etc/julia/startup.jl", template=true, override=true)
+    add_rule!(bundle, "macos/startup.jl", "Libraries/julia/etc/julia/startup.jl", template=true, override=true)
     
     build(bundle, app_dir, parameters)
 
