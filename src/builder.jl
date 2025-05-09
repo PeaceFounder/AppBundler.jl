@@ -31,7 +31,8 @@ The `source` directory is expected to have the following structure:
 - `src/` (optional): Directory containing application source code
 - `meta/` (optional): Directory containing customizations
   - `macos/` (optional): Platform-specific customizations
-    - `certificate.pfx` (optional): Code signing certificate
+    - `application.pfx` (optional): Code signing application certificate
+    - `installer.pfx` (optional): Code signing installer certificate
     - `Entitlements.plist` (optional): Custom entitlements file
     - `DS_Store` or `DS_Store.toml` (optional): DMG appearance configuration
     - Other template overrides (optional): Custom versions of template files (see `bundle_app` docstring)
@@ -91,10 +92,18 @@ function build_app(platform::MacOS, source, destination; compression = isext(des
     end
 
     password = get(ENV, "MACOS_PFX_PASSWORD", "")
+    password_application = get(ENV, "MACOS_PFX_APLLICATION_PASSWORD", password)
+    password_installer = get(ENV, "MACOS_PFX_INSTALLER_PASSWORD", password)
 
-    pfx_path = joinpath(source, "meta", "macos", "certificate.pfx")
-    if !isfile(pfx_path)
-        pfx_path = nothing
+
+    pfx_application_path = joinpath(source, "meta", "macos", "application.pfx")
+    if !isfile(pfx_application_path)
+        pfx_application_path = nothing
+    end
+
+    pfx_installer_path = joinpath(source, "meta", "macos", "installer.pfx")
+    if !isfile(pfx_installer_path)
+        pfx_installer_path = nothing
     end
 
     entitlements_path = joinpath(source, "meta/macos/Entitlements.plist")
@@ -121,7 +130,7 @@ function build_app(platform::MacOS, source, destination; compression = isext(des
         dsstore = TOML.parse(dsstore_toml)
     end    
     
-    DMGPack.pack2dmg(app_stage, destination, entitlements_path; pfx_path, dsstore, password, compression, installer_title)
+    DMGPack.pack2dmg(app_stage, destination, entitlements_path; pfx_application_path, pfx_installer_path, dsstore, password_application, password_installer, compression, installer_title)
 
     return 
 end

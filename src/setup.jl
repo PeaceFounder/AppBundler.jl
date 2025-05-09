@@ -8,7 +8,7 @@ function generate_signing_certificates(root; person_name = "AppBundler", country
 
     password = Base64.base64encode(rand(RandomDevice(), UInt8, 16))
         
-    destination = joinpath(root, "macos/certificate.pfx")
+    destination = joinpath(root, "macos/application.pfx")
 
     if isfile(destination) && !force
         error("Certificate at $destination alredy exists. Use `force=true` to overwrite it")

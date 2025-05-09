@@ -26,27 +26,38 @@ The function assumes that `app_stage` points to a properly structured macOS appl
 - `entitlements::String`: Path to an XML file containing the entitlements for code signing
 
 # Keyword Arguments
-- `pfx_path::Union{String, Nothing} = nothing`: Path to a PKCS#12 certificate file for code signing. If not provided, a temporary self-signed certificate will be generated
+- `pfx_codesigning_path::Union{String, Nothing} = nothing`: Path to a PKCS#12 certificate file for code signing. If not provided, a temporary self-signed certificate will be generated
+- `pfx_installer_path::Union{String, Nothing} = nothing`: Path to a PKCS#12 certificate file for installer signing. If not provided, a temporary self-signed certificate will be generated
 - `dsstore::Union{String, Dict, Nothing} = nothing`: Either a path to an existing `.DS_Store` file or a dictionary of DS_Store entries to configure the DMG appearance
 - `password::String = ""`: Password for the certificate file
 - `compression::Union{Symbol, Nothing} = :lzma`: Compression algorithm to use for the DMG. Options are `:lzma`, `:bzip2`, `:zlib`, `:lzfse`, or `nothing` for no compression
 - `installer_title::String = "Installer"`: Volume name for the DMG
 """
-function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsstore::Union{String, Dict} = nothing, password = "", compression = :lzma, installer_title = "Installer")
+function pack2dmg(app_stage, destination, entitlements; 
+                  pfx_path = nothing,
+                  pfx_application_path = pfx_path, 
+                  pfx_installer_path = pfx_path, 
+                  dsstore::Union{String, Dict} = nothing, 
+                  password = "", 
+                  password_application = password,
+                  password_installer = password,
+                  compression = :lzma, 
+                  installer_title = "Installer")
 
     isfile(entitlements) || error("Entitlements at $entitlements not found")
     isnothing(compression) || compression in [:lzma, :bzip2, :zlib, :lzfse] || error("Compression can only be `compression=[:lzma|:bzip|:zlib|:lzfse]`")
-    isnothing(pfx_path) || isfile(pfx_path) || error("Signing certificate at $pfx_path not found")
+    isnothing(pfx_application_path) || isfile(pfx_application_path) || error("Signing certificate at $pfx_application_path not found")
+    isnothing(pfx_installer_path) || isfile(pfx_installer_path) || error("Signing certificate at $pfx_installer_path not found")
 
     @info "Codesigning application bundle at $app_stage"
     
-    if isnothing(pfx_path) 
+    if isnothing(pfx_application_path) #|| isnothing(pfx_installer_path)
         @warn "Creating a one time self signing certificate..."
-        pfx_path = joinpath(tempdir(), "certificate_macos.pfx")
-        generate_self_signing_pfx(pfx_path; password = "")
+        pfx_application_path = joinpath(tempdir(), "certificate_macos.pfx")
+        generate_self_signing_pfx(pfx_application_path; password = "")
     end
 
-    run(`$(rcodesign()) sign --shallow --p12-file "$pfx_path" --p12-password "$password" --entitlements-xml-path "$entitlements" "$app_stage"`)
+    run(`$(rcodesign()) sign --shallow --p12-file "$pfx_application_path" --p12-password "$password_application" --entitlements-xml-path "$entitlements" "$app_stage"`)
     
     if !isnothing(compression)
 
@@ -90,14 +101,18 @@ function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsst
 
 
         @info "Codesigning DMG bundle"
-        run(`$(rcodesign()) sign --p12-file "$pfx_path" --p12-password "$password" "$destination"`)
+
+        if isnothing(pfx_installer_path)
+            @warn "Using application certificate for DMG installer signing"
+            pfx_installer_path = pfx_application_path
+        end
+        
+        run(`$(rcodesign()) sign --p12-file "$pfx_installer_path" --p12-password "$password_installer" "$destination"`)
     end
 
     return
 end
 
-
 export pack2dmg
-
 
 end
