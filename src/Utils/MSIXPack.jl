@@ -6,6 +6,85 @@ using osslsigncode_jll
 using rcodesign_jll: rcodesign
 using OpenSSL_jll: openssl
 
+function is_windows_compatible(filename::String; path_length_threshold)
+    # Check for invalid characters
+
+    if occursin(r"[<>:\"\\\|?*\x00-\x1F]", filename) || occursin(r"[\x7F-\x9F]", filename)
+        @warn "$(filename) contains invalid characters for Windows."
+        return false
+    end
+    # if occursin(r"[\\/:*?\"<>|]", filename)
+    #     @warn "$filename contains invalid characters for Windows.\n"
+    #     return false
+    # end
+
+    # Check for reserved names
+    reserved_names = ["CON", "PRN", "AUX", "NUL"]
+    reserved_names_with_numbers = [string(name, i) for name in ["COM", "LPT"] for i in 1:9]
+    append!(reserved_names, reserved_names_with_numbers)
+
+    basename_no_ext = splitext(basename(filename))[1]
+    if uppercase(basename_no_ext) in reserved_names
+        @warn "$filename is a reserved name in Windows.\n"
+        return false
+    end
+
+    # # Check filename length (Windows max path is 260 characters)
+    if length(filename) > path_length_threshold
+        @warn "$filename exceeds Windows max path length.\n"
+        return false
+    end
+
+    return true
+end
+
+function ensure_windows_compatability(src_dir::String; path_length_threshold::Int = 260, skip_long_paths::Bool = false)
+
+    error_paths = []
+    
+    max_length = 0
+
+    for (root, dirs, files) in walkdir(src_dir)
+        for file in files
+            filepath = joinpath(root, file)
+            rel_path = relpath(filepath, src_dir)
+            
+            if skip_long_paths && length(rel_path) > path_length_threshold
+                rm(filepath)
+                continue
+            end
+
+            if !is_windows_compatible(rel_path; path_length_threshold)
+                push!(error_paths, rel_path)
+                #error("Aborting due to Windows-incompatible filename.")
+            end
+
+            if length(rel_path) > max_length
+                max_length = length(rel_path)
+            end
+        end
+    end
+
+    # removing empty direcotories
+    for (root, dirs, files) in walkdir(src_dir, topdown=false)
+        for dir in dirs
+            path = joinpath(root, dir)
+            if isempty(readdir(path))
+                rm(path)
+            end
+        end
+    end
+
+    @info "Maximum relative path length is $max_length"
+
+    if length(error_paths) > 0
+        #@warn "$(length(error_paths)) errors detected"
+        error("$(length(error_paths)) errors detected")
+    end
+
+    return
+end
+
 function generate_self_signed_certificate(pfx_path; password = "", name = "AppBundler", country = "XX", organization = "PeaceFounder")
     code_sign_conf = """
     [ req ]
@@ -84,11 +163,16 @@ function update_publisher_in_manifest(appxmanifest_path, publisher)
     write(appxmanifest_path, updated_content)
 end
 
-function pack2msix(source, destination; pfx_path = nothing, password = "")
+function pack2msix(source, destination; pfx_path = nothing, password = "", path_length_threshold::Int = 260, skip_long_paths::Bool = false)
 
-    # I could create a self signed certificate from AppxManifest.xml
-    # Need to make CN to match the AppxManifest.xml
-    @assert !isnothing(pfx_path) "Not yet implemented"
+
+    Sys.iswindows() || ensure_windows_compatability(source; path_length_threshold, skip_long_paths)
+
+    if isnothing(pfx_path)
+        @warn "Creating one time self signed certificate"
+        pfx_path = joinpath(tempdir(), "certificate.pfx")
+        generate_self_signed_certificate(pfx_path; password)
+    end
 
     @show extract_subject_from_certificate(pfx_path; password)
 
@@ -159,20 +243,9 @@ function repack(source, destination; pfx_path = nothing, publisher = nothing, pa
 
     extracted_msix = extract_msix(source)
 
-    if isnothing(pfx_path)
-        @warn "Creating one time self signed certificate"
-
-        pfx_path = joinpath(tempdir(), "certificate.pfx")
-
-        password = "YourPassword"
-        generate_self_signed_certificate(pfx_path; password)
-        
-    end
-
     pack2msix(extracted_msix, destination; pfx_path, password)
 
     return
 end
-
 
 end

@@ -117,9 +117,19 @@ function bundle_app(platform::Linux, source, app_dir)
 end
 
 
-function bundle_app(platform::Windows, source, destination; with_splash_screen=nothing, compress::Bool = isext(destination, ".zip"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false)
+#function bundle_app(platform::Windows, source, destination; with_splash_screen=nothing, compress::Bool = isext(destination, ".zip"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false)
+function bundle_app(platform::Windows, source, destination; with_splash_screen=nothing, debug::Bool = false)
 
     rm(destination, recursive=true, force=true)
+
+    # ToDo:
+    # - Create startup.jl in etc folder
+    # - Do precompilation with startup.jl instead (In startup I could actually define __main__ function the same way as __precompile__ one. 
+    # - Make main.ps1 simple
+    # - Deprecate precompile.jl
+    # - Create relevant icons from scaling; find the releavant ones from existing MSIX archives
+    # - [Speculative] Try to do something on editbin
+
 
     parameters = get_bundle_parameters("$source/Project.toml")
     parameters["DEBUG"] = debug ? "true" : "false"
@@ -164,8 +174,8 @@ function bundle_app(platform::Windows, source, destination; with_splash_screen=n
 
     copy_app(source, "$app_dir/$app_name")
 
-    Sys.iswindows() || ensure_windows_compatability(app_dir; path_length_threshold, skip_long_paths)
-    ensure_track_content("$app_dir/packages") # workaround until release with trcack_content patch is available
+    #Sys.iswindows() || ensure_windows_compatability(app_dir; path_length_threshold, skip_long_paths)
+    #ensure_track_content("$app_dir/packages") # workaround until release with trcack_content patch is available
 
     if debug
         touch(joinpath(app_dir, "debug"))
