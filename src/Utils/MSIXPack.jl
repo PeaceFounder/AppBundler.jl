@@ -174,8 +174,6 @@ function pack2msix(source, destination; pfx_path = nothing, password = "", path_
         generate_self_signed_certificate(pfx_path; password)
     end
 
-    @show extract_subject_from_certificate(pfx_path; password)
-
     publisher = extract_subject_from_certificate(pfx_path; password)
     @info "Using publisher: $publisher"
 
@@ -199,7 +197,7 @@ function pack2msix(source, destination; pfx_path = nothing, password = "", path_
 
     @info "Performing codesigning"
 
-    @info "signed msix at $destination"
+    @info "signed MSIX at $destination"
 
     rm(destination; force=true)
     run(`$(osslsigncode()) sign -pkcs12 $pfx_path -pass "$password" -in "$unsigned_msix" -out "$destination"`)
@@ -241,6 +239,7 @@ end
 # A helper function to explore potential issuess with msixpack
 function repack(source, destination; pfx_path = nothing, publisher = nothing, password = "")
 
+    @info "Extracting MSIX"
     extracted_msix = extract_msix(source)
 
     pack2msix(extracted_msix, destination; pfx_path, password)

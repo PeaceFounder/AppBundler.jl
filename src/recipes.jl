@@ -121,6 +121,7 @@ end
 function bundle_app(platform::Windows, source, destination; with_splash_screen=nothing, debug::Bool = false)
 
     rm(destination, recursive=true, force=true)
+    mkpath(destination)
 
     # ToDo:
     # - Create startup.jl in etc folder
@@ -145,13 +146,13 @@ function bundle_app(platform::Windows, source, destination; with_splash_screen=n
         parameters["WITH_SPLASH_SCREEN"] = with_splash_screen
     end
 
-    if compress
-        app_dir = joinpath(tempdir(), basename(destination)[1:end-4])
-        rm(app_dir, recursive=true, force=true)
-    else
-        app_dir = destination
-    end
-    mkpath(app_dir)
+    # if compress
+    #     app_dir = joinpath(tempdir(), basename(destination)[1:end-4])
+    #     rm(app_dir, recursive=true, force=true)
+    # else
+    #     app_dir = destination
+    # end
+    #mkpath(app_dir)
 
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
 
@@ -164,28 +165,22 @@ function bundle_app(platform::Windows, source, destination; with_splash_screen=n
     add_rule!(bundle, "windows/AppxManifest.xml", "AppxManifest.xml", template=true)
     add_rule!(bundle, "windows/main.jl", "main.jl", template=true)
     
-    build(bundle, app_dir, parameters)
+    build(bundle, destination, parameters)
     
-    retrieve_julia(platform, "$app_dir/julia")
-    mv("$app_dir/julia/libexec/julia/lld.exe", "$app_dir/julia/bin/lld.exe") # lld.exe can't find shared libraries in UWP
+    retrieve_julia(platform, "$destination/julia")
+    mv("$destination/julia/libexec/julia/lld.exe", "$destination/julia/bin/lld.exe") # lld.exe can't find shared libraries in UWP
     
-    retrieve_packages(source, "$app_dir/packages"; with_splash_screen)
-    retrieve_artifacts(platform, "$app_dir/packages", "$app_dir/artifacts")
+    retrieve_packages(source, "$destination/packages"; with_splash_screen)
+    retrieve_artifacts(platform, "$destination/packages", "$destination/artifacts")
 
-    copy_app(source, "$app_dir/$app_name")
+    copy_app(source, "$destination/$app_name")
 
     #Sys.iswindows() || ensure_windows_compatability(app_dir; path_length_threshold, skip_long_paths)
     #ensure_track_content("$app_dir/packages") # workaround until release with trcack_content patch is available
 
-    if debug
-        touch(joinpath(app_dir, "debug"))
-    end
-    
-    if compress
-        @info "Compressing into a zip archive"
-        zip_directory(app_dir, destination)
-        rm(app_dir, recursive=true, force=true)
-    end
+    # if debug
+    #     touch(joinpath(app_dir, "debug"))
+    # end
     
     return
 end

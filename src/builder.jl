@@ -155,4 +155,59 @@ function build_app(platform::Linux, source, destination; compress::Bool = isext(
 end
 
 # ToDo: MSIX building functionality
-build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".zip"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false) = bundle_app(platform, source, destination; compress, path_length_threshold, skip_long_paths, debug)
+#build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".zip"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false) = bundle_app(platform, source, destination; compress, path_length_threshold, skip_long_paths, debug)
+
+function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false, precompile = false) 
+
+    if compress
+        app_stage = joinpath(tempdir(), "msixapp")
+    else
+        app_stage = destination
+    end
+
+
+    if !debug
+        rm(app_stage; force=true, recursive=true)
+        rm(destination; force=true)
+    end
+
+    
+#    if isdir(app_stage)
+
+        bundle_app(platform, source, app_stage)
+
+        if precompile
+            @info "Precompiling"
+
+            # if !incremental
+            #     rm("$app_stage/Contents/Libraries/julia/share/julia/compiled", recursive=true)
+            # end
+
+            # julia = "$app_stage/Contents/Libraries/julia/bin/julia"
+            # #startup = "$app_stage/Contents/Libraries/julia/etc/julia/startup.jl"
+            
+            # # Run the command with the modified environment
+            # # withenv("JULIA_DEBUG" => "loading") do
+            # run(`$julia --eval '_precompile()'`)
+            # # end
+            
+        else
+            @info "Precompilation disabled. Precompilation will happen on the desitination system at first launch."
+        end
+
+#    end
+
+    if compress
+        
+        password = get(ENV, "WINDOWS_PFX_PASSWORD", "")
+
+        pfx_path = joinpath(source, "meta", "windows", "certificate.pfx")
+        if !isfile(pfx_path)
+            pfx_path = nothing
+        end
+
+        MSIXPack.pack2msix(app_stage, destination; pfx_path, password, path_length_threshold, skip_long_paths)        
+        
+    end
+
+end
