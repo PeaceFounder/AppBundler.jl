@@ -6,6 +6,12 @@ using osslsigncode_jll
 using rcodesign_jll: rcodesign
 using OpenSSL_jll: openssl
 
+# A short term workaround until cross compilation of makemsix will be sorted out
+# with binary builder. 
+if Sys.iswindows()
+    @eval makemsix() = joinpath(@__DIR__, "../../bin/makemsix.exe")
+end
+
 function is_windows_compatible(filename::String; path_length_threshold)
     # Check for invalid characters
 
