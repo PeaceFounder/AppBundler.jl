@@ -157,7 +157,7 @@ end
 # ToDo: MSIX building functionality
 #build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".zip"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false) = bundle_app(platform, source, destination; compress, path_length_threshold, skip_long_paths, debug)
 
-function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false, precompile = false) 
+function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false, precompile = false, incremental = true) 
 
     if compress
         app_stage = joinpath(tempdir(), "msixapp")
@@ -172,30 +172,25 @@ function build_app(platform::Windows, source, destination; compress::Bool = isex
     end
 
     
-#    if isdir(app_stage)
+    if !isdir(app_stage)
 
         bundle_app(platform, source, app_stage)
 
         if precompile
             @info "Precompiling"
 
-            # if !incremental
-            #     rm("$app_stage/Contents/Libraries/julia/share/julia/compiled", recursive=true)
-            # end
+            if !incremental
+                rm("$app_stage/julia/share/julia/compiled", recursive=true)
+            end
 
-            # julia = "$app_stage/Contents/Libraries/julia/bin/julia"
-            # #startup = "$app_stage/Contents/Libraries/julia/etc/julia/startup.jl"
-            
-            # # Run the command with the modified environment
-            # # withenv("JULIA_DEBUG" => "loading") do
-            # run(`$julia --eval '_precompile()'`)
-            # # end
-            
+            julia = "$app_stage/julia/bin/julia.exe"
+            run(`$julia --eval '__precompile__()'`)
         else
             @info "Precompilation disabled. Precompilation will happen on the desitination system at first launch."
         end
 
-#    end
+    end
+
 
     if compress
         

@@ -58,8 +58,8 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
     mkpath("$app_dir/Libraries")
     copy_app(source, "$app_dir/Libraries/$module_name")
     retrieve_julia(platform, "$app_dir/Libraries/julia")
-    
-    add_rule!(bundle, "macos/startup.jl", "$app_dir/Libraries/julia/etc/julia/startup.jl", template=true, override=true)
+
+    add_rule!(bundle, "macos/startup.jl", "Libraries/julia/etc/julia/startup.jl", template=true, override=true)
     
     build(bundle, app_dir, parameters)
 
@@ -105,11 +105,11 @@ function bundle_app(platform::Linux, source, app_dir)
 
     add_rule!(bundle, "linux/meta", "meta")
     add_rule!(bundle, "icon.png", "meta/icon.png") 
-    
+
     build(bundle, app_dir, parameters)
-    
+
+    retrieve_julia(platform, "$app_dir/lib/julia")    
     copy_app(source, "$app_dir/lib/$app_name")
-    retrieve_julia(platform, "$app_dir/lib/julia")
     retrieve_packages(source, "$app_dir/lib/packages")
     retrieve_artifacts(platform, "$app_dir/lib/packages", "$app_dir/lib/artifacts")
 
@@ -156,7 +156,7 @@ function bundle_app(platform::Windows, source, destination; with_splash_screen=n
 
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
 
-    add_rule!(bundle, "precompile.jl", "startup/precompile.jl")
+#    add_rule!(bundle, "precompile.jl", "startup/precompile.jl")
     add_rule!(bundle, "startup", "startup") 
     add_rule!(bundle, "windows/assets", "assets") # This shall overwrite destination if it is present
     add_rule!(bundle, "icon.png", "assets/icon.png")
@@ -165,10 +165,12 @@ function bundle_app(platform::Windows, source, destination; with_splash_screen=n
     add_rule!(bundle, "windows/AppxManifest.xml", "AppxManifest.xml", template=true)
     add_rule!(bundle, "windows/main.jl", "main.jl", template=true)
     
-    build(bundle, destination, parameters)
-    
+
     retrieve_julia(platform, "$destination/julia")
     mv("$destination/julia/libexec/julia/lld.exe", "$destination/julia/bin/lld.exe") # lld.exe can't find shared libraries in UWP
+    add_rule!(bundle, "windows/startup.jl", "julia/etc/julia/startup.jl", template=true, override=true)
+
+    build(bundle, destination, parameters)
     
     retrieve_packages(source, "$destination/packages"; with_splash_screen)
     retrieve_artifacts(platform, "$destination/packages", "$destination/artifacts")
