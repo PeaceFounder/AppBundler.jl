@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AppInstallerUX xmlns="http://schemas.microsoft.com/msix/appinstallerux"
+                xmlns:ux="http://schemas.microsoft.com/msix/appinstallerux"
+                xmlns:ux2="http://schemas.microsoft.com/msix/appinstallerux/2"
+                IgnorableNamespaces="ux ux2" Version="1.0.0">
+    <UX AccentColor="#0078D4" FontFamily="Segoe UI" AllowUserInteraction="false" AppNameInTitle="true">
+    </UX>
+</AppInstallerUX>

@@ -165,3 +165,15 @@ function get_bundle_parameters(project_toml)
     
     return parameters
 end
+
+function get_meta_path(root, path)
+
+    full_path = joinpath(joinpath(root, "meta", path))
+
+    if isfile(full_path)
+        return full_path
+    else
+        full_path = joinpath(dirname(@__DIR__), "recipes", path)
+        return full_path
+    end
+end

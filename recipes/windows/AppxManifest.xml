@@ -12,7 +12,8 @@
   <Properties>
     <DisplayName>{{APP_DISPLAY_NAME}}</DisplayName>
     <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
-    <Logo>assets\icon.png</Logo>
+    <Description>{{APP_DESCRIPTION}}</Description>
+    <Logo>Assets\Square310x310Logo.scale-100.png</Logo>
   </Properties>
 
   <Dependencies> 
@@ -34,25 +35,24 @@
 		 uap10:TrustLevel="mediumIL"
 		 uap11:Parameters="{{FLAGS}}--eval=&quot;__main__()&quot;"> <!-- use -i for returning into console -->
 
-     <uap:VisualElements DisplayName="{{APP_DISPLAY_NAME}}" 
-                         Square150x150Logo="assets\icon.png"
-                         Square44x44Logo="assets\icon.png"
-                         BackgroundColor="transparent"
-                         Description="{{APP_DESCRIPTION}}">
-       <uap:DefaultTile
-           Wide310x150Logo="assets\icon.png"
-           ShortName="{{APP_DISPLAY_NAME}}"
-           Square71x71Logo="assets\icon.png"
-           Square310x310Logo="assets\icon.png">
-         <uap:ShowNameOnTiles>
-           <uap:ShowOn Tile="square150x150Logo"/>
-           <uap:ShowOn Tile="wide310x150Logo"/>
-           <uap:ShowOn Tile="square310x310Logo"/>
-         </uap:ShowNameOnTiles>
-       </uap:DefaultTile>
-       <uap:SplashScreen Image="assets\icon.png"/>
-     </uap:VisualElements>
+      <uap:VisualElements BackgroundColor="transparent" Description="{{APP_DESCRIPTION}}" DisplayName="{{APP_DISPLAY_NAME}}" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:SplashScreen BackgroundColor="gray" Image="Assets\SplashScreen.png"/>
+        <uap:InitialRotationPreference>
+          <uap:Rotation Preference="portrait"/>
+          <uap:Rotation Preference="landscape"/>
+        </uap:InitialRotationPreference>
+        <uap:DefaultTile ShortName="{{APP_DISPLAY_NAME}}" Square310x310Logo="Assets\Square310x310Logo.png" Square71x71Logo="Assets\Square71x71Logo.png" Wide310x150Logo="Assets\Wide310x150Logo.png"/>
+        <uap:LockScreen BadgeLogo="Assets\BadgeLogo.png" Notification="badge"/>
+      </uap:VisualElements>
 
+     <!-- <Extensions /> -->
+     <!-- <Extensions> -->
+     <!--   <uap3:Extension Category="windows.appExecutionAlias" EntryPoint="Windows.FullTrustApplication" Executable="julia\bin\julia.exe"> -->
+     <!--     <uap3:AppExecutionAlias> -->
+     <!--       <desktop:ExecutionAlias Alias="julia-{{APP_NAME}}.exe" /> -->
+     <!--     </uap3:AppExecutionAlias> -->
+     <!--   </uap3:Extension> -->
+     <!-- </Extensions> -->
     </Application>
   </Applications>
 
