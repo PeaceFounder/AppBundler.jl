@@ -131,6 +131,7 @@ function bundle_app(platform::Windows, source, destination; parameters = get_bun
     add_rule!(bundle, "windows/startup.jl", "julia/etc/julia/startup.jl", template=true, override=true)
     build(bundle, destination, parameters)
 
+
 end
 
 function bundle_msix(source, destination; debug::Bool = false, parameters = get_bundle_parameters("$source/Project.toml"))
@@ -150,5 +151,4 @@ function bundle_msix(source, destination; debug::Bool = false, parameters = get_
         MSIXIcons.generate_app_icons(img_path, joinpath(destination, "Assets")) # override = false
     end
 
-    return
 end

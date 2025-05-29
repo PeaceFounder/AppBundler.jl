@@ -249,10 +249,8 @@ end
 function repack(source, destination; pfx_path = nothing, publisher = nothing, password = "")
 
     @info "Extracting MSIX"
-    
     extracted_msix = joinpath(tempdir(), "extracted_msix")
     unpack(source, extracted_msix)
-
     #@show extracted_msix = extract_msix(source)
 
     pack2msix(extracted_msix, destination; pfx_path, password)

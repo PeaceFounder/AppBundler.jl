@@ -232,6 +232,3 @@ function ensure_track_content(dir_path::AbstractString)
 
     return
 end
-
-
-
