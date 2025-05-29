@@ -19,6 +19,9 @@ end
     include("dsstore.jl")
 end
 
+@time @safetestset "MSIX building tests" begin
+    include("msix.jl")
+end
 
 if Sys.isunix()
 

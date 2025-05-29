@@ -154,27 +154,46 @@ function build_app(platform::Linux, source, destination; compress::Bool = isext(
     return
 end
 
-# ToDo: MSIX building functionality
-#build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".zip"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false) = bundle_app(platform, source, destination; compress, path_length_threshold, skip_long_paths, debug)
+function build_msix(setup::Function, source::String, destination::String; compress::Bool = isext(destination, ".msix"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, parameters = get_bundle_parameters("$source/Project.toml"))
 
-function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false, precompile = false, incremental = true) 
+    rm(destination; force=true)
 
     if compress
         app_stage = joinpath(tempdir(), "msixapp")
+        rm(app_stage; force=true, recursive=true)
     else
         app_stage = destination
     end
 
-
-    if !debug
-        rm(app_stage; force=true, recursive=true)
-        rm(destination; force=true)
-    end
-
+    mkdir(app_stage)
     
-    if !isdir(app_stage)
+    setup(app_stage)
 
-        bundle_app(platform, source, app_stage)
+    bundle_msix(source, app_stage; parameters)
+
+    if compress
+        
+        password = get(ENV, "WINDOWS_PFX_PASSWORD", "")
+
+        pfx_path = joinpath(source, "meta", "windows", "certificate.pfx")
+        if !isfile(pfx_path)
+            pfx_path = nothing
+        end
+
+        MSIXPack.pack2msix(app_stage, destination; pfx_path, password, path_length_threshold, skip_long_paths)        
+        
+    end    
+end
+
+
+function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false, precompile = false, incremental = true) 
+
+    parameters = get_bundle_parameters("$source/Project.toml")
+
+    build_msix(source, destination; compress, path_length_threshold, skip_long_paths, parameters) do app_stage
+
+        @info "Bundling application dependencies"
+        bundle_app(platform, source, app_stage; parameters)
 
         if precompile
             @info "Precompiling"
@@ -189,20 +208,11 @@ function build_app(platform::Windows, source, destination; compress::Bool = isex
             @info "Precompilation disabled. Precompilation will happen on the desitination system at first launch."
         end
 
-    end
-
-
-    if compress
-        
-        password = get(ENV, "WINDOWS_PFX_PASSWORD", "")
-
-        pfx_path = joinpath(source, "meta", "windows", "certificate.pfx")
-        if !isfile(pfx_path)
-            pfx_path = nothing
+        if !debug
+            WinSubsystem.change_subsystem_inplace("$app_stage/julia/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
+            WinSubsystem.change_subsystem_inplace("$app_stage/julia/bin/lld.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
         end
 
-        MSIXPack.pack2msix(app_stage, destination; pfx_path, password, path_length_threshold, skip_long_paths)        
-        
     end
 
 end

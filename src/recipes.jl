@@ -72,7 +72,6 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
     return
 end
 
-
 function bundle_app(platform::Linux, source, app_dir)
 
     rm(app_dir, recursive=true, force=true)
@@ -116,73 +115,40 @@ function bundle_app(platform::Linux, source, app_dir)
     return
 end
 
-
-#function bundle_app(platform::Windows, source, destination; with_splash_screen=nothing, compress::Bool = isext(destination, ".zip"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false)
-function bundle_app(platform::Windows, source, destination; with_splash_screen=nothing, debug::Bool = false)
-
-    rm(destination, recursive=true, force=true)
-    mkpath(destination)
-
-    # ToDo:
-    # - Create startup.jl in etc folder
-    # - Do precompilation with startup.jl instead (In startup I could actually define __main__ function the same way as __precompile__ one. 
-    # - Make main.ps1 simple
-    # - Deprecate precompile.jl
-    # - Create relevant icons from scaling; find the releavant ones from existing MSIX archives
-    # - [Speculative] Try to do something on editbin
-
-
-    parameters = get_bundle_parameters("$source/Project.toml")
-    parameters["DEBUG"] = debug ? "true" : "false"
-    if debug
-        parameters["FLAGS"] = "-i"
-    end
+function bundle_app(platform::Windows, source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
 
     app_name = parameters["APP_NAME"]
 
-    if isnothing(with_splash_screen) 
-        with_splash_screen = parse(Bool, parameters["WITH_SPLASH_SCREEN"])
-    else
-        parameters["WITH_SPLASH_SCREEN"] = with_splash_screen
-    end
-
-    # if compress
-    #     app_dir = joinpath(tempdir(), basename(destination)[1:end-4])
-    #     rm(app_dir, recursive=true, force=true)
-    # else
-    #     app_dir = destination
-    # end
-    #mkpath(app_dir)
-
-    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
-
-#    add_rule!(bundle, "precompile.jl", "startup/precompile.jl")
-    add_rule!(bundle, "startup", "startup") 
-    add_rule!(bundle, "windows/assets", "assets") # This shall overwrite destination if it is present
-    add_rule!(bundle, "icon.png", "assets/icon.png")
-    add_rule!(bundle, "windows/main.ps1", "$app_name.ps1", template=true)
-    add_rule!(bundle, "windows/precompile.ps1", "precompile.ps1", template=true)
-    add_rule!(bundle, "windows/AppxManifest.xml", "AppxManifest.xml", template=true)
-    add_rule!(bundle, "windows/main.jl", "main.jl", template=true)
-    
-
     retrieve_julia(platform, "$destination/julia")
-    mv("$destination/julia/libexec/julia/lld.exe", "$destination/julia/bin/lld.exe") # lld.exe can't find shared libraries in UWP
-    add_rule!(bundle, "windows/startup.jl", "julia/etc/julia/startup.jl", template=true, override=true)
+    mv("$destination/julia/libexec/julia/lld.exe", "$destination/julia/bin/lld.exe") # julia.exe can't find shared libraries in UWP
 
-    build(bundle, destination, parameters)
-    
-    retrieve_packages(source, "$destination/packages"; with_splash_screen)
+    retrieve_packages(source, "$destination/packages")
     retrieve_artifacts(platform, "$destination/packages", "$destination/artifacts")
 
     copy_app(source, "$destination/$app_name")
 
-    #Sys.iswindows() || ensure_windows_compatability(app_dir; path_length_threshold, skip_long_paths)
-    #ensure_track_content("$app_dir/packages") # workaround until release with trcack_content patch is available
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
+    add_rule!(bundle, "windows/startup.jl", "julia/etc/julia/startup.jl", template=true, override=true)
+    build(bundle, destination, parameters)
 
-    # if debug
-    #     touch(joinpath(app_dir, "debug"))
-    # end
+end
+
+function bundle_msix(source, destination; debug::Bool = false, parameters = get_bundle_parameters("$source/Project.toml"))
+
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
+
+    add_rule!(bundle, "startup", "startup") 
+    add_rule!(bundle, "windows/Assets", "Assets") # This shall overwrite destination if it is present
+    add_rule!(bundle, "windows/AppxManifest.xml", "AppxManifest.xml", template=true)
+    add_rule!(bundle, "windows/resources.pri", "resources.pri")
+    add_rule!(bundle, "windows/MSIXAppInstallerData.xml", "Msix.AppInstaller.Data/MSIXAppInstallerData.xml")
+
+    build(bundle, destination, parameters)
     
+    if !isdir(joinpath(destination, "Assets")) # One can override assets if necessary
+        img_path = get_meta_path(source, "icon.png")
+        MSIXIcons.generate_app_icons(img_path, joinpath(destination, "Assets")) # override = false
+    end
+
     return
 end

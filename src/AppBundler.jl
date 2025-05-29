@@ -14,6 +14,8 @@ include("Utils/DSStore.jl")
 include("Utils/DMGPack.jl")
 include("Utils/SnapPack.jl")
 include("Utils/MSIXPack.jl")
+include("Utils/MSIXIcons.jl")
+include("Utils/WinSubsystem.jl")
 
 include("utils.jl")
 include("deps.jl")
