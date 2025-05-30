@@ -14,4 +14,4 @@ mkpath(BUILD_DIR)
 # AppBundler.build_app(Linux(:x86_64), APP_DIR, "$BUILD_DIR/qmlapp-x64.snap")
 # AppBundler.build_app(Linux(:aarch64), APP_DIR, "$BUILD_DIR/qmlapp-arm64.snap")
 
-AppBundler.build_app(Windows(:x86_64), APP_DIR, "$BUILD_DIR/qmlapp-win64.msix", precompile = Sys.iswindows())
+AppBundler.build_app(Windows(:x86_64), APP_DIR, "$BUILD_DIR/qmlapp-win64.msix", precompile = Sys.iswindows(), incremental=false)

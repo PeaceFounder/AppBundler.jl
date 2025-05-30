@@ -196,7 +196,7 @@ function change_subsystem_debug(input_file, output_file; subsystem_flag = SUBSYS
     
 end
 
-function change_subsystem_inplace(dest; Ssubsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
+function change_subsystem_inplace(dest; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
 
     orig = joinpath(tempdir(), basename(dest))
     mv(dest, orig; force=true)

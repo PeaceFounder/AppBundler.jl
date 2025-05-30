@@ -85,7 +85,7 @@ function ensure_windows_compatability(src_dir::String; path_length_threshold::In
     return
 end
 
-function generate_self_signed_certificate(pfx_path; password = "", name = "AppBundler", country = "XX", organization = "PeaceFounder")
+function generate_self_signed_certificate(pfx_path; password = "", name = "AppBundler", country = "XX", organization = "PeaceFounder", validity_days = 365)
     code_sign_conf = """
     [ req ]
     default_bits = 2048
@@ -115,7 +115,7 @@ function generate_self_signed_certificate(pfx_path; password = "", name = "AppBu
     rm(certificate_crt; force=true)
 
     # Generate private key and self-signed certificate
-    run(`$(openssl()) req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout "$private_key" -out "$certificate_crt" -config "$conf"`)
+    run(`$(openssl()) req -x509 -nodes -days $validity_days -newkey rsa:2048 -keyout "$private_key" -out "$certificate_crt" -config "$conf"`)
 
     run(`$(openssl()) pkcs12 -export -out "$pfx_path" -inkey "$private_key" -in "$certificate_crt" -passout "pass:$password"`)
 
