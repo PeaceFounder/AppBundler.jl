@@ -2,14 +2,14 @@
 # Users may store their own personal commands in `~/.julia/config/startup.jl`.
 
 if haskey(ENV, "USER_DATA")
-    println("Using USER_DATA environment variable to run in custom location")
+    @info "Using USER_DATA environment variable to run in custom location"
     cache_dir = joinpath(ENV["USER_DATA"], "depot")
 elseif !haskey(ENV, "APP_SANDBOX_CONTAINER_ID")
-    println("Running outside SandBox environment")
+    @info "Running outside SandBox environment"
     cache_dir = joinpath(homedir(), ".cache", "{{APP_NAME}}")
     ENV["USER_DATA"] = joinpath(homedir(), ".config", "{{APP_NAME}}")
 else
-    println("Running in a SandBox environment")
+    @info "Running in a SandBox environment"
     cache_dir = joinpath(homedir(), "Library", "Caches", "depot")
     ENV["USER_DATA"] = joinpath(homedir(), "Library", "Application Support", "Local")
 end

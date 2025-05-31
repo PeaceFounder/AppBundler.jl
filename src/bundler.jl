@@ -93,6 +93,10 @@ function build(bundle::Bundle, destination::String, parameters::Dict)
             
         if ispath(joinpath(bundle.override, rule.origin))
             source = joinpath(bundle.override, rule.origin)
+            if isfile(source) && stat(source).size == 0
+                @info "Skipping rule $(rule.origin) as override is empty"
+                continue
+            end
         elseif ispath(joinpath(bundle.default, rule.origin))
             source = joinpath(bundle.default, rule.origin)
         else
@@ -164,4 +168,16 @@ function get_bundle_parameters(project_toml)
     end
     
     return parameters
+end
+
+function get_meta_path(root, path)
+
+    full_path = joinpath(joinpath(root, "meta", path))
+
+    if isfile(full_path)
+        return full_path
+    else
+        full_path = joinpath(dirname(@__DIR__), "recipes", path)
+        return full_path
+    end
 end

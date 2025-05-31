@@ -16,15 +16,15 @@ Thought has also been put into improving the precompilation experience to reduce
 
 AppBundler expects an application folder which contains `main.jl`, `Project.toml` and `Manifest.toml`. The application entry point is the `main.jl,` which allows starting the application with `julia --project=. main.jl` from the project directory. A `Project.toml` contains many adjustable template variables under a `[bundle]` section. The configuration of the `bundle` sits in a `meta` folder from where files take precedence over the AppBunlder `recepies` folder. Thus, it is straightforward to copy a template from the recipes folder, modify and place it in the `meta` folder if the default configuration does not suffice. See the `examples` folder to see ways to configure. 
 
-A bundle can be created with `AppBundler.bundle_app` function as follows:
+A bundle can be created with `AppBundler.build_app` function as follows:
 
 ```julia
 import AppBundler
 import Pkg.BinaryPlatforms: Linux, MacOS, Windows
-AppBundler.bundle_app(MacOS(:x86_64), "MyApp", "build/MyApp-x64.app")
+AppBundler.build_app(MacOS(:x86_64), "MyApp", "build/MyApp-x64.app")
 ```
 
-The first argument is a platform for which the bundle is being made; in this case, MacOS; `MyApp` is the location for the project, and `build/MyApp-x64.app` is the location where the bundles will be stored. For Linux, the extension `.snap` and Windows `.zip` for destination determines whether the output is compressed, which can be overridden by `compress=false` in the keyword arguments. 
+The first argument is a platform for which the bundle is being made; in this case, MacOS; `MyApp` is the location for the project, and `build/MyApp-x64.app` is the location where the bundles will be stored. If extension `.snap`, `.msix`, `.dmg` is detected for corepsonding platform the full application installer is created. This behaviour can be overriden by `compress=false` in the keyword arguments. 
 
 The resulting bundles can be easily tested on the resulting platforms. The testing phase works without any postprocessing as follows:
 
@@ -32,13 +32,9 @@ The resulting bundles can be easily tested on the resulting platforms. The testi
 - **Linux:** the snap can be installed from a command line `snap install --classic --dangerous app.snap`
 - **Windows:** the bundle can be tried from the application directory with the PowerShell command  `Add-AppPackage -register AppxManifest.xml`
 
-Note that you will face difficulties when using `AppBundler` from Windows for Linux, macOS and other UNIX operating systems, as Windows does not have a concept of execution bit. By hand, you could set `chmod +x` to every executable on the resulting platform. Technically, this can be resolved by directly bundling files into a tar archive and processing the incoming archives without extraction, but this will not happen. Thus, it is better to use WSL when bundling for other platforms on Windows.
+The precompilation is enabled automatically but will error if not done on host system. Hence `precompile=false` shall be used when host platform differs from the target platform. All AppBundler functionality is available on POSIX systems. On Windows only MSIX bundling is available.
 
-## Post Processing
-
-
-After the bundle is created, it needs to be finalised on the host system, where precompilation and, usually, bundle signing must be performed.
-
+## Platform Specific Instructions
 
 ### MacOS
 
@@ -60,7 +56,13 @@ For custom DMG appearance, you can provide: A custom DS_Store file at `MyApp/met
 
 The precompilation is is enabled by default and errors if it can not be performed on the host system. For cross-platform building, you can disable precompilation with the `precompile=false` option. In future, Julia may implement crosss compilation which would make this option redundant.
 
-The signing certificate can be obtained from Apple by subscribing to its developer program. Alternatively, for development purposes, you can generate a self-signing certificate. Follow [official instructions of Apple](https://support.apple.com/en-gb/guide/keychain-access/kyca8916/mac), set *Certificate Type* to *Code Signing* and fill out the rest of the parameters as [instructed on youtube](https://www.youtube.com/watch?v=OpR9-onRZko). 
+The signing certificate can be obtained from Apple by subscribing to its developer program. Alternatively, for development purposes, you can generate a self-signing certificate. One time signing certificate is generated automatically if `MyApp/meta/macos/certificate.pfx` file is not found. For convinience `AppBundler` also offers ability to generate self signing certificate via:
+
+```julia
+import AppBundler
+AppBundler.generate_macos_signing_certificate("$appdir/meta"; person_name = "JanisErdmanis", country = "LV")
+```
+which will generate a certificate at `$appdir/meta/macos/certificate.pfx` and print out generated password.
 
 ### Linux
 
@@ -71,6 +73,34 @@ The signing certificate can be obtained from Apple by subscribing to its develop
 For snap, it is also worth mentioning the `snap try myapp` command, which allows one to install an application without squashing. There is also `snap run --shell myapp`, which is a valuable command for entering into the snap confinement shell. 
 
 ### Windows
+
+Windows bundling has been fully automated with `build_app` function which handles bundling, precompilation, code signing, and DMG creation in one step:
+
+```julia
+import AppBundler
+import Pkg.BinaryPlatforms: Windows
+
+# Create a MSIX structured directory
+AppBundler.build_app(Windows(:x86_64), "MyApp", "build/MyApp")
+
+# Create a MSIX installer 
+AppBundler.build_app(Windows(:x86_64), "MyApp", "build/MyApp.msix")
+```
+The function automatically detects whether to create a MSIX installer by destination extension. For code signing, the function looks for a certificate at `MyApp/meta/windows/certificate.pfx` and uses the `WINDOWS_PFX_PASSWORD` environment variable for the password if available.
+
+The precompilation is is enabled by default and errors if it can not be performed on the host system. For cross-platform building, you can disable precompilation with the `precompile=false` option. In future, Julia may implement crosss compilation which would make this option redundant.
+
+A legitimate signing certificate can be obtained from various sources. Alternatively, for development purposes, you can generate a self-signing certificate. One time signing certificate is generated automatically if `MyApp/meta/windows/certificate.pfx` file is not found. For convinience `AppBundler` also offers ability to generate self signing certificate via:
+
+```julia
+import AppBundler
+AppBundler.generate_windows_signing_certificate("$appdir/meta"; person_name = "JanisErdmanis", country = "LV")
+```
+which will generate a certificate at `$appdir/meta/windows/certificate.pfx` and print out generated password.
+
+#### Legacy approach
+
+Previously the AppBundler reliead on manual postprocessing that should be done on the Windows host system. Theese steps can still be performed manually on the host by bundling application directory using `build_app(Windows(:x86_64), appdir, "build/staging_dir")` where destination would be a bundled in MSIX directory structure. This shall only be necessary in case of debugging purposes when `AppBundler.MSIXPack.pack2msix` that wraps `makemsix` and `opensslsigncode` is suspected to have a bug.
 
 For Windows, one has to install `MakeAppx`, `SignTool`, and `EditBin` installed with WindowsSDK. Installation of Windows SDK fails. Thus, one needs to install Visual Studio Code, adding a few more gigabytes to download and install. For those who run Windows from Parallels, don't run the `Add-Package -register AppxManifest.xml` from a network drive, but copy the files to the home directory instead, as otherwise, Julia crashes. Also, running an executable from installation location `C:\ProgramFiles\WindowsApps\<app folder>` with admin privileges will run the application within the containerised environment specified with `AppxManifest.xml`. 
 
@@ -103,7 +133,7 @@ New-Alias -Name editbin -Value "C:\Program Files\Microsoft Visual Studio\2022\Co
 ```
 
 1. If the bundle is compressed, unzip it.
-2. Run the precompilation script `myapp\precompile.ps1` which will generate `myapp\compiled` 
+2. Run the precompilation script `myapp\julia\bin\julia.exe --startup-file=no --eval="__precompile__()"` which will generate `myapp\compiled` 
 3. Set `julia.exe` to be Windows application `editbin /SUBSYSTEM:WINDOWS myapp\julia\bin\julia.exe` so the console is not shown when the app is run.
 4. Make a bundle `makeappx pack /d myapp /p myapp.msix`
 5. Sign the bundle `signtool sign /fd SHA256 /a /f JanisErdmanis.pfx /p "PASSWORD" myapp.msix`

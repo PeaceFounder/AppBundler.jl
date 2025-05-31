@@ -58,7 +58,7 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
     mkpath("$app_dir/Libraries")
     copy_app(source, "$app_dir/Libraries/$module_name")
     retrieve_julia(platform, "$app_dir/Libraries/julia")
-    
+
     add_rule!(bundle, "macos/startup.jl", "Libraries/julia/etc/julia/startup.jl", template=true, override=true)
     
     build(bundle, app_dir, parameters)
@@ -71,7 +71,6 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
 
     return
 end
-
 
 function bundle_app(platform::Linux, source, app_dir)
 
@@ -105,11 +104,11 @@ function bundle_app(platform::Linux, source, app_dir)
 
     add_rule!(bundle, "linux/meta", "meta")
     add_rule!(bundle, "icon.png", "meta/icon.png") 
-    
+
     build(bundle, app_dir, parameters)
-    
+
+    retrieve_julia(platform, "$app_dir/lib/julia")    
     copy_app(source, "$app_dir/lib/$app_name")
-    retrieve_julia(platform, "$app_dir/lib/julia")
     retrieve_packages(source, "$app_dir/lib/packages")
     retrieve_artifacts(platform, "$app_dir/lib/packages", "$app_dir/lib/artifacts")
 
@@ -117,65 +116,156 @@ function bundle_app(platform::Linux, source, app_dir)
 end
 
 
-function bundle_app(platform::Windows, source, destination; with_splash_screen=nothing, compress::Bool = isext(destination, ".zip"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false)
+"""
+    bundle_app(platform::Windows, source, destination; parameters = get_bundle_parameters("\$source/Project.toml"))
 
-    rm(destination, recursive=true, force=true)
+Bundle a Julia application into a Windows application directory structure.
 
-    parameters = get_bundle_parameters("$source/Project.toml")
-    parameters["DEBUG"] = debug ? "true" : "false"
-    if debug
-        parameters["FLAGS"] = "-i"
-    end
+This function transforms Julia source code into a standalone Windows application bundle by creating 
+the necessary directory hierarchy and configuration files. It sets up a complete application that 
+can be distributed and run on Windows without requiring a separate Julia installation. The function 
+handles embedding the Julia runtime, copying application code, retrieving necessary packages and 
+artifacts, and creating the required startup configuration.
+
+The bundled application uses a custom Julia startup script that configures the environment to locate 
+the embedded Julia runtime, packages, and artifacts. This allows the application to run independently 
+of any system Julia installation.
+
+# Arguments
+- `platform::Windows`: Windows platform specification, including architecture information and target Julia version
+- `source::String`: Path to the source directory containing the application's source code, Project.toml, and main.jl
+- `destination::String`: Path where the Windows application bundle should be created
+
+# Bundle Structure
+Creates a Windows application bundle with the following structure:
+- `julia/`: Complete Julia runtime environment
+- `packages/`: Application dependencies and Julia packages
+- `artifacts/`: Package artifacts and binary dependencies
+- `[APP_NAME]/`: Application source code directory containing main.jl and src/
+
+This function creates the core application bundle but does not handle MSIX packaging, code signing, or precompilation - those are handled by higher-level functions. See `bundle_msix`, `build_msix` and `build_app`. 
+
+# Template Processing
+The function uses a template-based approach for configuration files. Templates are sourced from 
+`AppBundler/recipes/windows` by default, with support for custom overrides in `source/meta/windows/`. 
+The startup.jl template is particularly important as it configures Julia's load paths to use the 
+bundled packages and artifacts.
+
+# Platform-Specific Handling
+- Relocates `lld.exe` from `libexec/julia/` to `bin/` for UWP (Universal Windows Platform) compatibility
+
+# Directory Structure Expectations
+The `source` directory should contain:
+- `Project.toml`: Application metadata and dependencies
+- `main.jl`: Application entry point script
+- `src/` (optional): Additional application source code
+- `meta/windows/` (optional): Windows-specific template overrides
+  - `startup.jl` (optional): Custom Julia startup script template
+
+# Example
+```julia
+# Bundle a Julia application for Windows x64
+bundle_app(Windows(:x86_64), "MyApp", "build/MyApp/")
+```
+
+"""
+function bundle_app(platform::Windows, source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
 
     app_name = parameters["APP_NAME"]
 
-    if isnothing(with_splash_screen) 
-        with_splash_screen = parse(Bool, parameters["WITH_SPLASH_SCREEN"])
-    else
-        parameters["WITH_SPLASH_SCREEN"] = with_splash_screen
-    end
+    retrieve_julia(platform, "$destination/julia")
+    mv("$destination/julia/libexec/julia/lld.exe", "$destination/julia/bin/lld.exe") # julia.exe can't find shared libraries in UWP
 
-    if compress
-        app_dir = joinpath(tempdir(), basename(destination)[1:end-4])
-        rm(app_dir, recursive=true, force=true)
-    else
-        app_dir = destination
-    end
-    mkpath(app_dir)
+    retrieve_packages(source, "$destination/packages")
+    retrieve_artifacts(platform, "$destination/packages", "$destination/artifacts")
+
+    copy_app(source, "$destination/$app_name")
+
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
+    add_rule!(bundle, "windows/startup.jl", "julia/etc/julia/startup.jl", template=true, override=true)
+    build(bundle, destination, parameters)
+
+end
+
+"""
+    bundle_msix(source, destination; parameters = get_bundle_parameters("\$source/Project.toml"))
+
+Bundle MSIX-specific metadata and assets for a Windows application package.
+
+This function creates the MSIX (Microsoft Store Installation Experience) package structure and 
+metadata files required for Windows application distribution through the Microsoft Store or 
+sideloading. It processes application templates, generates the application manifest, copies 
+required assets, and creates the proper directory structure for MSIX packaging.
+
+The function handles the MSIX-specific aspects of Windows application packaging, including the 
+AppxManifest.xml file that defines the application's identity, capabilities, and visual elements, 
+as well as the application icons and installer metadata. It works in conjunction with `bundle_app` 
+to create a complete MSIX-ready application bundle.
+
+# Arguments
+- `source::String`: Path to the source directory containing Project.toml, and optional `meta` directory for customization
+- `destination::String`: Path where the MSIX bundle structure should be created
+
+# Keyword Arguments
+- `parameters::Dict = get_bundle_parameters("\$source/Project.toml")`: Application parameters extracted 
+  from Project.toml, used for template processing and manifest generation
+
+# MSIX Bundle Structure
+Creates an MSIX-compliant directory structure:
+- `AppxManifest.xml`: Application manifest defining identity, capabilities, and metadata
+- `Assets/`: Application icons and visual assets in various sizes for different contexts
+- `resources.pri`: Compiled resource file containing application resources and localization data
+- `startup/`: Application startup scripts and configuration
+- `Msix.AppInstaller.Data/MSIXAppInstallerData.xml`: App installer configuration and metadata
+
+# Template Processing
+Uses a template-based approach with files from `AppBundler/recipes/windows/` as defaults:
+- `AppxManifest.xml`: Application manifest template with parameter substitution
+- `resources.pri`: Resource index file for the application
+- `MSIXAppInstallerData.xml`: Installation metadata template
+- `Assets/`: Default application asset templates
+
+Custom overrides can be provided in the `source/meta/windows/` directory to replace any default templates.
+
+# Icon Generation
+The function automatically generates a complete set of application icons required by MSIX from a single 
+source icon file:
+- Looks for `icon.png` in the source metadata directories
+- Generates multiple icon sizes and formats required by Windows (Square44x44Logo, Square150x150Logo, etc.)
+- Only generates icons if no custom `Assets/` directory is provided in the source overrides
+- Uses the `MSIXIcons.generate_app_icons` function for icon processing
+
+# Example
+```julia
+# Create MSIX bundle structure
+bundle_msix("appdir", "build/msix_staging/")
+
+# Resulting structure:
+# build/msix_staging/
+# ├── AppxManifest.xml     # Application manifest
+# ├── Assets/              # Generated application icons
+# ├── resources.pri        # Resource index
+# └── Msix.AppInstaller.Data/
+#     └── MSIXAppInstallerData.xml
+```
+
+This function is typically called by `build_msix` as part of the complete MSIX application building process.
+"""
+function bundle_msix(source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
 
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
 
-    add_rule!(bundle, "precompile.jl", "startup/precompile.jl")
     add_rule!(bundle, "startup", "startup") 
-    add_rule!(bundle, "windows/assets", "assets") # This shall overwrite destination if it is present
-    add_rule!(bundle, "icon.png", "assets/icon.png")
-    add_rule!(bundle, "windows/main.ps1", "$app_name.ps1", template=true)
-    add_rule!(bundle, "windows/precompile.ps1", "precompile.ps1", template=true)
+    add_rule!(bundle, "windows/Assets", "Assets") # This shall overwrite destination if it is present
     add_rule!(bundle, "windows/AppxManifest.xml", "AppxManifest.xml", template=true)
-    add_rule!(bundle, "windows/main.jl", "main.jl", template=true)
-    
-    build(bundle, app_dir, parameters)
-    
-    retrieve_julia(platform, "$app_dir/julia")
-    mv("$app_dir/julia/libexec/julia/lld.exe", "$app_dir/julia/bin/lld.exe") # lld.exe can't find shared libraries in UWP
-    
-    retrieve_packages(source, "$app_dir/packages"; with_splash_screen)
-    retrieve_artifacts(platform, "$app_dir/packages", "$app_dir/artifacts")
+    add_rule!(bundle, "windows/resources.pri", "resources.pri")
+    add_rule!(bundle, "windows/MSIXAppInstallerData.xml", "Msix.AppInstaller.Data/MSIXAppInstallerData.xml")
 
-    copy_app(source, "$app_dir/$app_name")
-
-    Sys.iswindows() || ensure_windows_compatability(app_dir; path_length_threshold, skip_long_paths)
-    ensure_track_content("$app_dir/packages") # workaround until release with trcack_content patch is available
-
-    if debug
-        touch(joinpath(app_dir, "debug"))
+    build(bundle, destination, parameters)
+    
+    if !isdir(joinpath(destination, "Assets")) # One can override assets if necessary
+        img_path = get_meta_path(source, "icon.png")
+        MSIXIcons.generate_app_icons(img_path, joinpath(destination, "Assets")) # override = false
     end
-    
-    if compress
-        @info "Compressing into a zip archive"
-        zip_directory(app_dir, destination)
-        rm(app_dir, recursive=true, force=true)
-    end
-    
-    return
+
 end

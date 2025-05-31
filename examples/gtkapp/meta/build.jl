@@ -13,4 +13,4 @@ AppBundler.build_app(MacOS(:aarch64), APP_DIR, "$BUILD_DIR/gtkapp-arm64.dmg", pr
 AppBundler.build_app(Linux(:x86_64), APP_DIR, "$BUILD_DIR/gtkapp-x64.snap")
 AppBundler.build_app(Linux(:aarch64), APP_DIR, "$BUILD_DIR/gtkapp-arm64.snap")
 
-AppBundler.build_app(Windows(:x86_64), APP_DIR, "$BUILD_DIR/gtkapp-win64.zip")
+AppBundler.build_app(Windows(:x86_64), APP_DIR, "$BUILD_DIR/gtkapp-win64.msix", precompile = Sys.iswindows())
