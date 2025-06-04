@@ -28,6 +28,50 @@ The function uses a template-based approach for creating the bundle structure. T
 
 This function is typically called by the higher-level `build_app` function which handles additional operations like code signing, precompilation, and DMG packaging
 """
+# function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing, parameters = get_bundle_parameters("$source/Project.toml"))
+
+#     rm(destination, recursive=true, force=true)
+
+#     app_name = parameters["APP_NAME"]
+#     module_name = parameters["MODULE_NAME"]
+
+#     if isnothing(with_splash_screen) 
+#         with_splash_screen = parse(Bool, parameters["WITH_SPLASH_SCREEN"]) # When not set take a value 
+#     else
+#         parameters["WITH_SPLASH_SCREEN"] = with_splash_screen
+#     end
+
+#     rm(joinpath(destination), recursive=true, force=true)
+#     mkpath(destination)
+#     app_dir = "$destination/Contents"
+
+#     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
+    
+#     add_rule!(bundle, "macos/Resources", "Resources")
+#     add_rule!(bundle, "icon.icns", "Resources/icon.icns")
+    
+#     add_rule!(bundle, "startup", "Libraries/startup")
+
+#     add_rule!(bundle, "macos/main.sh", "Libraries/main", template=true, executable=true)
+#     add_rule!(bundle, "macos/Info.plist", "Info.plist", template=true)
+
+#     mkpath("$app_dir/Libraries")
+#     copy_app(source, "$app_dir/Libraries/$module_name")
+#     retrieve_julia(platform, "$app_dir/Libraries/julia")
+
+#     add_rule!(bundle, "macos/startup.jl", "Libraries/julia/etc/julia/startup.jl", template=true, override=true)
+    
+#     build(bundle, app_dir, parameters)
+
+#     retrieve_packages(source, "$app_dir/Libraries/packages"; with_splash_screen)
+#     retrieve_artifacts(platform, "$app_dir/Libraries/packages", "$app_dir/Libraries/artifacts")
+
+#     mkdir(joinpath(destination, "Contents/MacOS"))
+#     retrieve_macos_launcher(platform, joinpath(destination, "Contents/MacOS/$app_name"))
+
+#     return
+# end
+
 function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing, parameters = get_bundle_parameters("$source/Project.toml"))
 
     rm(destination, recursive=true, force=true)
@@ -41,19 +85,21 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
         parameters["WITH_SPLASH_SCREEN"] = with_splash_screen
     end
 
-    rm(joinpath(destination), recursive=true, force=true)
+    #rm(joinpath(destination), recursive=true, force=true)
+
     mkpath(destination)
     app_dir = "$destination/Contents"
 
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
     
-    add_rule!(bundle, "macos/Resources", "Resources")
-    add_rule!(bundle, "icon.icns", "Resources/icon.icns")
+    #add_rule!(bundle, "macos/Resources", "Resources")
+    #add_rule!(bundle, "icon.icns", "Resources/icon.icns")
     
     add_rule!(bundle, "startup", "Libraries/startup")
-
     add_rule!(bundle, "macos/main.sh", "Libraries/main", template=true, executable=true)
-    add_rule!(bundle, "macos/Info.plist", "Info.plist", template=true)
+
+    #add_rule!(bundle, "macos/main.sh", "Libraries/main", template=true, executable=true)
+    #add_rule!(bundle, "macos/Info.plist", "Info.plist", template=true)
 
     mkpath("$app_dir/Libraries")
     copy_app(source, "$app_dir/Libraries/$module_name")
@@ -70,6 +116,22 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
     retrieve_macos_launcher(platform, joinpath(destination, "Contents/MacOS/$app_name"))
 
     return
+end
+
+
+# One can always go an upper directory to add some more stuff
+function bundle_dmg(source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
+
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
+
+    add_rule!(bundle, "macos/Resources", "Resources")
+    add_rule!(bundle, "icon.icns", "Resources/icon.icns")
+    
+    add_rule!(bundle, "macos/Info.plist", "Info.plist", template=true)
+
+    build(bundle, joinpath(destination, "Contents"), parameters)
+
+    return    
 end
 
 function bundle_app(platform::Linux, source, app_dir)
@@ -256,7 +318,7 @@ function bundle_msix(source, destination; parameters = get_bundle_parameters("$s
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
 
     add_rule!(bundle, "startup", "startup") 
-    add_rule!(bundle, "windows/Assets", "Assets") # This shall overwrite destination if it is present
+    add_rule!(bundle, "windows/Assets", "Assets") 
     add_rule!(bundle, "windows/AppxManifest.xml", "AppxManifest.xml", template=true)
     add_rule!(bundle, "windows/resources.pri", "resources.pri")
     add_rule!(bundle, "windows/MSIXAppInstallerData.xml", "Msix.AppInstaller.Data/MSIXAppInstallerData.xml")
@@ -265,7 +327,7 @@ function bundle_msix(source, destination; parameters = get_bundle_parameters("$s
     
     if !isdir(joinpath(destination, "Assets")) # One can override assets if necessary
         img_path = get_meta_path(source, "icon.png")
-        MSIXIcons.generate_app_icons(img_path, joinpath(destination, "Assets")) # override = false
+        MSIXIcons.generate_app_icons(img_path, joinpath(destination, "Assets")) 
     end
 
 end

@@ -1,5 +1,5 @@
 """
-    build_app(platform::MacOS, source, destination; compression = :lzma, debug = false, precompile = true, incremental = true)
+    build_app(platform::MacOS, source, destination; compression = :lzma, precompile = true, incremental = true)
 
 Build a complete macOS application from Julia source code, optionally packaging it as a DMG disk image.
 
@@ -19,8 +19,6 @@ of the host must match the target architecture. For code signing, the function u
 - `compression::Union{Symbol, Nothing} = :lzma`: Compression algorithm 
   to use for the DMG. Options are `:lzma`, `:bzip2`, `:zlib`, `:lzfse`, or `nothing` for no compression.
   Defaults to `:lzma` if destination has a .dmg extension, otherwise `nothing` that creates an `.app` as final product 
-- `debug::Bool = false`: When true, creates the staging directory in the same location as the destination
-  instead of in a temporary directory, and preserves existing files for debugging purposes
 - `precompile::Bool = true`: Whether to precompile the application code for faster startup
 - `incremental::Bool = true`: Whether to perform incremental precompilation (preserving existing compiled files)
 
@@ -48,24 +46,16 @@ build_app(MacOS(:arm64), "path/to/source", "path/to/MyApp.dmg")
 # Build without precompilation (e.g., for cross-compiling)
 build_app(MacOS(:arm64), "path/to/source", "path/to/MyApp.dmg"; precompile = false)
 """
-function build_app(platform::MacOS, source, destination; compression = isext(destination, ".dmg") ? :lzma : nothing, debug = false, precompile = true, incremental = true)
+function build_app(platform::MacOS, source, destination; compression = isext(destination, ".dmg") ? :lzma : nothing, precompile = true, incremental = true)
 
     if precompile && (!Sys.isapple() || (Sys.ARCH == "x86_64" && arch(platform) != Sys.ARCH))
         error("Precompilation can only be done on MacOS as currently Julia does not support cross compilation. Set `precompile=false` to make a bundle without precompilation.")
     end
 
     parameters = get_bundle_parameters("$source/Project.toml")
-    appname = parameters["APP_NAME"]
-    
-    staging_dir = debug ? dirname(destination) : joinpath(tempdir(), appname) 
-    app_stage = !isnothing(compression) ? joinpath(staging_dir, "$appname/$appname.app") : destination
 
-    if !debug
-        rm(app_stage; force=true, recursive=true)
-        rm(destination; force=true)
-    end
+    build_dmg(source, destination; compression) do app_stage
 
-    if !isdir(app_stage)
         bundle_app(platform, source, app_stage; parameters)
 
         if precompile
@@ -80,7 +70,7 @@ function build_app(platform::MacOS, source, destination; compression = isext(des
             
             # Run the command with the modified environment
             # withenv("JULIA_DEBUG" => "loading") do
-            run(`$julia --eval '_precompile()'`)
+            run(`$julia --eval '__precompile__()'`)
             # end
             
         else
@@ -90,6 +80,66 @@ function build_app(platform::MacOS, source, destination; compression = isext(des
         # May not be the only ones
         run(`find $app_stage -name "._*" -delete`)
     end
+
+    return 
+end
+
+
+"""
+    build_dmg(setup::Function, source, destination; compression = isext(destination, ".dmg") ? :lzma : nothing)
+
+Create a macOS application bundle or DMG disk image with automatic code signing and customizable setup.
+
+This function provides a flexible way to create macOS applications by accepting a custom setup function 
+that defines how the application should be prepared. It handles staging directory management, 
+code signing with certificates or self-signing, and optionally packages the result into a 
+distributable DMG installer with custom appearance settings.
+
+# Arguments
+- `setup::Function`: A function that takes the staging directory path as an argument and performs 
+  the necessary application setup (typically called from `build_app` to bundle the Julia application)
+- `source::String`: Path to the source directory containing the application's source code and Project.toml
+- `destination::String`: Path where the final .app bundle or .dmg disk image should be created
+
+# Keyword Arguments
+- `compression = nothing|:lzma|:bzip2|:zlib|:lzfse`: Compression algorithm for DMG creation. Defaults to `:lzma` for .dmg destinations, `nothing` creates standalone .app bundles.
+
+# Code Signing
+
+The function automatically handles code signing for all created applications. If a signing certificate is available at `meta/macos/certificate.pfx`, it will be used along with the password from the `MACOS_PFX_PASSWORD` environment variable. When no certificate file is present, the function generates and uses a temporary self-signed certificate for signing.
+
+Custom entitlements can be specified by placing an `Entitlements.plist` file in `meta/macos/`. If this file is not found, default entitlements appropriate for most applications will be used automatically.
+
+# Directory Structure Requirements
+Expects the following optional customization files in the source directory:
+- `meta/macos/certificate.pfx`: Code signing certificate (optional)
+- `meta/macos/Entitlements.plist`: Custom entitlements (optional, uses default if not found)  
+- `meta/macos/DS_Store`: Direct DMG appearance file (optional)
+- `meta/macos/DS_Store.toml`: DMG appearance template (optional, uses default if not found)
+
+# Examples
+```julia
+build_dmg("src/", "MyApp.dmg"; compression = :lzma) do staging_dir
+    bundle_app(MacOS(:arm64), "src/", staging_dir)
+    # Perform any additional customizations
+end
+```
+"""
+function build_dmg(setup::Function, source, destination; compression = isext(destination, ".dmg") ? :lzma : nothing)
+
+    parameters = get_bundle_parameters("$source/Project.toml")
+    appname = parameters["APP_NAME"]
+    
+    #staging_dir = isnothing(compression) ? dirname(destination) : joinpath(tempdir(), appname) 
+    app_stage = !isnothing(compression) ? joinpath(tempdir(), "$appname/$appname.app") : destination
+    
+    rm(app_stage; force=true, recursive=true)
+    rm(destination; force=true)
+
+    mkpath(app_stage)
+    
+    setup(app_stage)
+    bundle_dmg(source, app_stage; parameters)
 
     password = get(ENV, "MACOS_PFX_PASSWORD", "")
 
@@ -123,8 +173,8 @@ function build_app(platform::MacOS, source, destination; compression = isext(des
     end    
     
     DMGPack.pack2dmg(app_stage, destination, entitlements_path; pfx_path, dsstore, password, compression, installer_title)
-
-    return 
+    
+    return
 end
 
 

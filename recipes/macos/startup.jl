@@ -31,7 +31,7 @@ push!(DEPOT_PATH, cache_dir, libdir, joinpath(libdir, "julia/share/julia"))
 @info "USER_DATA = $(ENV["USER_DATA"])"
 
 
-function _precompile()
+function __precompile__()
     popfirst!(DEPOT_PATH)
     @eval using {{MODULE_NAME}}
 end
