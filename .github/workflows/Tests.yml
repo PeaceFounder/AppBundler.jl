@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main, master, dmg]
+    branches: [main, master, dmg, ci-refactor]
     tags: ['*']
   pull_request:
 
