@@ -13,15 +13,25 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
+        include:
+          - os: ubuntu-latest
+            prefix: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24'
     
     steps:
       - uses: actions/checkout@v3
+      
+      - name: Install Linux GUI dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-4-dev
+        
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1.11'
       - uses: julia-actions/cache@v1
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
+        with:
+          prefix: ${{ matrix.prefix }}
       - uses: julia-actions/julia-processcoverage@v1
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
