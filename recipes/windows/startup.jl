@@ -62,6 +62,5 @@ function __precompile__()
 end
 
 function __main__()
-    #@eval include(joinpath(libdir, "startup", "init.jl"))
     @eval include(joinpath(libdir, ENV["APP_NAME"], "main.jl"))
 end

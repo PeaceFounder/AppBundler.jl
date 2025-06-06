@@ -28,50 +28,6 @@ The function uses a template-based approach for creating the bundle structure. T
 
 This function is typically called by the higher-level `build_app` function which handles additional operations like code signing, precompilation, and DMG packaging
 """
-# function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing, parameters = get_bundle_parameters("$source/Project.toml"))
-
-#     rm(destination, recursive=true, force=true)
-
-#     app_name = parameters["APP_NAME"]
-#     module_name = parameters["MODULE_NAME"]
-
-#     if isnothing(with_splash_screen) 
-#         with_splash_screen = parse(Bool, parameters["WITH_SPLASH_SCREEN"]) # When not set take a value 
-#     else
-#         parameters["WITH_SPLASH_SCREEN"] = with_splash_screen
-#     end
-
-#     rm(joinpath(destination), recursive=true, force=true)
-#     mkpath(destination)
-#     app_dir = "$destination/Contents"
-
-#     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
-    
-#     add_rule!(bundle, "macos/Resources", "Resources")
-#     add_rule!(bundle, "icon.icns", "Resources/icon.icns")
-    
-#     add_rule!(bundle, "startup", "Libraries/startup")
-
-#     add_rule!(bundle, "macos/main.sh", "Libraries/main", template=true, executable=true)
-#     add_rule!(bundle, "macos/Info.plist", "Info.plist", template=true)
-
-#     mkpath("$app_dir/Libraries")
-#     copy_app(source, "$app_dir/Libraries/$module_name")
-#     retrieve_julia(platform, "$app_dir/Libraries/julia")
-
-#     add_rule!(bundle, "macos/startup.jl", "Libraries/julia/etc/julia/startup.jl", template=true, override=true)
-    
-#     build(bundle, app_dir, parameters)
-
-#     retrieve_packages(source, "$app_dir/Libraries/packages"; with_splash_screen)
-#     retrieve_artifacts(platform, "$app_dir/Libraries/packages", "$app_dir/Libraries/artifacts")
-
-#     mkdir(joinpath(destination, "Contents/MacOS"))
-#     retrieve_macos_launcher(platform, joinpath(destination, "Contents/MacOS/$app_name"))
-
-#     return
-# end
-
 function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing, parameters = get_bundle_parameters("$source/Project.toml"))
 
     rm(destination, recursive=true, force=true)
@@ -85,21 +41,12 @@ function bundle_app(platform::MacOS, source, destination; with_splash_screen = n
         parameters["WITH_SPLASH_SCREEN"] = with_splash_screen
     end
 
-    #rm(joinpath(destination), recursive=true, force=true)
-
     mkpath(destination)
     app_dir = "$destination/Contents"
 
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
     
-    #add_rule!(bundle, "macos/Resources", "Resources")
-    #add_rule!(bundle, "icon.icns", "Resources/icon.icns")
-    
-    add_rule!(bundle, "startup", "Libraries/startup")
     add_rule!(bundle, "macos/main.sh", "Libraries/main", template=true, executable=true)
-
-    #add_rule!(bundle, "macos/main.sh", "Libraries/main", template=true, executable=true)
-    #add_rule!(bundle, "macos/Info.plist", "Info.plist", template=true)
 
     mkpath("$app_dir/Libraries")
     copy_app(source, "$app_dir/Libraries/$module_name")
@@ -134,31 +81,16 @@ function bundle_dmg(source, destination; parameters = get_bundle_parameters("$so
     return    
 end
 
-function bundle_app(platform::Linux, source, app_dir)
+function bundle_snap(source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
 
-    rm(app_dir, recursive=true, force=true)
-
-    # This may not be DRY enough
-    parameters = get_bundle_parameters("$source/Project.toml")
-    parameters["APP_NAME"] = lowercase(parameters["APP_NAME"]) # necessary for a snap name
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
+    
+    #parameters["ARCH_TRIPLET"] = linux_arch_triplet(arch(platform))
     app_name = parameters["APP_NAME"]
-    parameters["ARCH_TRIPLET"] = linux_arch_triplet(arch(platform))
-
-    # if compress
-    #     app_dir = joinpath(tempdir(), basename(destination)[1:end-4])
-    #     rm(app_dir, recursive=true, force=true)
-    # else
-    #     app_dir = destination 
-    # end
-    # mkpath(app_dir)
 
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
 
-    add_rule!(bundle, "precompile.jl", "lib/startup/precompile.jl")
-    add_rule!(bundle, "startup", "lib/startup") 
-    add_rule!(bundle, "linux/wayland-launch.sh", "bin/wayland-launch", template=true, executable=true) 
     add_rule!(bundle, "linux/main.sh", "bin/$app_name", template=true, executable=true)
-    add_rule!(bundle, "linux/precompile.sh", "bin/precompile", template=true, executable=true)
 
     add_rule!(bundle, "linux/configure.sh", "meta/hooks/configure", template=true, executable=true)
     add_rule!(bundle, "linux/main.desktop", "meta/gui/$app_name.desktop", template=true)
@@ -167,12 +99,22 @@ function bundle_app(platform::Linux, source, app_dir)
     add_rule!(bundle, "linux/meta", "meta")
     add_rule!(bundle, "icon.png", "meta/icon.png") 
 
-    build(bundle, app_dir, parameters)
+    build(bundle, destination, parameters)
+    
+    return
+end
 
+function bundle_app(platform::Linux, source, app_dir; parameters = get_bundle_parameters("$source/Project.toml"))
+
+    mkdir("$app_dir/lib")
     retrieve_julia(platform, "$app_dir/lib/julia")    
-    copy_app(source, "$app_dir/lib/$app_name")
+    copy_app(source, joinpath(app_dir, "lib", parameters["MODULE_NAME"]))
     retrieve_packages(source, "$app_dir/lib/packages")
     retrieve_artifacts(platform, "$app_dir/lib/packages", "$app_dir/lib/artifacts")
+
+    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
+    add_rule!(bundle, "linux/startup.jl", "lib/julia/etc/julia/startup.jl", template=true, override=true)
+    build(bundle, app_dir, parameters)
 
     return
 end
@@ -233,15 +175,13 @@ bundle_app(Windows(:x86_64), "MyApp", "build/MyApp/")
 """
 function bundle_app(platform::Windows, source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
 
-    app_name = parameters["APP_NAME"]
-
     retrieve_julia(platform, "$destination/julia")
     mv("$destination/julia/libexec/julia/lld.exe", "$destination/julia/bin/lld.exe") # julia.exe can't find shared libraries in UWP
 
     retrieve_packages(source, "$destination/packages")
     retrieve_artifacts(platform, "$destination/packages", "$destination/artifacts")
 
-    copy_app(source, "$destination/$app_name")
+    copy_app(source, joinpath(destination, parameters["MODULE_NAME"]))
 
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
     add_rule!(bundle, "windows/startup.jl", "julia/etc/julia/startup.jl", template=true, override=true)
@@ -277,7 +217,6 @@ Creates an MSIX-compliant directory structure:
 - `AppxManifest.xml`: Application manifest defining identity, capabilities, and metadata
 - `Assets/`: Application icons and visual assets in various sizes for different contexts
 - `resources.pri`: Compiled resource file containing application resources and localization data
-- `startup/`: Application startup scripts and configuration
 - `Msix.AppInstaller.Data/MSIXAppInstallerData.xml`: App installer configuration and metadata
 
 # Template Processing
@@ -317,7 +256,6 @@ function bundle_msix(source, destination; parameters = get_bundle_parameters("$s
 
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
 
-    add_rule!(bundle, "startup", "startup") 
     add_rule!(bundle, "windows/Assets", "Assets") 
     add_rule!(bundle, "windows/AppxManifest.xml", "AppxManifest.xml", template=true)
     add_rule!(bundle, "windows/resources.pri", "resources.pri")

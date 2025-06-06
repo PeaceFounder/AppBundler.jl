@@ -30,8 +30,11 @@ push!(DEPOT_PATH, cache_dir, libdir, joinpath(libdir, "julia/share/julia"))
 @info "DEPOT_PATH = $DEPOT_PATH"
 @info "USER_DATA = $(ENV["USER_DATA"])"
 
-
 function __precompile__()
     popfirst!(DEPOT_PATH)
     @eval using {{MODULE_NAME}}
+end
+
+function __main__()
+    @eval include(joinpath(Base.ACTIVE_PROJECT[], "main.jl"))
 end

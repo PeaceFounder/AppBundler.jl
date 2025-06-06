@@ -177,29 +177,53 @@ function build_dmg(setup::Function, source, destination; compression = isext(des
     return
 end
 
+function build_snap(setup::Function, source, destination; compress::Bool = isext(destination, ".snap"), parameters = get_bundle_parameters("$source/Project.toml"))
 
-function build_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"))
-
-    rm(destination, recursive=true, force=true)
+    rm(destination; recursive=true, force=true)
 
     if compress
-        app_dir = joinpath(tempdir(), splitext(basename(destination))[1])
-        rm(app_dir, recursive=true, force=true)
+        app_stage = joinpath(tempdir(), "snapapp")
+        rm(app_stage; force=true, recursive=true)
     else
-        app_dir = destination 
+        app_stage = destination
     end
-    mkpath(app_dir)
 
-    @info "Bundling the application"
+    mkdir(app_stage)
 
-    bundle_app(platform, source, app_dir)
-    
-    # ToDo: refactor precompilation
+    setup(app_stage)
+
+    bundle_snap(source, app_stage; parameters)
 
     if compress
         @info "Squashing into a snap archive"
-        SnapPack.pack2snap(app_dir, destination)
-        rm(app_dir, recursive=true, force=true)
+        SnapPack.pack2snap(app_stage, destination)
+    end
+end
+
+function build_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"), parameters = get_bundle_parameters("$source/Project.toml"), precompile = true, incremental = true)
+
+    if precompile && (!Sys.islinux() || !(Sys.ARCH == arch(platform)))
+        error("Precompilation can only be done on Linux as currently Julia does not support cross compilation. Set `precompile=false` to make a bundle without precompilation.")
+    end
+
+    build_snap(source, destination; compress, parameters) do app_stage
+
+        @info "Bundling application dependencies"
+        bundle_app(platform, source, app_stage; parameters)
+
+        if precompile
+            @info "Precompiling"
+
+            if !incremental
+                rm("$app_stage/lib/julia/share/julia/compiled", recursive=true)
+            end
+
+            julia = "$app_stage/lib/julia/bin/julia"
+            run(`$julia --eval '__precompile__()'`)
+        else
+            @info "Precompilation disabled. Precompilation will happen on the desitination system at installation."
+        end
+
     end
 
     return
