@@ -20,6 +20,10 @@ function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
         mkdir(TEMP_ENV)
         cp(joinpath(app_dir, "Project.toml"), joinpath(TEMP_ENV, "Project.toml"), force=true)
         cp(joinpath(app_dir, "Manifest.toml"), joinpath(TEMP_ENV, "Manifest.toml"), force=true)
+
+        chmod(joinpath(TEMP_ENV, "Project.toml"), 0o777)
+        chmod(joinpath(TEMP_ENV, "Manifest.toml"), 0o777)
+        
         symlink(joinpath(app_dir, "src"), joinpath(TEMP_ENV, "src"), dir_target=true)
         
         ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
@@ -27,9 +31,9 @@ function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
         Pkg.activate(TEMP_ENV)
         Pkg.instantiate()
 
-        if with_splash_screen
-            Pkg.add(["GLFW", "GLAbstraction"]; preserve=Pkg.PRESERVE_ALL)
-        end
+        # if with_splash_screen
+        #     Pkg.add(["GLFW", "GLAbstraction"]; preserve=Pkg.PRESERVE_ALL)
+        # end
 
         for (uuid, pkginfo) in Pkg.dependencies()
             if !(uuid in keys(Pkg.Types.stdlibs()))
