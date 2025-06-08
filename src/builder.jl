@@ -1,3 +1,5 @@
+using Pkg.BinaryPlatforms: arch
+
 """
     build_app(platform::MacOS, source, destination; compression = :lzma, precompile = true, incremental = true)
 
@@ -67,11 +69,19 @@ function build_app(platform::MacOS, source, destination; compression = isext(des
 
             julia = "$app_stage/Contents/Libraries/julia/bin/julia"
             #startup = "$app_stage/Contents/Libraries/julia/etc/julia/startup.jl"
-            
+
+            if arch(platform) == :x86_64
+                cpu_target = "generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)"
+            elseif arch(platform) == :aarch64
+                cpu_target = "generic;apple-m1"
+            else
+                cpu_target = "generic;"
+            end
+
             # Run the command with the modified environment
-            # withenv("JULIA_DEBUG" => "loading") do
-            run(`$julia --eval '__precompile__()'`)
-            # end
+            withenv("JULIA_CPU_TARGET" => cpu_target) do
+                run(`$julia --eval '__precompile__()'`)
+            end
             
         else
             @info "Precompilation disabled. Precompilation will happen on the desitination system at first launch."
@@ -218,10 +228,20 @@ function build_app(platform::Linux, source, destination; compress::Bool = isext(
                 rm("$app_stage/lib/julia/share/julia/compiled", recursive=true)
             end
 
-            julia = "$app_stage/lib/julia/bin/julia"
-            run(`$julia --eval '__precompile__()'`)
+            if arch(platform) == :x86_64
+                cpu_target = "generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)"
+            elseif arch(platform) == :aarch64
+                cpu_target = "generic;neoverse-n1;cortex-a76;apple-m1"
+            else
+                cpu_target = "generic;"
+            end
+
+            withenv("JULIA_CPU_TARGET" => cpu_target) do
+                julia = "$app_stage/lib/julia/bin/julia"
+                run(`$julia --eval '__precompile__()'`)
+            end
         else
-            @info "Precompilation disabled. Precompilation will happen on the desitination system at installation."
+            @info "Precompilation disabled. Precompilation will happen on the destination system at installation."
         end
 
     end
@@ -379,8 +399,18 @@ function build_app(platform::Windows, source, destination; compress::Bool = isex
                 rm("$app_stage/julia/share/julia/compiled", recursive=true)
             end
 
-            julia = "$app_stage/julia/bin/julia.exe"
-            run(`$julia --eval '__precompile__()'`)
+            if arch(platform) == :x86_64
+                cpu_target = "generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)"
+            elseif arch(platform) == :aarch64
+                cpu_target = "generic;neoverse-n1;cortex-a76;apple-m1"
+            else
+                cpu_target = "generic;"
+            end
+
+            withenv("JULIA_CPU_TARGET" => cpu_target) do
+                julia = "$app_stage/julia/bin/julia.exe"
+                run(`$julia --eval '__precompile__()'`)
+            end
         else
             @info "Precompilation disabled. Precompilation will happen on the desitination system at first launch."
         end
