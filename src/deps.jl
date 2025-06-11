@@ -48,7 +48,78 @@ function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
         ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 1
     end
 
+    # BinaryBuilder used to add Pkg as dependency to JLLs. It is no longer needed
+    # but to remove it the binary dependecies need to be rebuilt individully to drop it
+    # For time being, we can simply pop Pkg from dependency list until majority of upstream packages
+    # will be rebuilt.
+    remove_pkg_from_jll_packages(packages_dir)
+
+    return
 end
+
+
+function remove_pkg_from_jll_packages(packages_dir::String)
+    
+    if !isdir(packages_dir)
+        error("Directory does not exist: $packages_dir")
+    end
+    
+    modified_count = 0
+    
+    # Get all subdirectories
+    for item in readdir(packages_dir)
+        item_path = joinpath(packages_dir, item)
+        
+        # Skip if not a directory or doesn't end with _jll
+        if !isdir(item_path) || !endswith(item, "_jll")
+            continue
+        end
+        
+        project_toml_path = joinpath(item_path, "Project.toml")
+        
+        # Skip if Project.toml doesn't exist
+        if !isfile(project_toml_path)
+            println("Warning: No Project.toml found in $item")
+            continue
+        end
+        
+        try
+            # Read the TOML file
+            project_data = TOML.parsefile(project_toml_path)
+            
+            # Check if deps section exists and contains Pkg
+            if haskey(project_data, "deps") && haskey(project_data["deps"], "Pkg")
+                
+                @warn "$item is a JLL that depends on Pkg which is manually removed. Please update upstream."
+
+                # Remove Pkg dependency
+                delete!(project_data["deps"], "Pkg")
+                
+                # If deps section is now empty, remove it entirely
+                if isempty(project_data["deps"])
+                    delete!(project_data, "deps")
+                end
+                
+                # Write back to file
+                chmod(project_toml_path, 0o644)  
+                open(project_toml_path, "w") do io
+                    TOML.print(io, project_data)
+                end
+                chmod(project_toml_path, 0o444)  
+                
+                modified_count += 1
+            end
+            
+        catch e
+            println("Error processing $item: $e")
+        end
+    end
+    
+    println("\nCompleted. Modified $modified_count packages.")
+    
+    return modified_count
+end
+
 
 # If one wishes he can specify artifacts_cache directory to be that in DEPOT_PATH 
 # That way one could avoid downloading twice when it is deployed as a build script
@@ -229,6 +300,19 @@ function copy_app(source, destination)
 
         cp(joinpath(source, i), joinpath(destination, i))
     end
+
+    # Remove Pkg dependency
+
+    rm(joinpath(destination, "Manifest.toml"))
+    # # OLD_PROJECT = Base.active_project()
+    # # try
+    # #     ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
+    # #     Pkg.activate(destination)
+    # #     Pkg.resolve()
+    # # finally
+    # #     Pkg.activate(OLD_PROJECT)
+    # #     ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 1
+    # # end
 
     # Creating a module if it does not exists
 
