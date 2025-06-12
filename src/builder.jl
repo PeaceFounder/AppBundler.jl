@@ -143,7 +143,7 @@ function build_dmg(setup::Function, source, destination; compression = isext(des
     app_stage = !isnothing(compression) ? joinpath(tempdir(), "$appname/$appname.app") : destination
     
     rm(app_stage; force=true, recursive=true)
-    rm(destination; force=true)
+    rm(destination; force=true, recursive=true)
 
     mkpath(app_stage)
     
@@ -302,7 +302,7 @@ end
 """
 function build_msix(setup::Function, source::String, destination::String; compress::Bool = isext(destination, ".msix"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, parameters = get_bundle_parameters("$source/Project.toml"))
 
-    rm(destination; force=true)
+    rm(destination; force=true, recursive=true)
 
     if compress
         app_stage = joinpath(tempdir(), "msixapp")
