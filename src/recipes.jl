@@ -108,7 +108,7 @@ function bundle_app(platform::Linux, source, app_dir; parameters = get_bundle_pa
 
     mkdir("$app_dir/lib")
     retrieve_julia(platform, "$app_dir/lib/julia")    
-    copy_app(source, joinpath(app_dir, "lib", parameters["MODULE_NAME"]))
+    copy_app(source, joinpath(app_dir, "lib", parameters["APP_NAME_LOWERCASE"]))
     retrieve_packages(source, "$app_dir/lib/packages")
     retrieve_artifacts(platform, "$app_dir/lib/packages", "$app_dir/lib/artifacts")
 

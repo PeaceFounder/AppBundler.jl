@@ -140,7 +140,6 @@ function build_dmg(setup::Function, source, destination; compression = isext(des
     parameters = get_bundle_parameters("$source/Project.toml")
     appname = parameters["APP_NAME"]
     
-    #staging_dir = isnothing(compression) ? dirname(destination) : joinpath(tempdir(), appname) 
     app_stage = !isnothing(compression) ? joinpath(tempdir(), "$appname/$appname.app") : destination
     
     rm(app_stage; force=true, recursive=true)
