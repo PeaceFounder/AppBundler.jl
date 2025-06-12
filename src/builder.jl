@@ -48,7 +48,7 @@ build_app(MacOS(:arm64), "path/to/source", "path/to/MyApp.dmg")
 # Build without precompilation (e.g., for cross-compiling)
 build_app(MacOS(:arm64), "path/to/source", "path/to/MyApp.dmg"; precompile = false)
 """
-function build_app(platform::MacOS, source, destination; compression = isext(destination, ".dmg") ? :lzma : nothing, precompile = true, incremental = true)
+function build_app(platform::MacOS, source, destination; compression = isext(destination, ".dmg") ? :lzma : nothing, precompile = true, incremental = true, pfx_path = joinpath(source, "meta", "macos", "certificate.pfx"))
 
     if precompile && (!Sys.isapple() || (Sys.ARCH == "x86_64" && arch(platform) != Sys.ARCH))
         error("Precompilation can only be done on MacOS as currently Julia does not support cross compilation. Set `precompile=false` to make a bundle without precompilation.")
@@ -56,7 +56,7 @@ function build_app(platform::MacOS, source, destination; compression = isext(des
 
     parameters = get_bundle_parameters("$source/Project.toml")
 
-    build_dmg(source, destination; compression) do app_stage
+    build_dmg(source, destination; compression, pfx_path) do app_stage
 
         bundle_app(platform, source, app_stage; parameters)
 
@@ -135,7 +135,7 @@ build_dmg("src/", "MyApp.dmg"; compression = :lzma) do staging_dir
 end
 ```
 """
-function build_dmg(setup::Function, source, destination; compression = isext(destination, ".dmg") ? :lzma : nothing)
+function build_dmg(setup::Function, source, destination; compression = isext(destination, ".dmg") ? :lzma : nothing, pfx_path = joinpath(source, "meta", "macos", "certificate.pfx"))
 
     parameters = get_bundle_parameters("$source/Project.toml")
     appname = parameters["APP_NAME"]
@@ -152,9 +152,10 @@ function build_dmg(setup::Function, source, destination; compression = isext(des
 
     password = get(ENV, "MACOS_PFX_PASSWORD", "")
 
-    pfx_path = joinpath(source, "meta", "macos", "certificate.pfx")
-    if !isfile(pfx_path)
+    if isnothing(pfx_path) || !isfile(pfx_path)
         pfx_path = nothing
+    else haskey(ENV, "MACOS_PFX_PASSWORD")
+        @warn "MACOS_PFX_PASSWORD environment variable unset; Proceeding with empty password..."
     end
 
     entitlements_path = joinpath(source, "meta/macos/Entitlements.plist")
@@ -300,7 +301,7 @@ build_msix("src/", "MyApp/") do staging_dir
 end
 ```
 """
-function build_msix(setup::Function, source::String, destination::String; compress::Bool = isext(destination, ".msix"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, parameters = get_bundle_parameters("$source/Project.toml"))
+function build_msix(setup::Function, source::String, destination::String; compress::Bool = isext(destination, ".msix"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, parameters = get_bundle_parameters("$source/Project.toml"), pfx_path = joinpath(source, "meta", "windows", "certificate.pfx"))
 
     rm(destination; force=true, recursive=true)
 
@@ -321,9 +322,10 @@ function build_msix(setup::Function, source::String, destination::String; compre
         
         password = get(ENV, "WINDOWS_PFX_PASSWORD", "")
 
-        pfx_path = joinpath(source, "meta", "windows", "certificate.pfx")
-        if !isfile(pfx_path)
+        if isnothing(pfx_path) || !isfile(pfx_path)
             pfx_path = nothing
+        elseif !haskey(ENV, "WINDOWS_PFX_PASSWORD")
+            @warn "WINDOWS_PFX_PASSWORD environment variable unset; Proceeding with empty password..."
         end
 
         MSIXPack.pack2msix(app_stage, destination; pfx_path, password, path_length_threshold, skip_long_paths)        
@@ -378,7 +380,7 @@ build_app(Windows(:x86_64), "path/to/source", "path/to/MyApp.msix")
 # Build without precompilation (e.g., for cross-compiling)
 build_app(Windows(:x86_64), "path/to/source", "path/to/MyApp.msix"; precompile = false)
 """
-function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false, precompile = true, incremental = true) 
+function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), path_length_threshold::Int = 260, skip_long_paths::Bool = false, debug::Bool = false, precompile = true, incremental = true, pfx_path = joinpath(source, "meta", "windows", "certificate.pfx")) 
 
     if precompile && (!Sys.iswindows() || !(Sys.ARCH == arch(platform)))
         error("Precompilation can only be done on Windows as currently Julia does not support cross compilation. Set `precompile=false` to make a bundle without precompilation.")
@@ -386,7 +388,7 @@ function build_app(platform::Windows, source, destination; compress::Bool = isex
 
     parameters = get_bundle_parameters("$source/Project.toml")
 
-    build_msix(source, destination; compress, path_length_threshold, skip_long_paths, parameters) do app_stage
+    build_msix(source, destination; compress, path_length_threshold, skip_long_paths, parameters, pfx_path) do app_stage
 
         @info "Bundling application dependencies"
         bundle_app(platform, source, app_stage; parameters)

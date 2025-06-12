@@ -38,14 +38,14 @@ function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsst
     isnothing(compression) || compression in [:lzma, :bzip2, :zlib, :lzfse] || error("Compression can only be `compression=[:lzma|:bzip|:zlib|:lzfse]`")
     isnothing(pfx_path) || isfile(pfx_path) || error("Signing certificate at $pfx_path not found")
 
-    @info "Codesigning application bundle at $app_stage"
-    
     if isnothing(pfx_path) 
         @warn "Creating a one time self signing certificate..."
         pfx_path = joinpath(tempdir(), "certificate_macos.pfx")
         generate_self_signing_pfx(pfx_path; password = "")
     end
 
+    @info "Codesigning application bundle at $app_stage with certificate at $pfx_path"
+    
     run(`$(rcodesign()) sign --shallow --p12-file "$pfx_path" --p12-password "$password" --entitlements-xml-path "$entitlements" "$app_stage"`)
     
     if !isnothing(compression)
@@ -89,7 +89,7 @@ function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsst
         run(`$(dmg()) dmg $iso_stage $destination --compression=$compression`)
 
 
-        @info "Codesigning DMG bundle"
+        @info "Codesigning DMG bundle with certificate at $pfx_path"
         run(`$(rcodesign()) sign --p12-file "$pfx_path" --p12-password "$password" "$destination"`)
     end
 
