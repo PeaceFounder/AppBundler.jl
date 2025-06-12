@@ -86,7 +86,7 @@ function bundle_snap(source, destination; parameters = get_bundle_parameters("$s
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
     
     #parameters["ARCH_TRIPLET"] = linux_arch_triplet(arch(platform))
-    app_name = parameters["APP_NAME"]
+    app_name = parameters["APP_NAME_LOWERCASE"]
 
     bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
 
