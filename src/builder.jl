@@ -154,7 +154,7 @@ function build_dmg(setup::Function, source, destination; compression = isext(des
 
     if isnothing(pfx_path) || !isfile(pfx_path)
         pfx_path = nothing
-    else haskey(ENV, "MACOS_PFX_PASSWORD")
+    else !haskey(ENV, "MACOS_PFX_PASSWORD")
         @warn "MACOS_PFX_PASSWORD environment variable unset; Proceeding with empty password..."
     end
 
