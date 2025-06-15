@@ -195,12 +195,12 @@ function pack2msix(source, destination; pfx_path = nothing, password = "", path_
 
     run(`$(makemsix()) pack -d $source -p $unsigned_msix`)
 
-    @info "Performing codesigning"
-
-    @info "signed MSIX at $destination"
+    @info "Performing codesigning with certificate at $pfx_path"
 
     rm(destination; force=true)
     run(`$(osslsigncode()) sign -pkcs12 $pfx_path -pass "$password" -in "$unsigned_msix" -out "$destination"`)
+
+    @info "Signed MSIX at $destination"
 
     return
 end

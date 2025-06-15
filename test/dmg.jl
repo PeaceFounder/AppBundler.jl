@@ -1,14 +1,25 @@
-import AppBundler: build_app
+using Test
+import AppBundler: build_app, build_dmg, retrieve_macos_launcher
 import Pkg.BinaryPlatforms: MacOS
 
 src_dir = joinpath(dirname(@__DIR__), "examples/gtkapp")
 
 build_dir = joinpath(tempdir(), "gtkapp_build")
 rm(build_dir; recursive=true, force=true)
+mkdir(build_dir)
 
-build_app(MacOS(:x86_64), src_dir, joinpath(build_dir, "gtkapp.dmg"); debug = true, precompile = Sys.isapple())
+# Building check
+build_dmg(src_dir, joinpath(build_dir, "gtkapp.dmg")) do app_stage
+
+    @test isdir(app_stage)
+
+    mkpath(joinpath(app_stage, "Contents/MacOS"))
+    retrieve_macos_launcher(MacOS(:x86_64), joinpath(app_stage, "Contents/MacOS/gtkapp"))
+
+end
 
 app_dir = joinpath(build_dir, "gtkapp/gtkapp.app")
+build_app(MacOS(:x86_64), src_dir, app_dir; precompile = Sys.isapple())
 
 if Sys.isapple()
 
@@ -25,7 +36,6 @@ if Sys.isapple()
     finally
         isdir(temp_app_dir) && mv(temp_app_dir, orig_app_dir)
     end
-
 else
 
     @info "Codesigning verification and precompilation invalidation check skipped as codesign not available on this platform"
