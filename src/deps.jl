@@ -21,6 +21,10 @@ function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
         cp(joinpath(app_dir, "Project.toml"), joinpath(TEMP_ENV, "Project.toml"), force=true)
         cp(joinpath(app_dir, "Manifest.toml"), joinpath(TEMP_ENV, "Manifest.toml"), force=true)
         symlink(joinpath(app_dir, "src"), joinpath(TEMP_ENV, "src"), dir_target=true)
+
+        # Need to debug this more closelly
+        chmod(joinpath(TEMP_ENV, "Project.toml"), 0o777)
+        chmod(joinpath(TEMP_ENV, "Manifest.toml"), 0o777)
         
         ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
         #Pkg.activate(app_dir)
