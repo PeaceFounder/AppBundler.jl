@@ -90,7 +90,7 @@ end
 
 ismacos(platform::AbstractPlatform) = os(platform) == "macos"
 islinux(platform::AbstractPlatform) = os(platform) == "linux" 
-iswindows(platform::AbstractPlatform) = os(p,atform) == "windows"
+iswindows(platform::AbstractPlatform) = os(platform) == "windows"
 
 function platform_type(platform::Platform)
     if islinux(platform)
