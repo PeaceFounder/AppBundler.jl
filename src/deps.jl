@@ -8,7 +8,8 @@ using UUIDs
 
 function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
 
-    mkdir(packages_dir)
+    #mkdir(packages_dir)
+    mkpath(packages_dir)
 
     app_name = basename(app_dir)
     OLD_PROJECT = Base.active_project()
@@ -38,7 +39,14 @@ function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
 
         for (uuid, pkginfo) in Pkg.dependencies()
             if !(uuid in keys(Pkg.Types.stdlibs()))
-                cp(pkginfo.source, joinpath(packages_dir, pkginfo.name))
+
+                pkg_dir = joinpath(packages_dir, pkginfo.name)
+
+                if !isdir(pkg_dir)
+                    cp(pkginfo.source, pkg_dir)
+                else
+                    @info "$(pkginfo.name) already exists in $packages_dir"
+                end
             end
         end
 

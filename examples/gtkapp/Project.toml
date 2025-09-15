@@ -1,4 +1,4 @@
-name = "GTKApp"
+name = "GtkApp"
 version = "0.0.1"
 
 [deps]

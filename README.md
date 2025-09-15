@@ -2,6 +2,113 @@
 
 ![](docs/assets/appbundler.png)
 
+From the dawn of time the software developers have been concerned about distribution of the their software. At the begining executables distributed over floppy disks were sufficient. However as time progressed we needed nicer installers, integrations with the desktop launching nad uninstalling and hence installers were born. As time progressed the hard lessons were learnt that acess to all system resources is a security nightmare and sandboxing of what applications had been intriduced in all major operating systems.
+
+Every operating system is different and had made unique design choices. On MacOS applications are simply put within the applications folder from a dmg containers. Windows uses many formats with MSIX one being most modern approach and Linux uses Snap and Flatpak for external software distribution. To create installler in each of thoose platforms there are a list of common task that one needs to perform individually:
+
+- Make icon assets in a form that installer/operating systems understands
+- Specify the needed capabilities for the application
+- Setting launching endpooint whether it is a GUI or a terminal application
+- Bundle all configutation files with appplication into installer 
+- Do a codesigning of the installer and possibly application
+
+Maintaining all theese configuration nuances is hard. AppBundler resolves theese issues with defaults that enable to ship GUI appplication effortlessly while also enables for the developer to simply configure the installer with their own configuration overlay in places where they need it making the process much earier to debug and communicate about. 
+
+The AppBundler in contrast to other solution is only using open source tools for making the installers that are available accross platforms and are compiled in cross platform way with Julia BinaryBuilder infrastructure. This makes it easy to see what sources were used in making the installers, maintain them and be sure they don't contain malware as you can reproduce the binaries yourself. The most important reason though to use the open source tools is that they can be bundled with the AppBundler project in reproducable way accrooss all operating systems that can be installed in reproducable accross all platforms way as a simple Julia package.
+
+
+> I could have DMG, MSIX, Snap format app bundle formats. That could contain locations for configuration sources transparently.
+
+`pfx_cert, pfx_passwd`
+
+
+> Setup could be a post processing
+```
+DMG(
+    icon = ...;
+    config = ...; # Info.plist
+    entitlements = ...;
+    main_redirect = true|false # platform specified at build
+    pfx_cert = nothing;
+    #notary = nothing;
+)
+
+#nothing|:x86_64|:aarch64 # perhaps it would be better to take it from parameters
+```
+
+```
+Snap(
+    icon = ...;
+    config = ...; # snap.yaml
+    launcher = ...; app_name.desktop
+)
+```
+
+```
+MSIX(
+    icon = ...; # set to nothing if you want to create the icon on your own
+    config = ...; AppxManifest.xml
+    installer_config = ...; 
+    resources_pri = ...;
+    pfx_cert = nothing;
+    path_length_threshold::Int = 260;
+    skip_long_paths::Bool = false;
+)
+```
+
+The usage of theese installer formats is as simple as:
+```
+    build(destination[, appformat], compress = true|false|:lzma,  pfx_password = "", parameters = ...) do bundle
+        # Add your application files here
+    end
+```
+
+```
+    build(MSIX(), dest, compress = true|false|:lzma, pfx_password = "", parameters = ..., platform = :x86_64) do
+
+    end
+
+
+    build(MSIX(dest=...), dest, compress = true|false|:lzma, pfx_password = "", parameters = ...) do
+
+    end
+
+```
+
+
+
+The problem here is that appformat is refering to specific files. Furthermore parameters apply the template which may be a better suited here. 
+
+
+
+Something like `MSIX(overlay)` may be an interesting alternative I could explore `MSIX(overlay)` and `MSIX()`. One can then do `MSIX(overlay; icon = ...)` or `MSIX(icon = ...)` which is most of the things that one may wish to have in practice with defaults provided from the setup. 
+
+`MSIX(overlay)` is the one where it is used as an overlay that sets the default variables and MSIX() would be with defaults only. 
+
+Perhaps source can override the configuration files. If one wants to configure appformat one can do so with `MSIX(origin, overlay)` to initialize the desired format. One can specify `appformat = :msix|:snap|:dmg` and compress false when needed. 
+
+
+```
+PkgImage
+
+SysImage
+
+Trim
+```
+
+
+
+```
+    build(product::Union{PkgImage, SysImage, Trim}, destination[, appformat], compress = true|false|:lzma, pfx_cert = ..., pfx_password = ...)
+```
+
+
+
+
+### Old Docs
+
+
+
 `AppBundler.jl` offers recipes for building Julia GUI applications in modern desktop application installer formats. It uses Snap for Linux, MSIX for Windows, and DMG for MacOS as targets. It bundles full Julia within the app, which, together with artifact caching stored in scratch space, allows the bundling to be done quickly, significantly shortening the feedback loop.
 
 The build product of `AppBundler.jl` is a bundle that can be conveniently finalised with a shell script on the corresponding host system without an internet connection. This allows me to avoid maintaining multiple Julia installations for different hosts and reduces failures due to a misconfigured system state. It is ideal for a Virtualbox setup where the bundle together with bundling script is sent over SSH after which the finalised installer is retrieved.

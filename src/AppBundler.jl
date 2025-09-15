@@ -24,6 +24,9 @@ include("recipes.jl")
 include("builder.jl")
 include("setup.jl")
 
+# Experimental API
+include("stage.jl")
+
 bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)
 
 
