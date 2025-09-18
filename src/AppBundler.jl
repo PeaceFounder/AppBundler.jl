@@ -17,6 +17,8 @@ include("Utils/MSIXPack.jl")
 include("Utils/MSIXIcons.jl")
 include("Utils/WinSubsystem.jl")
 
+include("api.jl")
+
 include("utils.jl")
 include("deps.jl")
 include("bundler.jl")
