@@ -17,17 +17,17 @@ include("Utils/MSIXPack.jl")
 include("Utils/MSIXIcons.jl")
 include("Utils/WinSubsystem.jl")
 
-include("api.jl")
-
 include("utils.jl")
+include("api.jl")
 include("deps.jl")
-include("bundler.jl")
-include("recipes.jl")
-include("builder.jl")
+# include("bundler.jl")
+# include("recipes.jl")
+#include("builder.jl")
 include("setup.jl")
 
 # Experimental API
 include("stage.jl")
+include("apps.jl")
 
 bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)
 

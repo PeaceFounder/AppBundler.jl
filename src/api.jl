@@ -219,7 +219,7 @@ function install_dsstore(source::String, dsstore_destination::String)
 end
 
 # main redirect is an option one can opt in during the staging
-function stage(dmg::DMG, destination::String; dsstore = false) # destination folder is used as appdir
+function stage(dmg::DMG, destination::String; dsstore = false, main_redirect = false, arch = :x86_64) # destination folder is used as appdir
 
     (; parameters) = dmg
     app_name = parameters["APP_NAME"]
@@ -227,10 +227,10 @@ function stage(dmg::DMG, destination::String; dsstore = false) # destination fol
     cp(dmg.icon, joinpath(destination, "Resources/icon.icns"))
     install(dmg.config, joinpath(destination, "Info.plist"); parameters)
 
-    # if !isnothing(main_redirect)
-    #     mkdir(joinpath(destination, "Contents/MacOS"))
-    #     retrieve_macos_launcher(MacOS(main_redirect), joinpath(destination, "Contents/MacOS/$app_name")) 
-    # end
+    if main_redirect
+        mkdir(joinpath(destination, "Contents/MacOS"))
+        retrieve_macos_launcher(MacOS(arch), joinpath(destination, "Contents/MacOS/$app_name")) 
+    end
 
     if dsstore
         install_dsstore(dmg.dsstore, joinpath(dirname(destination), ".DS_Store"))
@@ -255,7 +255,7 @@ function stage(snap::Snap, destination::String; install_configure = false)
     return
 end
 
-function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(dest, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", "")) 
+function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(dest, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), main_redirect = false, arch = :x86_64) 
 
     if ispath(destination)
         if force
@@ -266,14 +266,14 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     end
 
     if compress
-        app_stage = mktempdir()
+        app_stage = joinpath(mktempdir(), basename(destination))
         stage(dmg, app_stage; dsstore = true)        
     else
         app_stage = destination
         stage(dmg, app_stage; dsstore = false)        
     end
 
-    stage(dmg, app_stage)
+    stage(dmg, app_stage; dsstore, main_redirect, arch)
     setup(app_stage)
     
     installer_title = join([dmg.parameters["APP_DISPLAY_NAME"], "Installer"], " ")
@@ -310,7 +310,7 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
     return
 end
 
-function bundle(setup::Function, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false)
+function bundle(setup::Function, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false, install_configure = false)
 
     if ispath(destination)
         if force
@@ -322,7 +322,7 @@ function bundle(setup::Function, snap::Snap, destination::String; compress::Bool
 
     app_stage = compress ? mktempdir() : destination
 
-    stage(snap, app_stage)    
+    stage(snap, app_stage; install_configure)    
     setup(app_stage)
 
     if compress

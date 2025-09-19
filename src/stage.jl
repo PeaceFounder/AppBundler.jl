@@ -41,7 +41,6 @@ function get_module_name(source_dir)
 
 end
 
-
 function override_startup_file(source, destination)
 
     user_startup_file = joinpath(source, "meta/startup.jl")
