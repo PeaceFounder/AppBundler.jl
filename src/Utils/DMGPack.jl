@@ -90,7 +90,7 @@ function replace_binary_with_hash(filepath::String)
     
     try
         # Get rcodesign output and write directly to file
-        hash_output = read(`rcodesign compute-code-hashes $filepath`, String)
+        hash_output = read(`$(rcodesign()) compute-code-hashes $filepath`, String)
         lines = split(strip(hash_output), '\n')
         stripped_output = join(lines[2:end], '\n') * '\n'
         write(filepath, stripped_output)
