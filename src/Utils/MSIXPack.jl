@@ -1,11 +1,9 @@
 module MSIXPack
 
-using ZipFile
 using Makemsix_jll
 using osslsigncode_jll
 using rcodesign_jll: rcodesign
 using OpenSSL_jll: openssl
-
 
 function generate_self_signed_certificate(pfx_path; password = "", name = "AppBundler", country = "XX", organization = "PeaceFounder", validity_days = 365)
     code_sign_conf = """
@@ -85,7 +83,7 @@ function update_publisher_in_manifest(appxmanifest_path, publisher)
     write(appxmanifest_path, updated_content)
 end
 
-function pack2msix(source, destination; pfx_path = nothing, password = "")
+function pack(source, destination; pfx_path = nothing, password = "")
 
     if isnothing(pfx_path)
         @warn "Creating one time self signed certificate"
@@ -124,36 +122,6 @@ function pack2msix(source, destination; pfx_path = nothing, password = "")
     return
 end
 
-function extract_msix(archive_path::String)
-
-    zip = ZipFile.Reader(archive_path)
-
-    output_directory = joinpath(tempdir(), "zip_archive")
-    rm(output_directory, recursive=true, force=true)
-
-    for entry in zip.files
-        if entry.method == ZipFile.Store
-            outpath = joinpath(output_directory, entry.name)
-            mkpath(outpath)
-        end
-    end
-
-    for entry in zip.files
-        if entry.method == ZipFile.Deflate
-            outpath = joinpath(output_directory, entry.name)
-            mkpath(dirname(outpath)) # Shouldn't be needed
-
-            open(outpath, "w") do out_file
-                write(out_file, read(entry))
-            end
-        end
-    end
-
-    close(zip)
-
-    return output_directory
-end
-
 function unpack(source::String, destination::String)
 
     rm(destination; force=true, recursive=true)
@@ -161,7 +129,6 @@ function unpack(source::String, destination::String)
 
     return
 end
-
 
 # A helper function to explore potential issuess with msixpack
 function repack(source, destination; pfx_path = nothing, publisher = nothing, password = "")
@@ -171,7 +138,8 @@ function repack(source, destination; pfx_path = nothing, publisher = nothing, pa
     unpack(source, extracted_msix)
     #@show extracted_msix = extract_msix(source)
 
-    pack2msix(extracted_msix, destination; pfx_path, password)
+    @info "Repackging MSIX"
+    pack(extracted_msix, destination; pfx_path, password)
 
     return
 end

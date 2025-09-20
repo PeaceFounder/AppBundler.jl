@@ -14,7 +14,7 @@ end
 
 
 """
-    pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsstore = nothing, password = "", compression = :lzma, installer_title = "Installer")
+    pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer")
 
 Create a macOS disk image (DMG) from an application bundle with code signing and customizable appearance.
 
@@ -33,7 +33,7 @@ The function assumes that `app_stage` points to a properly structured macOS appl
 - `compression::Union{Symbol, Nothing} = :lzma`: Compression algorithm to use for the DMG. Options are `:lzma`, `:bzip2`, `:zlib`, `:lzfse`, or `nothing` for no compression
 - `installer_title::String = "Installer"`: Volume name for the DMG
 """
-function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer")
+function pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer")
 
     isfile(entitlements) || error("Entitlements at $entitlements not found")
     isnothing(compression) || compression in [:lzma, :bzip2, :zlib, :lzfse] || error("Compression can only be `compression=[:lzma|:bzip|:zlib|:lzfse]`")
@@ -54,55 +54,12 @@ function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, pass
 
         @info "Setting up packing stage at $(dirname(app_stage))"
 
-        #appname = splitext(basename(app_stage))[1]
-        #iso_stage = joinpath(tempdir(), "$appname.iso") 
-        #rm(iso_stage; force=true)
-
         iso_stage = tempname()
-
-        #rm(joinpath(dirname(app_stage), "Applications"); force=true)
-        #symlink("/Applications", joinpath(dirname(app_stage), "Applications"); dir_target=true)
-        
-        #dsstore_destination = joinpath(dirname(app_stage), ".DS_Store")
-        #rm(dsstore_destination, force=true)
-
-        # if dsstore isa String
-            
-        #     cp(dsstore, dsstore_destination)
-
-        # elseif dsstore isa Dict
-
-        #     DSStore.open_dsstore(dsstore_destination, "w+") do ds
-
-        #         ds[".", "icvl"] = ("type", "icnv")
-        #         ds[".", "vSrn"] = ("long", 1)
-
-        #         for file_key in keys(dsstore)
-        #             file_dict = dsstore[file_key]
-        #             for entry_key in keys(file_dict)
-        #                 ds[file_key, entry_key] = file_dict[entry_key]
-        #             end
-        #         end
-        #     end
-        # end
 
         @info "Forming iso archive with xorriso at $iso_stage"
         run(`$(xorriso()) -as mkisofs -V "$installer_title" -hfsplus -hfsplus-file-creator-type APPL APPL $(basename(app_stage)) -hfs-bless-by x / -relaxed-filenames -no-pad -o $iso_stage $(dirname(app_stage))`)
-
-
-        raw_image = iso_stage
-
-        @info "Reading iso"
-        run(`$(xorriso()) -indev $raw_image -find / -exec report_lba`)
-
         @info "Compressing iso to dmg with $compression algorithm at $destination"
         run(`$(dmg()) dmg $iso_stage $destination --compression=$compression`)
-
-
-        # Extracing hfs image
-        @show raw_hfs_image = abspath(tempname() * ".hfs")
-        run(`$(dmg()) extract $destination $raw_hfs_image --compression=$compression`)
-
 
         @info "Codesigning DMG bundle with certificate at $pfx_path"
         run(`$(rcodesign()) sign --p12-file "$pfx_path" --p12-password "$password" "$destination"`)
@@ -110,7 +67,6 @@ function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, pass
 
     return
 end
-
 
 function unpack(source, destination)
 
@@ -121,7 +77,28 @@ function unpack(source, destination)
     return
 end
 
-export pack2dmg
+"""
+    replace_file_with_hash(filepath::String)
 
+Computes the code hash of a file using rcodesign and replaces the file 
+with the rcodesign output directly.
+"""
+function replace_binary_with_hash(filepath::String)
+    if !isfile(filepath)
+        error("File does not exist: $filepath")
+    end
+    
+    try
+        # Get rcodesign output and write directly to file
+        hash_output = read(`rcodesign compute-code-hashes $filepath`, String)
+        lines = split(strip(hash_output), '\n')
+        stripped_output = join(lines[2:end], '\n') * '\n'
+        write(filepath, stripped_output)
+        println("Replaced $filepath with its hash(es)")
+        return hash_output
+    catch e
+        error("Failed to process $filepath: $e")
+    end
+end
 
 end

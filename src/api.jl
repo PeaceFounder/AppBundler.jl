@@ -242,7 +242,7 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     
     installer_title = join([dmg.parameters["APP_DISPLAY_NAME"], "Installer"], " ")
 
-    DMGPack.pack2dmg(app_stage, destination, dmg.entitlements; pfx_path = dmg.pfx_cert, password, compression = compress ? compression : nothing, installer_title)
+    DMGPack.pack(app_stage, destination, dmg.entitlements; pfx_path = dmg.pfx_cert, password, compression = compress ? compression : nothing, installer_title)
 
     return
 end
@@ -268,7 +268,7 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
 
     if compress
         (; path_length_threshold, skip_long_paths) = msix
-        MSIXPack.pack2msix(app_stage, destination; pfx_path = msix.pfx_cert, password)        
+        MSIXPack.pack(app_stage, destination; pfx_path = msix.pfx_cert, password)        
     end
     
     return
@@ -290,7 +290,7 @@ function bundle(setup::Function, snap::Snap, destination::String; compress::Bool
     setup(app_stage)
 
     if compress
-        SnapPack.pack2snap(app_stage, destination)
+        SnapPack.pack(app_stage, destination)
     end
 
     return

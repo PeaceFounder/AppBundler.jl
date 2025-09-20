@@ -121,7 +121,7 @@ function generate_app_icons(source_path::String, output_dir::String)
         end
         
         save(output_path, resized_img)
-        println("  ✓ [$current/$total_icons] Created $filename ($(width)×$(height))")
+        #println("  ✓ [$current/$total_icons] Created $filename ($(width)×$(height))")
     end
     
     # Generate wide tiles
@@ -131,7 +131,7 @@ function generate_app_icons(source_path::String, output_dir::String)
         output_path = joinpath(output_dir, filename)
         wide_img = create_wide_tile(source_img, width, height)
         save(output_path, wide_img)
-        println("  ✓ [$current/$total_icons] Created $filename ($(width)×$(height))")
+        #println("  ✓ [$current/$total_icons] Created $filename ($(width)×$(height))")
     end
     
     println("\nAll $total_icons icons generated successfully in '$output_dir' directory!")
