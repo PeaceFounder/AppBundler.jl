@@ -126,10 +126,12 @@ if Sys.isunix()
             end
 
             AppBundler.DMGPack.unpack(dest, stage_dir)
-
-            # This check is also important for stagging
-            @info "Verifying that the application is correctly codesigned"
-            run(`codesign -v --verbose=4 $stage_dir/gtkapp.app`)
+            
+            if Sys.isapple()
+                # This check is also important for stagging
+                @info "Verifying that the application is correctly codesigned"
+                run(`codesign -v --verbose=4 $stage_dir/gtkapp.app`)
+            end
 
             @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "gtkapp.app/Contents/MacOS/gtkapp"))
             rm("$stage_dir/gtkapp.app/Contents/_CodeSignature"; recursive=true)
