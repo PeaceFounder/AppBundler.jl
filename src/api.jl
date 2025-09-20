@@ -1,3 +1,40 @@
+import TOML
+
+function get_bundle_parameters(project_toml)
+
+    toml_dict = TOML.parsefile(project_toml)
+
+    parameters = Dict{String, Any}()
+
+    parameters["MODULE_NAME"] = get(toml_dict, "name", "MainEntry")
+
+    app_name = haskey(toml_dict, "APP_NAME") ? toml_dict["APP_NAME"] : haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
+    parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
+    #parameters["APP_DIR_NAME"] = haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
+    parameters["APP_VERSION"] = haskey(toml_dict, "version") ? toml_dict["version"] : "0.0.1"
+
+    # Setting defaults
+    parameters["APP_DISPLAY_NAME"] = app_name #parameters["APP_NAME"]
+    parameters["APP_SUMMARY"] = "This is a default app summary"
+    parameters["APP_DESCRIPTION"] = "A longer description of the app"
+    parameters["WITH_SPLASH_SCREEN"] = "false"
+    parameters["BUNDLE_IDENTIFIER"] = "org.appbundler." * lowercase(parameters["APP_NAME"])
+    parameters["PUBLISHER"] = "CN=AppBundler"
+    parameters["PUBLISHER_DISPLAY_NAME"] = "AppBundler"
+    parameters["BUILD_NUMBER"] = 0
+    
+    if haskey(toml_dict, "bundle")
+        for (key, value) in toml_dict["bundle"]
+            parameters[key] = string(value) # Mustache does not print false.
+        end
+    end
+
+    parameters["APP_NAME_LOWERCASE"] = lowercase(parameters["APP_NAME"])
+
+    return parameters
+end
+
+
 struct MSIX
     icon::String # direcotry reading is something to look into here
     appxmanifest::String 
@@ -8,29 +45,6 @@ struct MSIX
     pfx_cert::Union{String, Nothing} 
     parameters::Dict
 end
-
-
-function get_path(prefix::Vector, suffix::Vector; dir = false, warn = true)
-
-    for i in prefix
-        for j in suffix
-            fname = joinpath(i, j)
-            if isfile(fname) || (dir && isdir(fname))
-                return fname
-            end
-        end
-    end
-    
-    if warn
-        @warn "No option for $suffix found"
-    end
-
-    return
-end
-
-get_path(prefix::String, suffix::String) = get_path([prefix], [suffix])
-get_path(prefix::String, suffix::Vector) = get_path([prefix], suffix)
-get_path(prefix::Vector, suffix::String) = get_path(prefix, [suffix])
 
 function MSIX(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
@@ -47,15 +61,14 @@ function MSIX(;
     return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, pfx_cert, parameters)
 end
 
-
-function MSIX(overlay; **kwargs)
+function MSIX(overlay; kwargs...)
     
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
 
     # ToDo: refactor setting of the defaults
     parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
 
-    return MSIX(; prefix, parameters, **kwargs)
+    return MSIX(; prefix, parameters, kwargs...)
 end
 
 
@@ -79,13 +92,13 @@ function Snap(;
     return Snap(icon, snap_config, desktop_launcher, configure_hook, parameters)
 end
 
-function Snap(overlay; **kwargs)
+function Snap(overlay; kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     
     parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
 
-    return Snap(; prefix, parameters, **kwargs)
+    return Snap(; prefix, parameters, kwargs...)
 end
 
 struct DMG
@@ -112,39 +125,13 @@ function DMG(;
     return DMG(icon, info_config, entitlements, dsstore, pfx_cert, parameters)
 end
 
-function DMG(overlay; **kwargs)
+function DMG(overlay; kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     
     parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
 
-    return DMG(; prefix, parameters, **kwargs)
-end
-
-
-function install(source, destination; parameters = Dict(), force = false, executable = false)
-
-    if isfile(destination) 
-        if force
-            rm(destination)
-        else
-            error("$destination already exists. Use force = true to overwrite")
-        end
-    else
-        mkpath(dirname(destination))
-    end
-
-    template = Mustache.load(source)
-
-    open(destination, "w") do file
-        Mustache.render(file, template, parameters)
-    end
-
-    if executable
-        chmod(destination, 0o755)
-    end
-
-    return
+    return DMG(; prefix, parameters, kwargs...)
 end
 
 function stage(msix::MSIX, destination::String)
@@ -155,7 +142,8 @@ function stage(msix::MSIX, destination::String)
 
     if isdir(msix.icon)
         @info "Treating icon path as assets directory"
-        install(msix.icon, joinpath(destination, "Assets"))
+        #install(msix.icon, joinpath(destination, "Assets"))
+        cp(msix.icon, joinpath(destination, "Assets"))
     else
         MSIXIcons.generate_app_icons(msix.icon, joinpath(destination, "Assets")) 
     end
@@ -163,40 +151,15 @@ function stage(msix::MSIX, destination::String)
     (; parameters) = msix
     install(msix.appxmanifest, joinpath(destination, "AppxManifest.xml"); parameters)
     cp(msix.resources_pri, joinpath(destination, "resources.pri"))
-    install(msix.msixinstallerdata, joinpath(destination, "Msix.AppInstaller.Data/MSIXAppInstallerData.xml"); parameters))
+    install(msix.msixinstallerdata, joinpath(destination, "Msix.AppInstaller.Data/MSIXAppInstallerData.xml"); parameters)
 
     return
 end
 
-function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), pfx_password = get(ENV, "WINDOWS_PFX_PASSWORD", ""))
-
-    rm(destination; force=true, recursive=true)
-
-    app_stage = compress ? mktempdir() : destination
-
-    if !isdir(app_stage)
-        mkdir(app_stage)
-    end
-    
-    # bundle_msix(source, app_stage; parameters)
-
-    stage(msix, app_stage)
-
-    (; path_length_threshold, skip_long_paths) = msix
-
-    setup(app_stage)
-
-    if compress
-
-        MSIXPack.pack2msix(app_stage, destination; pfx_path = msix.pfx_cert, password, path_length_threshold, skip_long_paths)        
-        
-    end    
-end
-
 function install_dsstore(source::String, dsstore_destination::String)
 
-    if last(splitext(dmg.dsstore)) == ".toml"
-        dsstore = TOML.parse(dmg.dsstore)
+    if last(splitext(source)) == ".toml"
+        dsstore = TOML.parsefile(source)
 
         DSStore.open_dsstore(dsstore_destination, "w+") do ds
 
@@ -212,7 +175,7 @@ function install_dsstore(source::String, dsstore_destination::String)
         end
         
     else
-        cp(dmg.dsstore, dsstore_destination)
+        cp(source, dsstore_destination)
     end
 
     return
@@ -224,15 +187,16 @@ function stage(dmg::DMG, destination::String; dsstore = false, main_redirect = f
     (; parameters) = dmg
     app_name = parameters["APP_NAME"]
 
-    cp(dmg.icon, joinpath(destination, "Resources/icon.icns"))
-    install(dmg.config, joinpath(destination, "Info.plist"); parameters)
+    install(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns"))
+    install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters)
 
     if main_redirect
-        mkdir(joinpath(destination, "Contents/MacOS"))
-        retrieve_macos_launcher(MacOS(arch), joinpath(destination, "Contents/MacOS/$app_name")) 
+        launcher = retrieve_macos_launcher(MacOS(arch))
+        install(launcher, joinpath(destination, "Contents/MacOS/$app_name"); executable = true)
     end
 
     if dsstore
+        symlink("/Applications", joinpath(dirname(destination), "Applications"); dir_target=true)
         install_dsstore(dmg.dsstore, joinpath(dirname(destination), ".DS_Store"))
     end
 
@@ -244,18 +208,18 @@ function stage(snap::Snap, destination::String; install_configure = false)
     (; parameters) = snap
     app_name = parameters["APP_NAME_LOWERCASE"]
 
-    cp(snap.icon, joinpath(destination, "meta/icon.png"))
-    install(snap.snap_config, joinpath(destination, "meta/snap.yaml"), parameters)
-    install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_name.desktop"))
+    install(snap.icon, joinpath(destination, "meta/icon.png"))
+    install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters)
+    install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_name.desktop"); parameters)
     
     if install_configure
-        install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); executable = true)
+        install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters, executable = true)
     end
 
     return
 end
 
-function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(dest, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), main_redirect = false, arch = :x86_64) 
+function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), main_redirect = false, arch = :x86_64) 
 
     if ispath(destination)
         if force
@@ -266,21 +230,19 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     end
 
     if compress
-        app_stage = joinpath(mktempdir(), basename(destination))
-        stage(dmg, app_stage; dsstore = true)        
+        appname = dmg.parameters["APP_NAME"]
+        app_stage = joinpath(mktempdir(), "$appname.app")
+        stage(dmg, app_stage; dsstore = true, main_redirect, arch)        
     else
         app_stage = destination
-        stage(dmg, app_stage; dsstore = false)        
+        stage(dmg, app_stage; dsstore = false, main_redirect, arch)        
     end
 
-    stage(dmg, app_stage; dsstore, main_redirect, arch)
     setup(app_stage)
     
     installer_title = join([dmg.parameters["APP_DISPLAY_NAME"], "Installer"], " ")
 
-    if compress
-        DMGPack.pack2dmg(app_stage, destination, dmg.entitlements; pfx_path = dmg.pfx_cert, password, compression, installer_title)
-    end
+    DMGPack.pack2dmg(app_stage, destination, dmg.entitlements; pfx_path = dmg.pfx_cert, password, compression = compress ? compression : nothing, installer_title)
 
     return
 end
@@ -301,10 +263,12 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
     setup(app_stage)
 
     # ToDo: move path_length_threshold and skip_long_paths checks here
+    (; path_length_threshold, skip_long_paths) = msix
+    Sys.iswindows() || ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths)
 
     if compress
         (; path_length_threshold, skip_long_paths) = msix
-        MSIXPack.pack2msix(app_stage, destination; pfx_path = msix.pfx_cert, password, path_length_threshold, skip_long_paths)        
+        MSIXPack.pack2msix(app_stage, destination; pfx_path = msix.pfx_cert, password)        
     end
     
     return
@@ -331,5 +295,3 @@ function bundle(setup::Function, snap::Snap, destination::String; compress::Bool
 
     return
 end
-
-

@@ -4,12 +4,14 @@ using libdmg_hfsplus_jll: dmg
 using Xorriso_jll: xorriso
 using rcodesign_jll: rcodesign
 using ..DSStore
+using ..HFS
 
 function generate_self_signing_pfx(pfx_path; password = "PASSWORD")
 
     run(`$(rcodesign()) generate-self-signed-certificate --person-name="AppBundler" --p12-file="$pfx_path" --p12-password="$password"`)
 
 end
+
 
 """
     pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsstore = nothing, password = "", compression = :lzma, installer_title = "Installer")
@@ -27,12 +29,11 @@ The function assumes that `app_stage` points to a properly structured macOS appl
 
 # Keyword Arguments
 - `pfx_path::Union{String, Nothing} = nothing`: Path to a PKCS#12 certificate file for code signing. If not provided, a temporary self-signed certificate will be generated
-- `dsstore::Union{String, Dict, Nothing} = nothing`: Either a path to an existing `.DS_Store` file or a dictionary of DS_Store entries to configure the DMG appearance
 - `password::String = ""`: Password for the certificate file
 - `compression::Union{Symbol, Nothing} = :lzma`: Compression algorithm to use for the DMG. Options are `:lzma`, `:bzip2`, `:zlib`, `:lzfse`, or `nothing` for no compression
 - `installer_title::String = "Installer"`: Volume name for the DMG
 """
-function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsstore::Union{String, Dict} = nothing, password = "", compression = :lzma, installer_title = "Installer")
+function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer")
 
     isfile(entitlements) || error("Entitlements at $entitlements not found")
     isnothing(compression) || compression in [:lzma, :bzip2, :zlib, :lzfse] || error("Compression can only be `compression=[:lzma|:bzip|:zlib|:lzfse]`")
@@ -45,6 +46,7 @@ function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsst
     end
 
     @info "Codesigning application bundle at $app_stage with certificate at $pfx_path"
+
     
     run(`$(rcodesign()) sign --shallow --p12-file "$pfx_path" --p12-password "$password" --entitlements-xml-path "$entitlements" "$app_stage"`)
     
@@ -52,41 +54,54 @@ function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsst
 
         @info "Setting up packing stage at $(dirname(app_stage))"
 
-        appname = splitext(basename(app_stage))[1]
-        iso_stage = joinpath(tempdir(), "$appname.iso") 
-        rm(iso_stage; force=true)
+        #appname = splitext(basename(app_stage))[1]
+        #iso_stage = joinpath(tempdir(), "$appname.iso") 
+        #rm(iso_stage; force=true)
 
-        rm(joinpath(dirname(app_stage), "Applications"); force=true)
-        symlink("/Applications", joinpath(dirname(app_stage), "Applications"); dir_target=true)
+        iso_stage = tempname()
+
+        #rm(joinpath(dirname(app_stage), "Applications"); force=true)
+        #symlink("/Applications", joinpath(dirname(app_stage), "Applications"); dir_target=true)
         
-        dsstore_destination = joinpath(dirname(app_stage), ".DS_Store")
-        rm(dsstore_destination, force=true)
+        #dsstore_destination = joinpath(dirname(app_stage), ".DS_Store")
+        #rm(dsstore_destination, force=true)
 
-        if dsstore isa String
+        # if dsstore isa String
             
-            cp(dsstore, dsstore_destination)
+        #     cp(dsstore, dsstore_destination)
 
-        elseif dsstore isa Dict
+        # elseif dsstore isa Dict
 
-            DSStore.open_dsstore(dsstore_destination, "w+") do ds
+        #     DSStore.open_dsstore(dsstore_destination, "w+") do ds
 
-                ds[".", "icvl"] = ("type", "icnv")
-                ds[".", "vSrn"] = ("long", 1)
+        #         ds[".", "icvl"] = ("type", "icnv")
+        #         ds[".", "vSrn"] = ("long", 1)
 
-                for file_key in keys(dsstore)
-                    file_dict = dsstore[file_key]
-                    for entry_key in keys(file_dict)
-                        ds[file_key, entry_key] = file_dict[entry_key]
-                    end
-                end
-            end
-        end
+        #         for file_key in keys(dsstore)
+        #             file_dict = dsstore[file_key]
+        #             for entry_key in keys(file_dict)
+        #                 ds[file_key, entry_key] = file_dict[entry_key]
+        #             end
+        #         end
+        #     end
+        # end
 
         @info "Forming iso archive with xorriso at $iso_stage"
         run(`$(xorriso()) -as mkisofs -V "$installer_title" -hfsplus -hfsplus-file-creator-type APPL APPL $(basename(app_stage)) -hfs-bless-by x / -relaxed-filenames -no-pad -o $iso_stage $(dirname(app_stage))`)
 
+
+        raw_image = iso_stage
+
+        @info "Reading iso"
+        run(`$(xorriso()) -indev $raw_image -find / -exec report_lba`)
+
         @info "Compressing iso to dmg with $compression algorithm at $destination"
         run(`$(dmg()) dmg $iso_stage $destination --compression=$compression`)
+
+
+        # Extracing hfs image
+        @show raw_hfs_image = abspath(tempname() * ".hfs")
+        run(`$(dmg()) extract $destination $raw_hfs_image --compression=$compression`)
 
 
         @info "Codesigning DMG bundle with certificate at $pfx_path"
@@ -96,6 +111,15 @@ function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsst
     return
 end
 
+
+function unpack(source, destination)
+
+    raw_image = tempname()
+    run(`$(dmg()) extract $source $raw_image`)
+    HFS.extract_hfs_filesystem(raw_image, destination)
+
+    return
+end
 
 export pack2dmg
 

@@ -390,3 +390,27 @@ function retrieve_macos_launcher(platform::AbstractPlatform, destination)
 
     return
 end
+
+function retrieve_macos_launcher(platform::AbstractPlatform)
+
+    artifacts_toml = joinpath(dirname(dirname(pathof(AppBundlerUtils_jll))), "Artifacts.toml")
+    artifacts = Artifacts.select_downloadable_artifacts(artifacts_toml; platform)["AppBundlerUtils"]
+
+    try 
+
+        Artifacts.ARTIFACTS_DIR_OVERRIDE[] = artifacts_cache()
+        
+        hash = artifacts["git-tree-sha1"]
+        Pkg.Artifacts.ensure_artifact_installed("AppBundlerUtils", artifacts, artifacts_toml) 
+
+        return joinpath(artifacts_cache(), hash, "bin", "macos_launcher")
+        #cp(joinpath(artifacts_cache(), hash, "bin", "macos_launcher"), destination, force=true)
+        #chmod(destination, 0o755)
+
+    finally
+        Artifacts.ARTIFACTS_DIR_OVERRIDE[] = nothing
+    end
+
+    return
+end
+
