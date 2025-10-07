@@ -86,6 +86,7 @@ end
         
         bytes = read(joinpath(dest, "AppxManifest.xml"))
         @info "AppxManifest.xml: $(hash(bytes)), $(length(bytes))"
+        println(bytes2hex(bytes))
         println(String(bytes))
 
     end == "07bf7bdbf24a7ea2cb0025db9995680b596436698bba4663ffeb67eba82f44c7" 
