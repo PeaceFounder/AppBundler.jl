@@ -74,6 +74,8 @@ function unpack(source, destination)
     run(`$(dmg()) extract $source $raw_image`)
     HFS.extract_hfs_filesystem(raw_image, destination)
 
+    HFS.explore_hfs_image(raw_image)
+
     return
 end
 

@@ -21,6 +21,9 @@ function hash_file(filename)
     return hash_string
 end    
 
+# TODO: Need to investigate this function for windows
+# likelly sorting with `\` is the issue there
+# It would also be useful to add relative filename in the hash for fixing that
 function hash_directory(dir_path)
     if !isdir(dir_path)
         error("Directory not found: $dir_path")
@@ -48,8 +51,6 @@ function hash_directory(dir_path)
 end
 
 # # ------------------------ MSIX -------------------
-
-# # ToDo: add signature tests as well
 
 function verify_msix_signature(msix_file)
     # First try standard verification (likely to fail with self-signed certs)
@@ -126,7 +127,7 @@ if Sys.isunix()
             end
 
             AppBundler.DMGPack.unpack(dest, stage_dir)
-            
+
             if Sys.isapple()
                 # This check is also important for stagging
                 @info "Verifying that the application is correctly codesigned"

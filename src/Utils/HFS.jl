@@ -87,7 +87,7 @@ function _list_directory(img::HFSImage, dir_path::String)::Vector{String}
             # Parse ls output: permissions user group size date time filename
             parts = split(line)
             if length(parts) >= 7
-                filename = join(parts[7:end], " ")
+                filename = join(parts[8:end], " ")
                 
                 # Skip . and .. entries
                 if filename in [".", ".."]
@@ -167,7 +167,7 @@ function query(img::HFSImage, path::String)
             if length(parts) >= 7
                 permissions = parts[1]
                 size_str = parts[4]
-                file_name = join(parts[7:end], " ")
+                file_name = join(parts[8:end], " ")
                 
                 if file_name == filename
                     size = tryparse(Int64, size_str)
