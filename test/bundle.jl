@@ -44,6 +44,7 @@ function hash_directory(dir_path)
     # Hash each file's content
     for filepath in all_files
         file_data = read(filepath)
+        println("$(hash(file_data)): $filepath")
         SHA.update!(ctx, file_data)
     end
     
