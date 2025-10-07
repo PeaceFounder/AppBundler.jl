@@ -83,6 +83,11 @@ end
     @test hash_stage() do dest
         stage(msix, dest)
         AppBundler.MSIXPack.update_publisher_in_manifest(joinpath(dest, "AppxManifest.xml"), "AppBundler")
+        
+        bytes = read(joinpath(dest, "AppxManifest.xml"))
+        @info "AppxManifest.xml: $(hash(bytes)), $(length(bytes))"
+        println(String(bytes))
+
     end == "07bf7bdbf24a7ea2cb0025db9995680b596436698bba4663ffeb67eba82f44c7" 
 
     @test hash_stage() do stage_dir
