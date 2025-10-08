@@ -33,10 +33,18 @@ include("apps.jl")
 bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)
 
 
+import OpenSSL_jll
+
 function __init__()
     if Sys.iswindows()
         # Prepending with \\?\ for long path support
         global DOWNLOAD_CACHE = "\\\\?\\" * get_scratch!(@__MODULE__, "AppBundler") 
+
+        # fixing OpenSSL
+        openssl_bin = joinpath(OpenSSL_jll.artifact_dir, "bin")
+        ENV["PATH"] = openssl_bin * ";" * ENV["PATH"]
+        ENV["OPENSSL_CONF"] = ""
+        ENV["OPENSSL_MODULES"] = ""
     else
         global DOWNLOAD_CACHE = get_scratch!(@__MODULE__, "AppBundler")
     end
