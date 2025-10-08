@@ -23,17 +23,26 @@ jobs:
       - name: Install Linux GUI dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-4-dev
+      
+      - name: Remove System32 OpenSSL DLLs (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $system32 = "C:\Windows\System32"
+          
+          foreach ($dll in @("libcrypto-3-x64.dll", "libssl-3-x64.dll")) {
+            $path = Join-Path $system32 $dll
+            if (Test-Path $path) {
+              Remove-Item -Path $path -Force
+              Write-Host "Removed $dll from System32"
+            } else {
+              Write-Host "$dll not found in System32"
+            }
+          }
+        shell: pwsh
         
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1.11'
-      
-      - name: Setup tmate session (for debugging)
-        if: runner.os == 'Windows'
-        uses: mxschmitt/action-tmate@v3
-        with:
-          limit-access-to-actor: true  # Only you can access
-      
       - uses: julia-actions/cache@v1
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1

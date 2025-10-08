@@ -118,7 +118,7 @@ function pack(source, destination; pfx_path = nothing, password = "")
 
     rm(destination; force=true)
     withenv("OPENSSL_CONF" => "") do
-        run(`$(osslsigncode()) sign -pkcs12 $pfx_path -pass "$password" -in "$unsigned_msix" -out "$destination"`)
+        run(`$(osslsigncode()) sign -nolegacy -pkcs12 $pfx_path -pass "$password" -in "$unsigned_msix" -out "$destination"`)
     end
 
     @info "Signed MSIX at $destination"
