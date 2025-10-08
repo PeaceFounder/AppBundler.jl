@@ -23,29 +23,24 @@ jobs:
       - name: Install Linux GUI dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-4-dev
-      
-      - name: Remove system OpenSSL from PATH (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          $newPath = ($env:PATH -split ';' | Where-Object { $_ -notlike '*OpenSSL*' }) -join ';'
-          echo "PATH=$newPath" >> $env:GITHUB_ENV
-        shell: pwsh
         
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1.11'
+      
+      - name: Setup tmate session (for debugging)
+        if: runner.os == 'Windows'
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true  # Only you can access
+      
       - uses: julia-actions/cache@v1
       - uses: julia-actions/julia-buildpkg@v1
-        env:
-          OPENSSL_CONF: ""
-          OPENSSL_MODULES: ""
       - uses: julia-actions/julia-runtest@v1
         with:
           prefix: ${{ matrix.prefix }}
         env:
           DISPLAY: ":0"
-          OPENSSL_CONF: ""
-          OPENSSL_MODULES: ""
       - uses: julia-actions/julia-processcoverage@v1
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
