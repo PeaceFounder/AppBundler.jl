@@ -34,12 +34,10 @@ function generate_self_signed_certificate(pfx_path; password = "", name = "AppBu
     certificate_crt = joinpath(tempdir(), "certificate.crt")
     rm(certificate_crt; force=true)
 
-    withenv("OPENSSL_CONF" => "") do
-        # Generate private key and self-signed certificate
-        run(`$(openssl()) req -x509 -nodes -days $validity_days -newkey rsa:2048 -keyout "$private_key" -out "$certificate_crt" -config "$conf"`)
+    # Generate private key and self-signed certificate
+    run(`$(openssl()) req -x509 -nodes -days $validity_days -newkey rsa:2048 -keyout "$private_key" -out "$certificate_crt" -config "$conf"`)
 
-        run(`$(openssl()) pkcs12 -export -out "$pfx_path" -inkey "$private_key" -in "$certificate_crt" -passout "pass:$password"`)
-    end
+    run(`$(openssl()) pkcs12 -export -out "$pfx_path" -inkey "$private_key" -in "$certificate_crt" -passout "pass:$password"`)
 
     return
 end
@@ -117,9 +115,7 @@ function pack(source, destination; pfx_path = nothing, password = "")
     @info "Performing codesigning with certificate at $pfx_path"
 
     rm(destination; force=true)
-    withenv("OPENSSL_CONF" => "") do
-        run(`$(osslsigncode()) sign -nolegacy -pkcs12 $pfx_path -pass "$password" -in "$unsigned_msix" -out "$destination"`)
-    end
+    run(`$(osslsigncode()) sign -nolegacy -pkcs12 $pfx_path -pass "$password" -in "$unsigned_msix" -out "$destination"`)
 
     @info "Signed MSIX at $destination"
 

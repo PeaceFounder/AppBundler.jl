@@ -23,6 +23,12 @@ end
     include("bundle.jl")
 end
 
+@time @safetestset "Staging tests" begin
+    include("stage.jl")
+end
+
+
+
 # @time @safetestset "MSIX building tests" begin
 #     include("msix.jl")
 # end
@@ -40,9 +46,9 @@ end
 #     if get(ENV, "JULIA_RUN_EXAMPLES", "false") == "true"
 #         @info "Running extensive example tests"
         
-#         @time @safetestset "GTKApp Example" begin
-#             include("../examples/gtkapp/meta/build.jl")
-#         end
+        # @time @safetestset "GTKApp Example" begin
+        #     include("../examples/gtkapp/meta/build.jl")
+        # end
 
 #         @time @safetestset "Mousetrap Example" begin
 #             include("../examples/mousetrap/meta/build.jl")

@@ -166,6 +166,7 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 
             julia = "$destination/bin/julia"
             run(`$julia --eval "popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import $module_name"`)
+            #run(`$julia --eval "popfirst!(DEPOT_PATH); import $module_name"`)
         end
 
     else

@@ -289,7 +289,7 @@ function retrieve_julia(platform::AbstractPlatform, julia_dir; version = julia_v
         download("$base_url/$url", tarball)
     end
 
-    source = extract(tarball)
+    source = extract_tar_gz(tarball)
 
     mv(joinpath(source, "julia-$version"), julia_dir)
     
