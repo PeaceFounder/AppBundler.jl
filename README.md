@@ -55,7 +55,6 @@ MSIX(
     skip_long_paths::Bool = false;
 )
 ```
-
 The usage of theese installer formats is as simple as:
 ```
     build(destination[, appformat], compress = true|false|:lzma,  pfx_password = "", parameters = ...) do bundle
