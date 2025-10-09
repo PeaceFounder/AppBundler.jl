@@ -6,7 +6,7 @@ using Test
 
 @time @testset "Julia download link test" begin
 
-    @test julia_download_url(Windows(:x86_64), v"1.9.3") == "winnt/x64/1.9/julia-1.9.3-win64.zip"
+    @test julia_download_url(Windows(:x86_64), v"1.9.3") == "winnt/x64/1.9/julia-1.9.3-win64.tar.gz"
 
     @test julia_download_url(Linux(:x86_64, libc=:glibc), v"1.9.3") == "linux/x64/1.9/julia-1.9.3-linux-x86_64.tar.gz"
     @test julia_download_url(Linux(:aarch64), v"1.9.3") == "linux/aarch64/1.9/julia-1.9.3-linux-aarch64.tar.gz"

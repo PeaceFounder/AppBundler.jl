@@ -251,7 +251,8 @@ end
 function julia_download_url(platform::Windows, version::VersionNumber)
 
     folder = "winnt/x$(wordsize(platform))"
-    archive_name = "julia-$(version)-win$(wordsize(platform)).zip"
+    #archive_name = "julia-$(version)-win$(wordsize(platform)).zip"
+    archive_name = "julia-$(version)-win$(wordsize(platform)).tar.gz"
 
     version_folder = "$(version.major).$(version.minor)"
     url = "$(folder)/$(version_folder)/$(archive_name)"
