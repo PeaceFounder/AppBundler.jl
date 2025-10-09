@@ -27,6 +27,10 @@ function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
         chmod(joinpath(TEMP_ENV, "Manifest.toml"), 0o777)
         
         symlink(joinpath(app_dir, "src"), joinpath(TEMP_ENV, "src"), dir_target=true)
+
+        # Need to debug this more closelly
+        chmod(joinpath(TEMP_ENV, "Project.toml"), 0o777)
+        chmod(joinpath(TEMP_ENV, "Manifest.toml"), 0o777)
         
         ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
         #Pkg.activate(app_dir)
@@ -170,7 +174,7 @@ end
 
 ismacos(platform::AbstractPlatform) = os(platform) == "macos"
 islinux(platform::AbstractPlatform) = os(platform) == "linux" 
-iswindows(platform::AbstractPlatform) = os(p,atform) == "windows"
+iswindows(platform::AbstractPlatform) = os(platform) == "windows"
 
 function platform_type(platform::Platform)
     if islinux(platform)
