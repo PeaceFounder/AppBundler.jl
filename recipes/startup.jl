@@ -5,7 +5,7 @@ libdir = dirname(dirname(@__DIR__))
 
 # Set up LOAD_PATH
 empty!(LOAD_PATH)
-push!(LOAD_PATH, "@", joinpath(libdir, "share/julia/packages"), "@stdlib")
+push!(LOAD_PATH, "@", joinpath(libdir, "share/julia/packages"), joinpath(libdir, "share/julia/packages/{{MODULE_NAME}}"), "@stdlib")
 
 user_depot = get(ENV, "USER_DATA", mktempdir())
 

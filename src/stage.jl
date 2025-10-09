@@ -41,7 +41,7 @@ function get_module_name(source_dir)
 
 end
 
-function override_startup_file(source, destination)
+function override_startup_file(source, destination; parameters = Dict())
 
     user_startup_file = joinpath(source, "meta/startup.jl")
     if isfile(user_startup_file)
@@ -49,7 +49,8 @@ function override_startup_file(source, destination)
     else
         startup_file = joinpath(dirname(@__DIR__), "recipes/startup.jl")
     end
-    cp(startup_file, destination, force=true)
+    #cp(startup_file, destination, force=true)
+    install(startup_file, destination; parameters, force = true)
 
     return
 end
@@ -153,7 +154,8 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 
     retrieve_artifacts(platform, "$destination/share/julia/packages", "$destination/share/julia/artifacts")
 
-    override_startup_file(product.source, "$destination/etc/julia/startup.jl")
+    # Perhaps the LOAD_PATH could be manipulated only for the compilation
+    override_startup_file(product.source, "$destination/etc/julia/startup.jl"; parameters = Dict("MODULE_NAME" => module_name))
 
     if product.precompile
         @info "Precompiling"
@@ -165,8 +167,7 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
         withenv("JULIA_PROJECT" => "$destination/share/julia/packages/$module_name", "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => get_cpu_target(platform)) do
 
             julia = "$destination/bin/julia"
-            run(`$julia --eval "popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import $module_name"`)
-            #run(`$julia --eval "popfirst!(DEPOT_PATH); import $module_name"`)
+            run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import $module_name"`)
         end
 
     else
