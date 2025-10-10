@@ -27,21 +27,7 @@ end
     include("stage.jl")
 end
 
-
-
-# @time @safetestset "MSIX building tests" begin
-#     include("msix.jl")
-# end
-
 # if Sys.isunix()
-
-#     @time @safetestset "DMG building tests" begin
-#         include("dmg.jl")
-#     end
-
-#     @time @safetestset "Snap building tests" begin
-#         include("snap.jl")
-#     end
 
 #     if get(ENV, "JULIA_RUN_EXAMPLES", "false") == "true"
 #         @info "Running extensive example tests"

@@ -1,271 +1,175 @@
-"""
-    bundle_app(platform::MacOS, source, destination; parameters)
+function bundle(product::PkgImage, dmg::DMG, destination::String; compress::Bool = isext(dest, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), arch = :x86_64)
+    
+    bundle(dmg, destination; compress, compression, force, password, main_redirect = true, arch) do app_stage
+        # app_stage always points to app directory
+        stage(product, MacOS(arch), joinpath(app_stage, "Contents/Libraries"))
 
-Bundle a Julia application into a macOS .app bundle structure.
+        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "macos/startup.jl")
+        install(startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters = dmg.parameters, force = true)
 
-This function transforms Julia source code into a macOS application bundle (.app), creating the proper directory hierarchy and configuration files required by macOS. It sets up a complete standalone application that can be distributed and run on macOS without requiring a separate Julia installation. The function handles all aspects of the bundling process, including embedding the Julia runtime, copying application code, retrieving necessary packages and artifacts, and creating the required metadata files.
-
-The source directory is expected to contain a `main.jl` file, which serves as the entry point to the application. This file will be executed when the application is launched. The function also expects the source directory to have a valid `Project.toml` file from which it extracts application metadata.
-
-The function uses a template-based approach for creating the bundle structure. Template files such as `Info.plist`, launcher scripts, and other resources are sourced from the `AppBundler/recipes/macos` directory by default. These templates can be customized by providing overrides in a `meta/macos` directory within the source directory. This allows for application-specific customization of the bundle while maintaining a standard structure.
-
-# Arguments
-- `platform::MacOS`: MacOS platform specification, including architecture information and a target Julia version
-- `source::String`: Path to the source directory containing the application's source code, Project.toml, and `main.jl`
-- `destination::String`: Path where the .app bundle should be created
-
-# Keyword Arguments
-- `parameters::Dict = get_bundle_parameters("\$source/Project.toml")`: Application parameters extracted 
-  from Project.toml, including app name, display name, version, and other metadata
-
-# Notes
-- Creates a standard macOS .app bundle with structure:
-  - `Contents/`: Main bundle contents
-    - `MacOS/`: Contains the executable launcher
-    - `Resources/`: Application resources and icons
-    - `Libraries/`: Includes Julia runtime, application module code, packages, and artifacts
-    - `Info.plist`: Bundle configuration
-
-This function is typically called by the higher-level `build_app` function which handles additional operations like code signing, precompilation, and DMG packaging
-"""
-function bundle_app(platform::MacOS, source, destination; with_splash_screen = nothing, parameters = get_bundle_parameters("$source/Project.toml"))
-
-    rm(destination, recursive=true, force=true)
-
-    app_name = parameters["APP_NAME"]
-    module_name = parameters["MODULE_NAME"]
-
-    if isnothing(with_splash_screen) 
-        with_splash_screen = parse(Bool, parameters["WITH_SPLASH_SCREEN"]) # When not set take a value 
-    else
-        parameters["WITH_SPLASH_SCREEN"] = with_splash_screen
+        # main redirect
+        main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "macos/main.sh")
+        install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true)
+        
     end
 
-    mkpath(destination)
-    app_dir = "$destination/Contents"
+    return
+end
 
-    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
+function bundle(product::PkgImage, snap::Snap, destination::String; compress::Bool = isext(dest, ".snap"), force = false, arch = :x86_64)
     
-    add_rule!(bundle, "macos/main.sh", "Libraries/main", template=true, executable=true)
+    bundle(snap, destination; compress, force, install_configure = true) do app_stage
+        
+        stage(product, Linux(arch), app_stage)
 
-    mkpath("$app_dir/Libraries")
-    copy_app(source, "$app_dir/Libraries/$module_name")
-    retrieve_julia(platform, "$app_dir/Libraries/julia")
+        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "linux/startup.jl")
+        install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = snap.parameters, force = true)
+        
+        
+        main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "linux/main.sh")
+        app_name = snap.parameters["APP_NAME_LOWERCASE"]
+        install(main_file, joinpath(app_stage, "bin/$app_name"); parameters = snap.parameters, executable = true)
 
-    add_rule!(bundle, "macos/startup.jl", "Libraries/julia/etc/julia/startup.jl", template=true, override=true)
-    
-    build(bundle, app_dir, parameters)
-
-    retrieve_packages(source, "$app_dir/Libraries/packages"; with_splash_screen)
-    retrieve_artifacts(platform, "$app_dir/Libraries/packages", "$app_dir/Libraries/artifacts")
-
-    mkdir(joinpath(destination, "Contents/MacOS"))
-    retrieve_macos_launcher(platform, joinpath(destination, "Contents/MacOS/$app_name"))
+    end
 
     return
 end
 
+function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bool = isext(dest, ".msix"), force = false, arch = :x86_64, windowed = true)
 
-# One can always go an upper directory to add some more stuff
-function bundle_dmg(source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
-
-    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
-
-    add_rule!(bundle, "macos/Resources", "Resources")
-    add_rule!(bundle, "icon.icns", "Resources/icon.icns")
-    
-    add_rule!(bundle, "macos/Info.plist", "Info.plist", template=true)
-
-    build(bundle, joinpath(destination, "Contents"), parameters)
-
-    return    
-end
-
-function bundle_snap(source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
-
-    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
-    
-    #parameters["ARCH_TRIPLET"] = linux_arch_triplet(arch(platform))
-    app_name = parameters["APP_NAME_LOWERCASE"]
-
-    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
-
-    add_rule!(bundle, "linux/main.sh", "bin/$app_name", template=true, executable=true)
-
-    add_rule!(bundle, "linux/configure.sh", "meta/hooks/configure", template=true, executable=true)
-    add_rule!(bundle, "linux/main.desktop", "meta/gui/$app_name.desktop", template=true)
-    add_rule!(bundle, "linux/snap.yaml", "meta/snap.yaml", template=true)
-
-    add_rule!(bundle, "linux/meta", "meta")
-    add_rule!(bundle, "icon.png", "meta/icon.png") 
-
-    build(bundle, destination, parameters)
-    
-    return
-end
-
-function bundle_app(platform::Linux, source, app_dir; parameters = get_bundle_parameters("$source/Project.toml"))
-
-    mkdir("$app_dir/lib")
-    retrieve_julia(platform, "$app_dir/lib/julia")    
-    copy_app(source, joinpath(app_dir, "lib", parameters["MODULE_NAME"]))
-    retrieve_packages(source, "$app_dir/lib/packages")
-    retrieve_artifacts(platform, "$app_dir/lib/packages", "$app_dir/lib/artifacts")
-
-    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
-    add_rule!(bundle, "linux/startup.jl", "lib/julia/etc/julia/startup.jl", template=true, override=true)
-    build(bundle, app_dir, parameters)
+    bundle(msix, destination; compress, force) do app_stage
+        
+        stage(product, Windows(arch), app_stage)
+        mv("$app_stage/libexec/julia/lld.exe", "$app_stage/bin/lld.exe") # julia.exe can't find shared libraries in UWP
+        
+        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "windows/startup.jl")
+        install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
+        
+        if windowed
+            WinSubsystem.change_subsystem_inplace("$app_stage/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
+            WinSubsystem.change_subsystem_inplace("$app_stage/bin/lld.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
+        end
+    end
 
     return
 end
-
 
 """
-    bundle_app(platform::Windows, source, destination; parameters = get_bundle_parameters("\$source/Project.toml"))
+    build_app(platform::Windows, source, destination; debug = false, precompile = true, incremental = true)
 
-Bundle a Julia application into a Windows application directory structure.
+Build a complete Windows application from Julia source code, optionally packaging it as a MSIX disk image.
 
-This function transforms Julia source code into a standalone Windows application bundle by creating 
-the necessary directory hierarchy and configuration files. It sets up a complete application that 
-can be distributed and run on Windows without requiring a separate Julia installation. The function 
-handles embedding the Julia runtime, copying application code, retrieving necessary packages and 
-artifacts, and creating the required startup configuration.
-
-The bundled application uses a custom Julia startup script that configures the environment to locate 
-the embedded Julia runtime, packages, and artifacts. This allows the application to run independently 
-of any system Julia installation.
+This function coordinates the entire process of creating a standalone MSIX application bundle 
+from Julia source code. It handles bundling the application, precompiling code for faster startup, 
+code signing the bundle, and optionally creating a MSIX for distribution. Note that it 
+requires a Windows host for precompilation unless `precompile=false` is specified, and the architecture 
+of the host must match the target architecture. For code signing, the function uses the 
+`WINDOWS_PFX_PASSWORD` environment variable for the certificate password if `meta/windows/certificate.pfx` is available otherwise one time self signing certificate is created for the codesigning.
 
 # Arguments
-- `platform::Windows`: Windows platform specification, including architecture information and target Julia version
+- `platform::Windows`: Windows platform specification, potentially including architecture information
 - `source::String`: Path to the source directory containing the application's source code, Project.toml, and main.jl
-- `destination::String`: Path where the Windows application bundle should be created
+- `destination::String`: Path where the final application directory or MSIX installer should be created
 
-# Bundle Structure
-Creates a Windows application bundle with the following structure:
-- `julia/`: Complete Julia runtime environment
-- `packages/`: Application dependencies and Julia packages
-- `artifacts/`: Package artifacts and binary dependencies
-- `[APP_NAME]/`: Application source code directory containing main.jl and src/
-
-This function creates the core application bundle but does not handle MSIX packaging, code signing, or precompilation - those are handled by higher-level functions. See `bundle_msix`, `build_msix` and `build_app`. 
-
-# Template Processing
-The function uses a template-based approach for configuration files. Templates are sourced from 
-`AppBundler/recipes/windows` by default, with support for custom overrides in `source/meta/windows/`. 
-The startup.jl template is particularly important as it configures Julia's load paths to use the 
-bundled packages and artifacts.
-
-# Platform-Specific Handling
-- Relocates `lld.exe` from `libexec/julia/` to `bin/` for UWP (Universal Windows Platform) compatibility
+# Keyword Arguments
+- `debug::Bool = false`: Creates application by keeping subsystem as console app for easier debugging. 
+- `precompile::Bool = true`: Whether to precompile the application code for faster startup
+- `incremental::Bool = true`: Whether to perform incremental precompilation (preserving existing compiled files)
 
 # Directory Structure Expectations
-The `source` directory should contain:
-- `Project.toml`: Application metadata and dependencies
-- `main.jl`: Application entry point script
-- `src/` (optional): Additional application source code
-- `meta/windows/` (optional): Windows-specific template overrides
-  - `startup.jl` (optional): Custom Julia startup script template
+The `source` directory is expected to have the following structure:
+- `Project.toml`: Contains application metadata and dependencies
+- `main.jl`: The application's entry point script
+- `src/` (optional): Directory containing application source code
+- `meta/` (optional): Directory containing customizations
+  - `windows/` (optional): Platform-specific customizations
+    - `certificate.pfx` (optional): Code signing certificate
+    - `AppxManifest.xml` (optional): Custom application specification file
+    - `resources.pri` (optional): Custom asset resource file
+    - `MSIXAppInstallerData.xml` (optional): installer customization
+    - `startup.jl` (optional): app launcher customization
 
-# Example
+# Examples
 ```julia
-# Bundle a Julia application for Windows x64
-bundle_app(Windows(:x86_64), "MyApp", "build/MyApp/")
-```
+# Build aapplication directoruy bundle without MSIX packaging
+build_app(MacOS(:x86_64), "path/to/source", "path/to/MyApp")
 
+# Build a .msix installer
+build_app(Windows(:x86_64), "path/to/source", "path/to/MyApp.msix")
+
+# Build without precompilation (e.g., for cross-compiling)
+build_app(Windows(:x86_64), "path/to/source", "path/to/MyApp.msix"; precompile = false)
 """
-function bundle_app(platform::Windows, source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
+function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), precompile = true, incremental = true, force = false, windowed = true)
 
-    retrieve_julia(platform, "$destination/julia")
-    mv("$destination/julia/libexec/julia/lld.exe", "$destination/julia/bin/lld.exe") # julia.exe can't find shared libraries in UWP
+    msix = MSIX(source)
+    product = PkgImage(source; precompile, incremental)
+    
+    return bundle(product, msix, destination; compress, force, windowed, arch = arch(platform))
+end
 
-    retrieve_packages(source, "$destination/packages")
-    retrieve_artifacts(platform, "$destination/packages", "$destination/artifacts")
+# For some reaseon I did not have documentation here
+function build_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"), precompile = true, incremental = true, force = false)
 
-    copy_app(source, joinpath(destination, parameters["MODULE_NAME"]))
-
-    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
-    add_rule!(bundle, "windows/startup.jl", "julia/etc/julia/startup.jl", template=true, override=true)
-    build(bundle, destination, parameters)
-
+    snap = Snap(source)
+    product = PkgImage(source; precompile, incremental)
+    
+    return bundle(product, snap, destination; compress, force, arch = arch(platform))
 end
 
 """
-    bundle_msix(source, destination; parameters = get_bundle_parameters("\$source/Project.toml"))
+    build_app(platform::MacOS, source, destination; compression = :lzma, precompile = true, incremental = true)
 
-Bundle MSIX-specific metadata and assets for a Windows application package.
+Build a complete macOS application from Julia source code, optionally packaging it as a DMG disk image.
 
-This function creates the MSIX (Microsoft Store Installation Experience) package structure and 
-metadata files required for Windows application distribution through the Microsoft Store or 
-sideloading. It processes application templates, generates the application manifest, copies 
-required assets, and creates the proper directory structure for MSIX packaging.
-
-The function handles the MSIX-specific aspects of Windows application packaging, including the 
-AppxManifest.xml file that defines the application's identity, capabilities, and visual elements, 
-as well as the application icons and installer metadata. It works in conjunction with `bundle_app` 
-to create a complete MSIX-ready application bundle.
+This function coordinates the entire process of creating a standalone macOS application bundle 
+from Julia source code. It handles bundling the application, precompiling code for faster startup, 
+code signing the bundle, and optionally creating a DMG disk image for distribution. Note that it 
+requires a macOS host for precompilation unless `precompile=false` is specified, and the architecture 
+of the host must match the target architecture. For code signing, the function uses the 
+`MACOS_PFX_PASSWORD` environment variable for the certificate password if `meta/macos/certificate.pfx` is available otherwise one time self signing certificate is created for the codesigning.
 
 # Arguments
-- `source::String`: Path to the source directory containing Project.toml, and optional `meta` directory for customization
-- `destination::String`: Path where the MSIX bundle structure should be created
+- `platform::MacOS`: macOS platform specification, potentially including architecture information
+- `source::String`: Path to the source directory containing the application's source code, Project.toml, and main.jl
+- `destination::String`: Path where the final application (.app) or disk image (.dmg) should be created
 
 # Keyword Arguments
-- `parameters::Dict = get_bundle_parameters("\$source/Project.toml")`: Application parameters extracted 
-  from Project.toml, used for template processing and manifest generation
+- `compression::Union{Symbol, Nothing} = :lzma`: Compression algorithm 
+  to use for the DMG. Options are `:lzma`, `:bzip2`, `:zlib`, `:lzfse`, or `nothing` for no compression.
+  Defaults to `:lzma` if destination has a .dmg extension, otherwise `nothing` that creates an `.app` as final product 
+- `precompile::Bool = true`: Whether to precompile the application code for faster startup
+- `incremental::Bool = true`: Whether to perform incremental precompilation (preserving existing compiled files)
 
-# MSIX Bundle Structure
-Creates an MSIX-compliant directory structure:
-- `AppxManifest.xml`: Application manifest defining identity, capabilities, and metadata
-- `Assets/`: Application icons and visual assets in various sizes for different contexts
-- `resources.pri`: Compiled resource file containing application resources and localization data
-- `Msix.AppInstaller.Data/MSIXAppInstallerData.xml`: App installer configuration and metadata
+# Directory Structure Expectations
+The `source` directory is expected to have the following structure:
+- `Project.toml`: Contains application metadata and dependencies
+- `main.jl`: The application's entry point script
+- `src/` (optional): Directory containing application source code
+- `meta/` (optional): Directory containing customizations
+  - `macos/` (optional): Platform-specific customizations
+    - `certificate.pfx` (optional): Code signing certificate
+    - `Entitlements.plist` (optional): Custom entitlements file
+    - `DS_Store` or `DS_Store.toml` (optional): DMG appearance configuration
+    - `startup.jl` (optional): app launcher customization
+    - Other template overrides (optional): Custom versions of template files (see `bundle_app` docstring)
 
-# Template Processing
-Uses a template-based approach with files from `AppBundler/recipes/windows/` as defaults:
-- `AppxManifest.xml`: Application manifest template with parameter substitution
-- `resources.pri`: Resource index file for the application
-- `MSIXAppInstallerData.xml`: Installation metadata template
-- `Assets/`: Default application asset templates
-
-Custom overrides can be provided in the `source/meta/windows/` directory to replace any default templates.
-
-# Icon Generation
-The function automatically generates a complete set of application icons required by MSIX from a single 
-source icon file:
-- Looks for `icon.png` in the source metadata directories
-- Generates multiple icon sizes and formats required by Windows (Square44x44Logo, Square150x150Logo, etc.)
-- Only generates icons if no custom `Assets/` directory is provided in the source overrides
-- Uses the `MSIXIcons.generate_app_icons` function for icon processing
-
-# Example
+# Examples
 ```julia
-# Create MSIX bundle structure
-bundle_msix("appdir", "build/msix_staging/")
+# Build a .app bundle without DMG packaging
+build_app(MacOS(:x86_64), "path/to/source", "path/to/MyApp.app")
 
-# Resulting structure:
-# build/msix_staging/
-# ├── AppxManifest.xml     # Application manifest
-# ├── Assets/              # Generated application icons
-# ├── resources.pri        # Resource index
-# └── Msix.AppInstaller.Data/
-#     └── MSIXAppInstallerData.xml
-```
+# Build a .dmg installer with LZMA compression
+build_app(MacOS(:arm64), "path/to/source", "path/to/MyApp.dmg")
 
-This function is typically called by `build_msix` as part of the complete MSIX application building process.
+# Build without precompilation (e.g., for cross-compiling)
+build_app(MacOS(:arm64), "path/to/source", "path/to/MyApp.dmg"; precompile = false)
 """
-function bundle_msix(source, destination; parameters = get_bundle_parameters("$source/Project.toml"))
+function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false)
 
-    bundle = Bundle(joinpath(dirname(@__DIR__), "recipes"), joinpath(source, "meta"))
-
-    add_rule!(bundle, "windows/Assets", "Assets") 
-    add_rule!(bundle, "windows/AppxManifest.xml", "AppxManifest.xml", template=true)
-    add_rule!(bundle, "windows/resources.pri", "resources.pri")
-    add_rule!(bundle, "windows/MSIXAppInstallerData.xml", "Msix.AppInstaller.Data/MSIXAppInstallerData.xml")
-
-    build(bundle, destination, parameters)
+    dmg = DMG(source)
+    product = PkgImage(source; precompile, incremental)
     
-    if !isdir(joinpath(destination, "Assets")) # One can override assets if necessary
-        img_path = get_meta_path(source, "icon.png")
-        MSIXIcons.generate_app_icons(img_path, joinpath(destination, "Assets")) 
-    end
-
+    return bundle(product, dmg, destination; compress, force, arch = arch(platform))
 end
+

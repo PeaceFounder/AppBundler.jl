@@ -83,7 +83,7 @@ end
     @test hash_stage() do dest
         stage(msix, dest)
         AppBundler.MSIXPack.update_publisher_in_manifest(joinpath(dest, "AppxManifest.xml"), "AppBundler")
-    end == "07bf7bdbf24a7ea2cb0025db9995680b596436698bba4663ffeb67eba82f44c7" 
+    end == "98d3bb9f120f6f85e7a16169c3dcb36b81c38626674f5c1cfe9ad03f00edfd66" 
 
     @test hash_stage() do stage_dir
 
@@ -102,8 +102,7 @@ end
         # @test hash_file(joinpath(stage_dir, "AppxBlockMap.xml")) == "70ff6695ec913326f645c1cd30e48f75f57545ee4ae546db5843bf0779e6ee7e"
         rm(joinpath(stage_dir, "AppxBlockMap.xml")) # AppxBlockMap.xml has a slight nondeterminism
 
-    end == "07bf7bdbf24a7ea2cb0025db9995680b596436698bba4663ffeb67eba82f44c7"
-
+    end == "98d3bb9f120f6f85e7a16169c3dcb36b81c38626674f5c1cfe9ad03f00edfd66" 
 end
 
 if Sys.isunix()
@@ -118,7 +117,7 @@ if Sys.isunix()
             stage(dmg, joinpath(dest, "gtkapp.app"); dsstore=true, main_redirect=true)
             AppBundler.DMGPack.replace_binary_with_hash(joinpath(dest, "gtkapp.app/Contents/MacOS/gtkapp"))
             rm("$dest/Applications")
-        end == "9f42d0a55ae871c707b5106b6aa1875a9138fdf9815cc3c3b2a794ccf6a4c9f6"
+        end == "e26f0ac440d5a1f4aef3d2833f3c658bce705fc60ce6710f1d4e06956f05076b"
 
         @test hash_stage() do stage_dir
 
@@ -138,7 +137,7 @@ if Sys.isunix()
             @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "gtkapp.app/Contents/MacOS/gtkapp"))
             rm("$stage_dir/gtkapp.app/Contents/_CodeSignature"; recursive=true)
 
-        end == "9f42d0a55ae871c707b5106b6aa1875a9138fdf9815cc3c3b2a794ccf6a4c9f6"
+        end == "e26f0ac440d5a1f4aef3d2833f3c658bce705fc60ce6710f1d4e06956f05076b"
 
     end
 
@@ -150,18 +149,18 @@ if Sys.isunix()
 
         @test hash_stage() do dest
             stage(snap, dest; install_configure=true)
-        end == "947184f6a758540e3b2a60701c8c92790264edd6db3319bbadaa5fb55a0e8dc6"
+        end == "c4a970b79da0db6c5bfff1947c12ee119d0c0a2b44f3d153d78fd56ad2252d12"
 
         @test hash_stage() do stage_dir
 
             dest = joinpath(mktempdir(), "gtkapp.snap")
             bundle(snap, dest; install_configure=true) do app_stage
-                @info "The DMG app stage is $app_stage"
+                @info "The Snap app stage is $app_stage"
             end
             
             AppBundler.SnapPack.unpack(dest, stage_dir)    
-        end == "947184f6a758540e3b2a60701c8c92790264edd6db3319bbadaa5fb55a0e8dc6"
 
+        end == "c4a970b79da0db6c5bfff1947c12ee119d0c0a2b44f3d153d78fd56ad2252d12"
     end
 
 end

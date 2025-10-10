@@ -87,7 +87,7 @@ function _list_directory(img::HFSImage, dir_path::String)::Vector{String}
             # Parse ls output: permissions user group size date time filename
             parts = split(line)
             if length(parts) >= 7
-                filename = join(parts[8:end], " ")
+                filename = join(parts[7:end], " ")
                 
                 # Skip . and .. entries
                 if filename in [".", ".."]
@@ -101,13 +101,18 @@ function _list_directory(img::HFSImage, dir_path::String)::Vector{String}
                 
                 # Construct full path
                 full_path = dir_path == "/" ? "/$filename" : "$dir_path/$filename"
+
+                if isempty(filename)
+                    error("Something went wrong. Filename is empty")
+                end
+
                 push!(entries, full_path)
             end
         end
     catch e
         @warn "Error listing directory $dir_path: $e"
     end
-    
+
     return entries
 end
 
@@ -167,7 +172,7 @@ function query(img::HFSImage, path::String)
             if length(parts) >= 7
                 permissions = parts[1]
                 size_str = parts[4]
-                file_name = join(parts[8:end], " ")
+                file_name = join(parts[7:end], " ")
                 
                 if file_name == filename
                     size = tryparse(Int64, size_str)
@@ -253,42 +258,35 @@ function _extract_recursive(img::HFSImage, src_path::String, dest_path::String)
     directory_count = 0
     file_count = 0
     
-    try
-        entries = readdir(img, src_path)
+    #try
+    entries = readdir(img, src_path)
+    
+    for entry in entries
+        entry_src_path = src_path == "/" ? "/$entry" : "$src_path/$entry"
+        entry_dest_path = joinpath(dest_path, entry)
         
-        for entry in entries
-            entry_src_path = src_path == "/" ? "/$entry" : "$src_path/$entry"
-            entry_dest_path = joinpath(dest_path, entry)
+        #try
+        stat_info = query(img, entry_src_path)
+        
+        if stat_info.is_directory
+            # Create directory
+            mkpath(entry_dest_path)
+            directory_count += 1
             
-            try
-                stat_info = query(img, entry_src_path)
-                
-                if stat_info.is_directory
-                    # Create directory
-                    mkpath(entry_dest_path)
-                    directory_count += 1
-                    
-                    # Recurse into directory
-                    sub_dirs, sub_files = _extract_recursive(img, entry_src_path, entry_dest_path)
-                    directory_count += sub_dirs
-                    file_count += sub_files
-                    
-                elseif stat_info.is_file
-                    # Extract file
-                    if extract_file(img, entry_src_path, entry_dest_path)
-                        file_count += 1
-                    end
-                    
-                else  # symlink
-                    @warn "Skipping symlink: $entry_src_path"
-                end
-            catch e
-                # Silently skip entries we can't process
+            # Recurse into directory
+            sub_dirs, sub_files = _extract_recursive(img, entry_src_path, entry_dest_path)
+            directory_count += sub_dirs
+            file_count += sub_files
+            
+        elseif stat_info.is_file
+            # Extract file
+            if extract_file(img, entry_src_path, entry_dest_path)
+                file_count += 1
             end
+            
+        else  # symlink
+            @warn "Skipping symlink: $entry_src_path"
         end
-        
-    catch e
-        # Silently skip directories we can't read
     end
     
     return directory_count, file_count
