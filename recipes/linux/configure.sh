@@ -1,6 +1,6 @@
 #!/bin/bash
 
-JULIA="$SNAP/lib/julia/bin/julia"
+JULIA="$SNAP/bin/julia"
 
 # Let's force precompilation for wayland even on headless system
 export WAYLAND_DISPLAY=wayland-0

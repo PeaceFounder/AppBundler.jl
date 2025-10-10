@@ -23,14 +23,16 @@ function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
         cp(joinpath(app_dir, "Manifest.toml"), joinpath(TEMP_ENV, "Manifest.toml"), force=true)
 
         # Need to debug this more closelly
-        chmod(joinpath(TEMP_ENV, "Project.toml"), 0o777)
+        chmod(joinpath(TEMP_ENV, "Project.toml"), 0o777) # perhaps 0o444 could work as well
         chmod(joinpath(TEMP_ENV, "Manifest.toml"), 0o777)
         
-        symlink(joinpath(app_dir, "src"), joinpath(TEMP_ENV, "src"), dir_target=true)
+        
+        # I may actually don't need this
+        # symlink(joinpath(app_dir, "src"), joinpath(TEMP_ENV, "src"), dir_target=true)
 
         # Need to debug this more closelly
-        chmod(joinpath(TEMP_ENV, "Project.toml"), 0o777)
-        chmod(joinpath(TEMP_ENV, "Manifest.toml"), 0o777)
+        #chmod(joinpath(TEMP_ENV, "Project.toml"), 0o777)
+        #chmod(joinpath(TEMP_ENV, "Manifest.toml"), 0o777)
         
         ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
         #Pkg.activate(app_dir)
@@ -296,7 +298,8 @@ function retrieve_julia(platform::AbstractPlatform, julia_dir; version = julia_v
 
     source = extract_tar_gz(tarball)
 
-    mv(joinpath(source, "julia-$version"), julia_dir)
+    #mv(joinpath(source, "julia-$version"), julia_dir)
+    merge_directories(joinpath(source, "julia-$version"), julia_dir)
     
     return nothing
 end

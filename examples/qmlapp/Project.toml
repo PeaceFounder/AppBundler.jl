@@ -6,8 +6,6 @@ version = "0.1.0"
 [deps]
 QML = "2db162a6-7e43-52c3-8d84-290c1c42d82a"
 
-[compat]
-QML = "0.9.1"
 
 [bundle]
 APP_DESCRIPTION = "Longer description of the app"

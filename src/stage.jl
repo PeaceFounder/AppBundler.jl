@@ -143,8 +143,8 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
         validate_cross_compilation(platform)
     end
 
-    rm(destination, recursive=true, force=true)
-    mkpath(dirname(destination))
+    #rm(destination, recursive=true, force=true)
+    #mkpath(dirname(destination))
 
     @info "Downloading Julia for $platform"
     retrieve_julia(platform, "$destination"; version = product.julia_version)

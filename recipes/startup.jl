@@ -11,4 +11,3 @@ user_depot = get(ENV, "USER_DATA", mktempdir())
 
 empty!(DEPOT_PATH)
 push!(DEPOT_PATH, user_depot, joinpath(libdir, "share/julia"))
-

@@ -215,4 +215,39 @@ function install(source, destination; parameters = Dict(), force = false, execut
     return
 end
 
-
+"""
+Move directories from source to destination. 
+Only recurse into directories that already exist in destination.
+"""
+function merge_directories(source::String, destination::String; overwrite::Bool=false)
+    
+    if !isdir(source)
+        error("Source directory does not exist: $source")
+    end
+    
+    # Create destination if needed
+    !isdir(destination) && mkpath(destination)
+    
+    # Get top-level items
+    for item in readdir(source)
+        src_path = joinpath(source, item)
+        dest_path = joinpath(destination, item)
+        
+        if isdir(src_path)
+            # Try to move entire directory
+            if !isdir(dest_path)
+                # Destination doesn't exist, move whole directory
+                mv(src_path, dest_path)
+                println("Moved directory: $item")
+            else
+                # Destination exists, recurse into it
+                println("Merging into existing directory: $item")
+                merge_directories(src_path, dest_path; overwrite=overwrite)
+            end
+        else
+            # Move file
+            mv(src_path, dest_path; force=overwrite)
+            println("Moved file: $item")
+        end
+    end
+end

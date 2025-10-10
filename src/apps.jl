@@ -29,19 +29,20 @@ function bundle(product::PkgImage, snap::Snap, destination::String; compress::Bo
         
         
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "linux/main.sh")
-        install(main_file, joinpath(app_stage, "main"); parameters = snap.parameters, executable = true)
+        app_name = snap.parameters["APP_NAME_LOWERCASE"]
+        install(main_file, joinpath(app_stage, "bin/$app_name"); parameters = snap.parameters, executable = true)
 
     end
 
     return
 end
 
-
 function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bool = isext(dest, ".msix"), force = false, arch = :x86_64, windowed = true)
 
     bundle(msix, destination; compress, force) do app_stage
         
         stage(product, Windows(arch), app_stage)
+        mv("$app_stage/libexec/julia/lld.exe", "$app_stage/bin/lld.exe") # julia.exe can't find shared libraries in UWP
         
         startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "windows/startup.jl")
         install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)

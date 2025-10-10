@@ -27,7 +27,7 @@
   <Applications>
 
     <Application EntryPoint="Windows.FullTrustApplication" 
-		 Executable="julia\bin\julia.exe" 
+		 Executable="bin\julia.exe" 
 		 Id="{{APP_NAME}}" 
 		 uap10:RuntimeBehavior="packagedClassicApp" 
 		 uap10:Subsystem="windows" 

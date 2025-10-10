@@ -156,10 +156,14 @@ function stage(msix::MSIX, destination::String)
     return
 end
 
-function install_dsstore(source::String, dsstore_destination::String)
+function install_dsstore(source::String, dsstore_destination::String; parameters = Dict())
+
+    rm(dsstore_destination; force=true)
 
     if last(splitext(source)) == ".toml"
-        dsstore = TOML.parsefile(source)
+
+        dsstore_toml = Mustache.render(read(source, String), parameters)
+        dsstore = TOML.parse(dsstore_toml)
 
         DSStore.open_dsstore(dsstore_destination, "w+") do ds
 
@@ -197,7 +201,7 @@ function stage(dmg::DMG, destination::String; dsstore = false, main_redirect = f
 
     if dsstore
         symlink("/Applications", joinpath(dirname(destination), "Applications"); dir_target=true)
-        install_dsstore(dmg.dsstore, joinpath(dirname(destination), ".DS_Store"))
+        install_dsstore(dmg.dsstore, joinpath(dirname(destination), ".DS_Store"); parameters)
     end
 
     return
@@ -223,7 +227,7 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
 
     if ispath(destination)
         if force
-            rm(destination; force=true)
+            rm(destination; force=true, recursive=true)
         else
             error("Destination $destination already exists. Use `force = true` argument.")
         end
@@ -251,7 +255,7 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
 
     if ispath(destination)
         if force
-            rm(destination; force=true)
+            rm(destination; force=true, recursive=true)
         else
             error("Destination $destination already exists. Use `force = true` argument.")
         end
@@ -278,13 +282,14 @@ function bundle(setup::Function, snap::Snap, destination::String; compress::Bool
 
     if ispath(destination)
         if force
-            rm(destination; force=true)
+            rm(destination; force=true, recursive=true)
         else
             error("Destination $destination already exists. Use `force = true` argument.")
         end
     end
 
     app_stage = compress ? mktempdir() : destination
+    chmod(app_stage, 0o755)
 
     stage(snap, app_stage; install_configure)    
     setup(app_stage)

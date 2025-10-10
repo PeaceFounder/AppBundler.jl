@@ -48,7 +48,7 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
     @info "Codesigning application bundle at $app_stage with certificate at $pfx_path"
 
     
-    run(`$(rcodesign()) sign --shallow --p12-file "$pfx_path" --p12-password "$password" --entitlements-xml-path "$entitlements" "$app_stage"`)
+    run(`$(rcodesign()) sign --shallow --p12-file "$pfx_path" --p12-password "$password" --entitlements-xml-path "$entitlements" "$app_stage"`) # perhaps this command affects the DS_Store? 
     
     if !isnothing(compression)
 
@@ -58,6 +58,7 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
 
         @info "Forming iso archive with xorriso at $iso_stage"
         run(`$(xorriso()) -as mkisofs -V "$installer_title" -hfsplus -hfsplus-file-creator-type APPL APPL $(basename(app_stage)) -hfs-bless-by x / -relaxed-filenames -no-pad -o $iso_stage $(dirname(app_stage))`)
+
         @info "Compressing iso to dmg with $compression algorithm at $destination"
         run(`$(dmg()) dmg $iso_stage $destination --compression=$compression`)
 

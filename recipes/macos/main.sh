@@ -2,5 +2,5 @@
 
 SCRIPT_DIR=$(dirname "$0")
 
-JULIA="$SCRIPT_DIR/julia/bin/julia"
-$JULIA --eval="__main__()"
+JULIA="$SCRIPT_DIR/bin/julia"
+$JULIA --eval="using {{MODULE_NAME}}"
