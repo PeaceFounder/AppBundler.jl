@@ -1,6 +1,5 @@
 module AppBundler
 
-import Pkg.BinaryPlatforms: Linux, Windows, MacOS
 using Scratch
 
 DOWNLOAD_CACHE = ""
@@ -15,14 +14,14 @@ include("Utils/SnapPack.jl")
 include("Utils/MSIXPack.jl")
 include("Utils/MSIXIcons.jl")
 include("Utils/WinSubsystem.jl")
+include("Utils/Stage.jl")
+
+import .Stage: stage # 
+using .Stage: merge_directories, install
 
 include("utils.jl")
 include("bundle.jl")
-include("deps.jl")
-include("stage.jl")
 include("recipes.jl") 
-
-include("setup.jl")
 
 bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)
 

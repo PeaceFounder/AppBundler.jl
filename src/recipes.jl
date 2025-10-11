@@ -1,14 +1,17 @@
+using Pkg.BinaryPlatforms: Linux, Windows, MacOS
+using .Stage: stage, PkgImage
+
 function bundle(product::PkgImage, dmg::DMG, destination::String; compress::Bool = isext(dest, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), arch = :x86_64)
     
     bundle(dmg, destination; compress, compression, force, password, main_redirect = true, arch) do app_stage
         # app_stage always points to app directory
         stage(product, MacOS(arch), joinpath(app_stage, "Contents/Libraries"))
 
-        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "macos/startup.jl")
+        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/startup.jl")
         install(startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters = dmg.parameters, force = true)
 
         # main redirect
-        main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "macos/main.sh")
+        main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
         install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true)
         
     end
@@ -22,11 +25,11 @@ function bundle(product::PkgImage, snap::Snap, destination::String; compress::Bo
         
         stage(product, Linux(arch), app_stage)
 
-        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "linux/startup.jl")
+        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/startup.jl")
         install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = snap.parameters, force = true)
         
         
-        main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "linux/main.sh")
+        main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/main.sh")
         app_name = snap.parameters["APP_NAME_LOWERCASE"]
         install(main_file, joinpath(app_stage, "bin/$app_name"); parameters = snap.parameters, executable = true)
 
@@ -42,7 +45,7 @@ function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bo
         stage(product, Windows(arch), app_stage)
         mv("$app_stage/libexec/julia/lld.exe", "$app_stage/bin/lld.exe") # julia.exe can't find shared libraries in UWP
         
-        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "windows/startup.jl")
+        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "msix/startup.jl")
         install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
         
         if windowed
@@ -147,7 +150,7 @@ The `source` directory is expected to have the following structure:
 - `main.jl`: The application's entry point script
 - `src/` (optional): Directory containing application source code
 - `meta/` (optional): Directory containing customizations
-  - `macos/` (optional): Platform-specific customizations
+  - `dmg/` (optional): Platform-specific customizations
     - `certificate.pfx` (optional): Code signing certificate
     - `Entitlements.plist` (optional): Custom entitlements file
     - `DS_Store` or `DS_Store.toml` (optional): DMG appearance configuration

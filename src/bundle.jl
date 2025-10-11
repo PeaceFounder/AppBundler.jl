@@ -34,7 +34,6 @@ function get_bundle_parameters(project_toml)
     return parameters
 end
 
-
 struct MSIX
     icon::String # direcotry reading is something to look into here
     appxmanifest::String 
@@ -48,13 +47,13 @@ end
 
 function MSIX(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
-              icon = get_path(prefix, ["windows/Assets", "windows/icon.png", "icon.png"]; dir = true),
-              appxmanifest = get_path(prefix, "windows/AppxManifest.xml"),
-              resources_pri = get_path(prefix, "windows/resources.pri"),
-              msixinstallerdata = get_path(prefix, "windows/MSIXAppInstallerData.xml"),
+              icon = get_path(prefix, ["msix/Assets", "msix/icon.png", "icon.png"]; dir = true),
+              appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
+              resources_pri = get_path(prefix, "msix/resources.pri"),
+              msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml"),
               path_length_threshold = 260,
               skip_long_paths = false,
-              pfx_cert = get_path(prefix, "windows/certificate.pfx"), # We actually want the warning
+              pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
               parameters = Dict()
               )
     
@@ -82,10 +81,10 @@ end
 
 function Snap(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
-              icon = get_path(prefix, ["linux/icon.png", "icon.png"]),
-              snap_config = get_path(prefix, "linux/snap.yaml"),
-              desktop_launcher = get_path(prefix, "linux/main.desktop"),
-              configure_hook = get_path(prefix, "linux/configure.sh"),
+              icon = get_path(prefix, ["snap/icon.png", "icon.png"]),
+              snap_config = get_path(prefix, "snap/snap.yaml"),
+              desktop_launcher = get_path(prefix, "snap/main.desktop"),
+              configure_hook = get_path(prefix, "snap/configure.sh"),
               parameters = Dict()
               )
 
@@ -114,11 +113,11 @@ end
 # soft link can be used in case one needs to use png source. The issue here is of communicating intent.
 function DMG(;
              prefix = joinpath(dirname(@__DIR__), "recipes"),
-             icon = get_path(prefix, ["macos/icon.icns", "macos/icon.png", "icon.icns"]),
-             info_config = get_path(prefix, "macos/Info.plist"),
-             entitlements = get_path(prefix, "macos/Entitlements.plist"),
-             dsstore = get_path(prefix, ["macos/DS_Store.toml", "macos/DS_Store"]),
-             pfx_cert = get_path(prefix, "macos/certificate.pfx"),
+             icon = get_path(prefix, ["dmg/icon.icns", "dmg/icon.png", "icon.icns"]),
+             info_config = get_path(prefix, "dmg/Info.plist"),
+             entitlements = get_path(prefix, "dmg/Entitlements.plist"),
+             dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
+             pfx_cert = get_path(prefix, "dmg/certificate.pfx"),
              parameters = Dict()
              )
 
@@ -319,7 +318,7 @@ optionally compressing it into a distributable MSIX package with code signing.
 The `source` directory should contain:
 - `Project.toml`: Application metadata and dependencies
 - `main.jl`: Application entry point
-- `meta/windows/` (optional): Windows-specific customizations
+- `meta/msix/` (optional): Windows-specific customizations
   - `certificate.pfx` (optional): Code signing certificate (password from `WINDOWS_PFX_PASSWORD` env var)
   - `AppxManifest.xml` (optional): Custom MSIX application manifest
   - `resources.pri` (optional): Custom application resource file
@@ -327,7 +326,7 @@ The `source` directory should contain:
 
 # Code Signing
 
-Codesigning is performed automatically if `compress=true`. The codesigning certificate is specified with `meta/windows/certificate.pfx` that is password encrypted that is passed with `WINDOWS_PFX_PASSWORD` environment variable. If signing certificate is not available a temporary one time self-signed certificate is generated and used for signing the MSIX installer.
+Codesigning is performed automatically if `compress=true`. The codesigning certificate is specified with `meta/msix/certificate.pfx` that is password encrypted that is passed with `WINDOWS_PFX_PASSWORD` environment variable. If signing certificate is not available a temporary one time self-signed certificate is generated and used for signing the MSIX installer.
 
 # Examples
 ```julia

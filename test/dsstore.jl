@@ -2,7 +2,7 @@ using AppBundler.DSStore
 using Test
 using TOML
 
-dsstore_dict = TOML.parsefile(joinpath(dirname(@__DIR__), "recipes/macos/DS_Store.toml"))
+dsstore_dict = TOML.parsefile(joinpath(dirname(@__DIR__), "recipes/dmg/DS_Store.toml"))
 
 fname = joinpath(tempdir(), "DS_Store")
 rm(fname, force=true)

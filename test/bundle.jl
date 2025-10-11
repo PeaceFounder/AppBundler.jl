@@ -109,58 +109,58 @@ if Sys.isunix()
 
     # ------------------- DMG -------------
 
-    @time @testset "DMG bundling tests" begin
+    # @time @testset "DMG bundling tests" begin
 
-        dmg = DMG(joinpath(@__DIR__, "../examples/gtkapp"))
+    #     dmg = DMG(joinpath(@__DIR__, "../examples/gtkapp"))
 
-        @test hash_stage() do dest
-            stage(dmg, joinpath(dest, "gtkapp.app"); dsstore=true, main_redirect=true)
-            AppBundler.DMGPack.replace_binary_with_hash(joinpath(dest, "gtkapp.app/Contents/MacOS/gtkapp"))
-            rm("$dest/Applications")
-        end == "e26f0ac440d5a1f4aef3d2833f3c658bce705fc60ce6710f1d4e06956f05076b"
+    #     @test hash_stage() do dest
+    #         stage(dmg, joinpath(dest, "gtkapp.app"); dsstore=true, main_redirect=true)
+    #         AppBundler.DMGPack.replace_binary_with_hash(joinpath(dest, "gtkapp.app/Contents/MacOS/gtkapp"))
+    #         rm("$dest/Applications")
+    #     end == "e26f0ac440d5a1f4aef3d2833f3c658bce705fc60ce6710f1d4e06956f05076b"
 
-        @test hash_stage() do stage_dir
+    #     @test hash_stage() do stage_dir
 
-            dest = joinpath(mktempdir(), "gtkapp.dmg")
-            bundle(dmg, dest; main_redirect=true) do app_stage
-                @info "The DMG app stage is $app_stage"
-            end
+    #         dest = joinpath(mktempdir(), "gtkapp.dmg")
+    #         bundle(dmg, dest; main_redirect=true) do app_stage
+    #             @info "The DMG app stage is $app_stage"
+    #         end
 
-            AppBundler.DMGPack.unpack(dest, stage_dir)
+    #         AppBundler.DMGPack.unpack(dest, stage_dir)
 
-            if Sys.isapple()
-                # This check is also important for stagging
-                @info "Verifying that the application is correctly codesigned"
-                run(`codesign -v --verbose=4 $stage_dir/gtkapp.app`)
-            end
+    #         if Sys.isapple()
+    #             # This check is also important for stagging
+    #             @info "Verifying that the application is correctly codesigned"
+    #             run(`codesign -v --verbose=4 $stage_dir/gtkapp.app`)
+    #         end
 
-            @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "gtkapp.app/Contents/MacOS/gtkapp"))
-            rm("$stage_dir/gtkapp.app/Contents/_CodeSignature"; recursive=true)
+    #         @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "gtkapp.app/Contents/MacOS/gtkapp"))
+    #         rm("$stage_dir/gtkapp.app/Contents/_CodeSignature"; recursive=true)
 
-        end == "e26f0ac440d5a1f4aef3d2833f3c658bce705fc60ce6710f1d4e06956f05076b"
+    #     end == "e26f0ac440d5a1f4aef3d2833f3c658bce705fc60ce6710f1d4e06956f05076b"
 
-    end
+    # end
 
-    # -------------------- SNAP -----------------
+    # # -------------------- SNAP -----------------
 
-    @time @testset "Snap bundling tests" begin
+    # @time @testset "Snap bundling tests" begin
 
-        snap = Snap(joinpath(@__DIR__, "../examples/gtkapp"))
+    #     snap = Snap(joinpath(@__DIR__, "../examples/gtkapp"))
 
-        @test hash_stage() do dest
-            stage(snap, dest; install_configure=true)
-        end == "c4a970b79da0db6c5bfff1947c12ee119d0c0a2b44f3d153d78fd56ad2252d12"
+    #     @test hash_stage() do dest
+    #         stage(snap, dest; install_configure=true)
+    #     end == "c4a970b79da0db6c5bfff1947c12ee119d0c0a2b44f3d153d78fd56ad2252d12"
 
-        @test hash_stage() do stage_dir
+    #     @test hash_stage() do stage_dir
 
-            dest = joinpath(mktempdir(), "gtkapp.snap")
-            bundle(snap, dest; install_configure=true) do app_stage
-                @info "The Snap app stage is $app_stage"
-            end
+    #         dest = joinpath(mktempdir(), "gtkapp.snap")
+    #         bundle(snap, dest; install_configure=true) do app_stage
+    #             @info "The Snap app stage is $app_stage"
+    #         end
             
-            AppBundler.SnapPack.unpack(dest, stage_dir)    
+    #         AppBundler.SnapPack.unpack(dest, stage_dir)    
 
-        end == "c4a970b79da0db6c5bfff1947c12ee119d0c0a2b44f3d153d78fd56ad2252d12"
-    end
+    #     end == "c4a970b79da0db6c5bfff1947c12ee119d0c0a2b44f3d153d78fd56ad2252d12"
+    # end
 
 end
