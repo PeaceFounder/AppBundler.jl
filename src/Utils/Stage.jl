@@ -9,7 +9,6 @@ import Pkg
 import Base.BinaryPlatforms: AbstractPlatform, Platform, os, arch, wordsize
 import Pkg.BinaryPlatforms: MacOS, Linux, Windows
 
-# using AppBundlerUtils_jll
 using UUIDs
 using TOML
 

@@ -1,5 +1,10 @@
 import TOML
 
+import Pkg, Artifacts
+using Pkg.BinaryPlatforms: MacOS
+using AppBundlerUtils_jll
+import Mustache
+
 function get_bundle_parameters(project_toml)
 
     toml_dict = TOML.parsefile(project_toml)
@@ -179,6 +184,27 @@ function install_dsstore(source::String, dsstore_destination::String; parameters
         
     else
         cp(source, dsstore_destination)
+    end
+
+    return
+end
+
+function retrieve_macos_launcher(platform::MacOS)
+
+    artifacts_toml = joinpath(dirname(dirname(pathof(AppBundlerUtils_jll))), "Artifacts.toml")
+    artifacts = Artifacts.select_downloadable_artifacts(artifacts_toml; platform)["AppBundlerUtils"]
+
+    try 
+
+        Artifacts.ARTIFACTS_DIR_OVERRIDE[] = artifacts_cache()
+
+        hash = artifacts["git-tree-sha1"]
+        Pkg.Artifacts.ensure_artifact_installed("AppBundlerUtils", artifacts, artifacts_toml) 
+
+        return joinpath(artifacts_cache(), hash, "bin", "macos_launcher")
+
+    finally
+        Artifacts.ARTIFACTS_DIR_OVERRIDE[] = nothing
     end
 
     return
