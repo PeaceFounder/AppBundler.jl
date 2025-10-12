@@ -188,38 +188,38 @@ function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_d
 end
 
 
-ismacos(platform::AbstractPlatform) = os(platform) == "macos"
-islinux(platform::AbstractPlatform) = os(platform) == "linux" 
-iswindows(platform::AbstractPlatform) = os(platform) == "windows"
+# ismacos(platform::AbstractPlatform) = os(platform) == "macos"
+# islinux(platform::AbstractPlatform) = os(platform) == "linux" 
+# iswindows(platform::AbstractPlatform) = os(platform) == "windows"
 
-function platform_type(platform::Platform)
-    if islinux(platform)
+# function platform_type(platform::Platform)
+#     if islinux(platform)
 
-        return Linux(Symbol(arch(platform)))
+#         return Linux(Symbol(arch(platform)))
 
-    elseif ismacos(platform)
+#     elseif ismacos(platform)
 
-        return MacOS(Symbol(arch(platform)))
+#         return MacOS(Symbol(arch(platform)))
 
-    elseif iswindows(platform)
+#     elseif iswindows(platform)
         
-        return Windows(Symbol(platform))
+#         return Windows(Symbol(platform))
 
-    else
-        return platform
-    end
-end
-
-
-function HostPlatform()
-
-    platform = Base.BinaryPlatforms.HostPlatform()
-
-    return platform_type(platform)
-end
+#     else
+#         return platform
+#     end
+# end
 
 
-julia_download_url(platform::Platform, version::VersionNumber) = julia_download_url(platform_type(platform), version)
+# function HostPlatform()
+
+#     platform = Base.BinaryPlatforms.HostPlatform()
+
+#     return platform_type(platform)
+# end
+
+
+# julia_download_url(platform::Platform, version::VersionNumber) = julia_download_url(platform_type(platform), version)
 
 
 function julia_download_url(platform::Linux, version::VersionNumber)
@@ -280,22 +280,22 @@ function julia_download_url(platform::Windows, version::VersionNumber)
     return url
 end
 
-function julia_version(platform::AbstractPlatform)
+# function julia_version(platform::AbstractPlatform)
     
-    if haskey(platform, "julia_version")
-        version = VersionNumber(platform["julia_version"])
-    else
-        version = VERSION
-    end
+#     if haskey(platform, "julia_version")
+#         version = VersionNumber(platform["julia_version"])
+#     else
+#         version = VERSION
+#     end
 
-    # if version.major == VERSION.major && version.minor == VERSION.minor && version > VERSION
-    #     return VERSION
-    # else
-    #     return version
-    # end
+#     # if version.major == VERSION.major && version.minor == VERSION.minor && version > VERSION
+#     #     return VERSION
+#     # else
+#     #     return version
+#     # end
 
-    return version
-end
+#     return version
+# end
 
 function retrieve_julia(platform::AbstractPlatform, julia_dir; version = julia_version(platform)) 
 
@@ -420,7 +420,7 @@ end
 PkgImage(source; precompile = true, incremental = true, julia_version = get_julia_version(source)) = PkgImage(; source, precompile, incremental, julia_version)
 
 
-get_parameters(product::PkgImage) = get_bundle_parameters("$(product.source)/Project.toml")
+#get_parameters(product::PkgImage) = get_bundle_parameters("$(product.source)/Project.toml")
 
 
 function get_module_name(source_dir)

@@ -138,63 +138,63 @@ function change_subsystem(input_file::String, output_file::String, new_subsystem
     end
 end
 
-function subsystem_to_string(subsystem::UInt16)
-    if subsystem == SUBSYSTEM_CONSOLE
-        return "Console Application"
-    elseif subsystem == SUBSYSTEM_WINDOWS_GUI
-        return "Windows GUI Application"
-    else
-        return "Unknown ($(subsystem))"
-    end
-end
+# function subsystem_to_string(subsystem::UInt16)
+#     if subsystem == SUBSYSTEM_CONSOLE
+#         return "Console Application"
+#     elseif subsystem == SUBSYSTEM_WINDOWS_GUI
+#         return "Windows GUI Application"
+#     else
+#         return "Unknown ($(subsystem))"
+#     end
+# end
 
-function change_subsystem_debug(input_file, output_file; subsystem_flag = SUBSYSTEM_WINDOWS_GUI)
+# function change_subsystem_debug(input_file, output_file; subsystem_flag = SUBSYSTEM_WINDOWS_GUI)
     
-    if !isfile(input_file)
-        error("Input file not found: $(input_file)")
-    end
+#     if !isfile(input_file)
+#         error("Input file not found: $(input_file)")
+#     end
     
-    println("Modifying Windows PE subsystem...")
-    println("Input file:  $(input_file)")
-    println("Output file: $(output_file)")
-    println()
+#     println("Modifying Windows PE subsystem...")
+#     println("Input file:  $(input_file)")
+#     println("Output file: $(output_file)")
+#     println()
     
 
-    # Read current subsystem info
-    current_subsystem, _ = read_current_subsystem(input_file)
-    current_desc = subsystem_to_string(current_subsystem)
-    new_desc = subsystem_to_string(SUBSYSTEM_WINDOWS_GUI)
+#     # Read current subsystem info
+#     current_subsystem, _ = read_current_subsystem(input_file)
+#     current_desc = subsystem_to_string(current_subsystem)
+#     new_desc = subsystem_to_string(SUBSYSTEM_WINDOWS_GUI)
     
-    println("Current: $(current_desc)")
-    println("Target:  $(new_desc)")
-    println()
+#     println("Current: $(current_desc)")
+#     println("Target:  $(new_desc)")
+#     println()
     
-    if current_subsystem == SUBSYSTEM_WINDOWS_GUI
-        println("⚠ File is already a GUI application!")
-        return
-    elseif current_subsystem != SUBSYSTEM_CONSOLE
-        println("⚠ Warning: File is not a console application (subsystem=$(current_subsystem))")
-        print("Continue anyway? (y/N): ")
-        response = readline()
-        if lowercase(strip(response)) != "y"
-            println("Aborted.")
-            return
-        end
-    end
+#     if current_subsystem == SUBSYSTEM_WINDOWS_GUI
+#         println("⚠ File is already a GUI application!")
+#         return
+#     elseif current_subsystem != SUBSYSTEM_CONSOLE
+#         println("⚠ Warning: File is not a console application (subsystem=$(current_subsystem))")
+#         print("Continue anyway? (y/N): ")
+#         response = readline()
+#         if lowercase(strip(response)) != "y"
+#             println("Aborted.")
+#             return
+#         end
+#     end
     
-    # Perform the modification
-    success = change_subsystem(input_file, output_file, subsystem_flag)
+#     # Perform the modification
+#     success = change_subsystem(input_file, output_file, subsystem_flag)
     
-    if success
-        println()
-        println("🎉 Successfully converted $(input_file) to GUI application!")
-        println("   Output saved as: $(output_file)")
-        println()
-        println("Note: The application will no longer show a console window,")
-        println("      but any console output will be lost unless redirected.")
-    end
+#     if success
+#         println()
+#         println("🎉 Successfully converted $(input_file) to GUI application!")
+#         println("   Output saved as: $(output_file)")
+#         println()
+#         println("Note: The application will no longer show a console window,")
+#         println("      but any console output will be lost unless redirected.")
+#     end
     
-end
+# end
 
 function change_subsystem_inplace(dest; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
 
