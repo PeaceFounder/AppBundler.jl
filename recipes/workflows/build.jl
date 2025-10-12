@@ -14,7 +14,7 @@ precompile = get(ENV, "PRECOMPILE", "true") == "true"
 incremental = get(ENV, "INCREMENTAL", "false") == "true"
 buildall = get(ENV, "BUILD_ALL", "false") == "true"
 
-target_arch = get(ENV, "TARGET_ARCH", Sys.ARCH)
+target_arch = Symbol(get(ENV, "TARGET_ARCH", Sys.ARCH))
 version = AppBundler.get_version(APP_DIR)
 target_name = "{{APP_NAME}}-$version-$(target_arch)"
 
