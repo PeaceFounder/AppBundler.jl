@@ -13,8 +13,24 @@ end
 end
 
 @time @safetestset "GLApp example" begin
-    withenv("PRECOMPILE"=>"false") do
-        @eval include("../examples/glapp/meta/build.jl")
+
+    using AppBundler
+
+    app_dir = joinpath(dirname(@__DIR__), "examples/glapp")
+
+    try
+        AppBundler.install_github_workflow(; root = app_dir, force = true)
+        AppBundler.generate_signing_certificates(; root = app_dir, force = true)
+        
+        withenv("PRECOMPILE"=>"false", "TESTRUN"=>"true") do
+            @eval include("../examples/glapp/meta/build.jl")
+        end
+    finally
+        # cleanup
+        rm(joinpath(app_dir, "meta/msix/certificate.pfx"); force = true)
+        rm(joinpath(app_dir, "meta/dmg/certificate.pfx"); force = true)
+        ENV["MACOS_PFX_PASSWORD"] = ""
+        ENV["WINDOWS_PFX_PASSWORD"] = ""
     end
 end
 

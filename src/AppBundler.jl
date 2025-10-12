@@ -1,6 +1,7 @@
 module AppBundler
 
 using Scratch
+import Pkg.BinaryPlatforms: Linux, MacOS, Windows
 
 DOWNLOAD_CACHE = ""
 
@@ -36,5 +37,7 @@ function __init__()
     DSStore.__init__()
 
 end
+
+export Linux, MacOS, Windows
 
 end

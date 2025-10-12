@@ -1,6 +1,23 @@
 using Random: RandomDevice
 using Base64
 using rcodesign_jll: rcodesign
+using TOML
+
+function get_version(app_dir)
+    
+    project = joinpath(app_dir, "Project.toml")
+
+    if isfile(project)
+        try
+            return TOML.parsefile(project)["version"] 
+        catch
+            error("Parsing of $project file failed")
+        end
+    else
+        error("App project file does not exist at $project")
+    end
+end
+
 
 function generate_macos_signing_certificate(root; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
     
@@ -52,22 +69,41 @@ function generate_windows_signing_certificate(root; person_name = "AppBundler", 
     return
 end
 
+# instantiation of self signed keys could be done at a seperate command!
+function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force = false)
 
-#function install_github_workflow(; root = )
+    if !isfile(joinpath(root, "Project.toml"))
+        error("It appears $root does not contain a valid Julia project")
+    else
+        parameters = get_bundle_parameters(joinpath(root, "Project.toml"))
+    end
 
-# creates a meta directory
-# generates keys if not existant (optional)
-# puts AppBundler Project.toml and Manifest.toml into the meta directory for build reproducability
-# recomends adding meta/build into gitignore folder
+    mkpath(joinpath(root, ".github/workflows"))
 
-#end
+    cp(joinpath(dirname(@__DIR__), "recipes/workflows/GitHub.yml"), joinpath(root, ".github/workflows/Release.yml"); force)
 
 
-# using ZipFile
-# import p7zip_jll
+    install(joinpath(dirname(@__DIR__), "recipes/workflows/build.jl"), joinpath(root, "meta/build.jl"); parameters, force)
+   
+    println("""
+    Setup done. You may now commit the workflow to the repo that will automatically build artifiacts and attach for new GitHub releases. You can also test builds before releasing. See documentation for more.
 
-#using Tar
-#using CodecZlib
+    You may now want to add signing certificates for macos and windows builds at `meta/dmg/certificate.pfx` and `meta/msix/certificate.pfx` accordingly. You can generate self signing certificates runing `generate_signing_certiifcates()`
+
+    To test the workflow locally run meta/build.jl. See extra options to customize your build there. 
+    """)
+
+    return
+end
+
+
+function generate_signing_certificates(; root = dirname(Base.ACTIVE_PROJECT[]), person_name = "AppBundler", country = "XX", validity_days = 365, force = false)
+
+    generate_macos_signing_certificate(root; person_name, country, validity_days, force)
+    generate_windows_signing_certificate(root; person_name, country, validity_days, force)
+
+    return
+end
 
 function isext(filename::String, ext::String)
     # Base case: if the filename is empty or doesn't have the extension, return false.
@@ -84,68 +120,6 @@ function isext(filename::String, ext::String)
     root, _ = splitext(filename)
     return isext(root, ext)
 end
-
-# function extract_tar_gz(archive_path::String)
-
-#     open(archive_path, "r") do io
-#         decompressed = GzipDecompressorStream(io)
-#         return Tar.extract(decompressed)
-#     end
-# end
-
-# function linux_arch_triplet(arch::Symbol)
-
-#     if arch == :aarch64
-#         return "aarch64-linux-gnu"
-#     elseif arch == :x86_64
-#         return "x86_64-linux-gnu"
-#     elseif arch == :i686
-#         return "i386-linux-gnu"
-#     else
-#         error("Unuported arhitecture $arch")
-#     end
-
-# end
-
-# function ensure_track_content_fpath(file_path::AbstractString)
-
-#     function transform_dependency(match)
-#         e = Meta.parse(match)
-#         return "include_dependency($(e.args[2]), track_content=true)"
-#     end
-
-#     content = read(file_path, String)
-#     new_content = replace(content, r"include_dependency.*" => transform_dependency)
-    
-#     if content != new_content
-
-#         chmod(file_path, 0o644)
-#         write(file_path, new_content)
-#         chmod(file_path, 0o444)
-#         @info "include_dependency updated $file_path"
-
-#     end
-# end
-
-
-# function ensure_track_content(dir_path::AbstractString)
-
-#     for (root, dirs, files) in walkdir(dir_path)
-#         for file in files
-#             if endswith(file, ".jl")
-#                 file_path = joinpath(root, file)
-#                 try
-#                     ensure_track_content_fpath(file_path)
-#                 catch 
-#                     @info "include_dependency skipped $file_path"
-#                 end
-#             end
-#         end
-#     end
-
-#     return
-# end
-
 
 function is_windows_compatible(filename::String; path_length_threshold)
     # Check for invalid characters
@@ -248,73 +222,3 @@ end
 get_path(prefix::String, suffix::String; kwargs...) = get_path([prefix], [suffix]; kwargs...)
 get_path(prefix::String, suffix::Vector; kwargs...) = get_path([prefix], suffix; kwargs...)
 get_path(prefix::Vector, suffix::String; kwargs...) = get_path(prefix, [suffix]; kwargs...)
-
-# import Mustache
-
-# function install(source, destination; parameters = Dict(), force = false, executable = false)
-
-#     if isfile(destination) 
-#         if force
-#             rm(destination)
-#         else
-#             error("$destination already exists. Use force = true to overwrite")
-#         end
-#     else
-#         mkpath(dirname(destination))
-#     end
-
-#     if !isempty(parameters)
-#         template = Mustache.load(source)
-
-#         open(destination, "w") do file
-#             Mustache.render(file, template, parameters)
-#         end
-#     else
-#         cp(source, destination)
-#     end
-
-#     if executable
-#         chmod(destination, 0o755)
-#     end
-
-#     return
-# end
-
-# """
-# Move directories from source to destination. 
-# Only recurse into directories that already exist in destination.
-# """
-# function merge_directories(source::String, destination::String; overwrite::Bool=false)
-    
-#     if !isdir(source)
-#         error("Source directory does not exist: $source")
-#     end
-    
-#     # Create destination if needed
-#     !isdir(destination) && mkpath(destination)
-    
-#     # Get top-level items
-#     for item in readdir(source)
-#         src_path = joinpath(source, item)
-#         dest_path = joinpath(destination, item)
-        
-#         if isdir(src_path)
-#             # Try to move entire directory
-#             if !isdir(dest_path)
-#                 # Destination doesn't exist, move whole directory
-#                 mv(src_path, dest_path)
-#                 println("Moved directory: $item")
-#             else
-#                 # Destination exists, recurse into it
-#                 println("Merging into existing directory: $item")
-#                 merge_directories(src_path, dest_path; overwrite=overwrite)
-#             end
-#         else
-#             # Move file
-#             mv(src_path, dest_path; force=overwrite)
-#             println("Moved file: $item")
-#         end
-#     end
-# end
-
-

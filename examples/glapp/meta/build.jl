@@ -1,21 +1,22 @@
 using AppBundler
 
-import TOML
-import Pkg.BinaryPlatforms: Linux, MacOS, Windows
-
 APP_DIR = dirname(@__DIR__)
 
-BUILD_DIR = mktempdir()
+if get(ENV, "TESTRUN", "false") == "true"
+    BUILD_DIR = mktempdir()
+else
+    BUILD_DIR = joinpath(APP_DIR, "build")
+    mkpath(BUILD_DIR)
+end
 @info "Build products will be created at $BUILD_DIR"
-
-version = TOML.parsefile("$APP_DIR/Project.toml")["version"]
 
 precompile = get(ENV, "PRECOMPILE", "true") == "true"
 incremental = get(ENV, "INCREMENTAL", "false") == "true"
 buildall = get(ENV, "BUILD_ALL", "false") == "true"
 
 target_arch = get(ENV, "TARGET_ARCH", Sys.ARCH)
-target_name = "peacefounder-$version-$(target_arch)"
+version = AppBundler.get_version(APP_DIR)
+target_name = "glapp-$version-$(target_arch)"
 
 if buildall || Sys.islinux()
     AppBundler.build_app(Linux(target_arch), APP_DIR, "$BUILD_DIR/$target_name.snap"; precompile, incremental)
