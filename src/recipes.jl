@@ -1,3 +1,4 @@
+using Base.BinaryPlatforms: arch
 using Pkg.BinaryPlatforms: Linux, Windows, MacOS
 using .Stage: stage, PkgImage
 

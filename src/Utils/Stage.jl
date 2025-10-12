@@ -15,9 +15,7 @@ using TOML
 using Tar
 using CodecZlib
 
-
 import Mustache
-
 
 function install(source, destination; parameters = Dict(), force = false, executable = false)
 
@@ -48,8 +46,6 @@ function install(source, destination; parameters = Dict(), force = false, execut
     return
 end
 
-
-
 function extract_tar_gz(archive_path::String)
 
     open(archive_path, "r") do io
@@ -57,7 +53,6 @@ function extract_tar_gz(archive_path::String)
         return Tar.extract(decompressed)
     end
 end
-
 
 # A dublicate is in utils
 """
@@ -545,7 +540,7 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
     #rm(destination, recursive=true, force=true)
     #mkpath(dirname(destination))
 
-    @info "Downloading Julia for $platform"
+    @info "Downloading Julia $(product.julia_version) for $platform"
     retrieve_julia(platform, "$destination"; version = product.julia_version)
 
     retrieve_packages(product.source, "$destination/share/julia/packages")
@@ -581,6 +576,5 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 end
 
 export stage
-
 
 end

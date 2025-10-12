@@ -6,7 +6,7 @@ function generate_macos_signing_certificate(root; person_name = "AppBundler", co
     
     password = Base64.base64encode(rand(RandomDevice(), UInt8, 16))
         
-    destination = joinpath(root, "meta/macos/certificate.pfx")
+    destination = joinpath(root, "meta/dmg/certificate.pfx")
 
     if isfile(destination) && !force
         error("Certificate at $destination alredy exists. Use `force=true` to overwrite it")
@@ -27,12 +27,11 @@ function generate_macos_signing_certificate(root; person_name = "AppBundler", co
     return
 end
 
-
 function generate_windows_signing_certificate(root; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
 
     password = Base64.base64encode(rand(RandomDevice(), UInt8, 16))
 
-    destination = joinpath(root, "meta/windows/certificate.pfx")
+    destination = joinpath(root, "meta/msix/certificate.pfx")
 
     if isfile(destination) && !force
         error("Certificate at $destination alredy exists. Use `force=true` to overwrite it")
@@ -52,6 +51,16 @@ function generate_windows_signing_certificate(root; person_name = "AppBundler", 
 
     return
 end
+
+
+#function install_github_workflow(; root = )
+
+# creates a meta directory
+# generates keys if not existant (optional)
+# puts AppBundler Project.toml and Manifest.toml into the meta directory for build reproducability
+# recomends adding meta/build into gitignore folder
+
+#end
 
 
 # using ZipFile

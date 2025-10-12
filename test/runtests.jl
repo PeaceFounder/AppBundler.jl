@@ -12,6 +12,13 @@ end
     include("stage.jl")
 end
 
+@time @safetestset "GLApp example" begin
+    withenv("PRECOMPILE"=>"false") do
+        @eval include("../examples/glapp/meta/build.jl")
+    end
+end
+
+
 # if Sys.isunix()
 
 #     if get(ENV, "JULIA_RUN_EXAMPLES", "false") == "true"
