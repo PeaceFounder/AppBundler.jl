@@ -169,9 +169,14 @@ build_app(MacOS(:arm64), "path/to/source", "path/to/MyApp.dmg")
 # Build without precompilation (e.g., for cross-compiling)
 build_app(MacOS(:arm64), "path/to/source", "path/to/MyApp.dmg"; precompile = false)
 """
-function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false)
+function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, adhoc_signing = false)
 
-    dmg = DMG(source)
+    if adhoc_signing
+        dmg = DMG(source; pfx_cert=nothing)
+    else
+        dmg = DMG(source)
+    end
+
     product = PkgImage(source; precompile, incremental)
     
     return bundle(product, dmg, destination; compress, force, arch = arch(platform))
