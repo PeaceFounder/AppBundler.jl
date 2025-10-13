@@ -138,7 +138,6 @@ if Sys.isunix()
             rm("$stage_dir/gtkapp.app/Contents/_CodeSignature"; recursive=true)
 
         end == "e26f0ac440d5a1f4aef3d2833f3c658bce705fc60ce6710f1d4e06956f05076b"
-
     end
 
     # # -------------------- SNAP -----------------

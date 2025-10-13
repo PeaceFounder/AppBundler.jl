@@ -312,6 +312,17 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     
     installer_title = join([dmg.parameters["APP_DISPLAY_NAME"], "Installer"], " ")
 
+    # Remove AppleDouble metadata files (._*) that macOS creates to preserve extended attributes
+    # and executable permissions on non-HFS+ filesystems. These files are created by xorriso during
+    # ISO creation but get stripped during DMG compression, causing codesign verification to fail
+    # when the installed app is checked, since the code signature references files that no longer exist.
+    # Example errors without this cleanup:
+    #   file missing: .../SparseArrays/gen/._generator.jl
+    #   file missing: .../julia/._julia-config.jl
+    #   file missing: .../terminfos/._make-fancy-terminfo.sh
+    # These ._* files typically appear alongside executable .jl or .sh files in the Julia stdlib.
+    run(`find $app_stage -name "._*" -delete`)
+    
     DMGPack.pack(app_stage, destination, dmg.entitlements; pfx_path = dmg.pfx_cert, password, compression = compress ? compression : nothing, installer_title)
 
     return
