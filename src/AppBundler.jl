@@ -16,7 +16,9 @@ include("Utils/MSIXPack.jl")
 include("Utils/MSIXIcons.jl")
 include("Utils/WinSubsystem.jl")
 include("Utils/Stage.jl")
+include("Utils/ArgParser.jl")
 
+import .ArgParser: parse_args
 import .Stage: stage # 
 using .Stage: merge_directories, install
 

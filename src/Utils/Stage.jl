@@ -78,16 +78,16 @@ function merge_directories(source::String, destination::String; overwrite::Bool=
             if !isdir(dest_path)
                 # Destination doesn't exist, move whole directory
                 mv(src_path, dest_path)
-                println("Moved directory: $item")
+                #println("Moved directory: $item")
             else
                 # Destination exists, recurse into it
-                println("Merging into existing directory: $item")
+                #println("Merging into existing directory: $item")
                 merge_directories(src_path, dest_path; overwrite=overwrite)
             end
         else
             # Move file
             mv(src_path, dest_path; force=overwrite)
-            println("Moved file: $item")
+            #println("Moved file: $item")
         end
     end
 end

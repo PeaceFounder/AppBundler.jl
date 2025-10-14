@@ -2,30 +2,28 @@ using AppBundler
 
 APP_DIR = dirname(@__DIR__)
 
-if get(ENV, "TESTRUN", "false") == "true"
-    BUILD_DIR = mktempdir()
-else
-    BUILD_DIR = joinpath(APP_DIR, "build")
-    mkpath(BUILD_DIR)
-end
-@info "Build products will be created at $BUILD_DIR"
+config = AppBundler.parse_args(ARGS)
 
-precompile = get(ENV, "PRECOMPILE", "true") == "true"
-incremental = get(ENV, "INCREMENTAL", "false") == "true"
-buildall = get(ENV, "BUILD_ALL", "false") == "true"
+build_dir = config[:build_dir] 
+@info "Build products will be created at $build_dir"
 
-target_arch = get(ENV, "TARGET_ARCH", Sys.ARCH)
+precompile = config[:precompile]
+incremental = config[:incremental]
+target_platforms = config[:target_platforms]
+target_arch = config[:target_arch]
+adhoc_signing = config[:adhoc_signing]
+
 version = AppBundler.get_version(APP_DIR)
 target_name = "glapp-$version-$(target_arch)"
 
-if buildall || Sys.islinux()
-    AppBundler.build_app(Linux(target_arch), APP_DIR, "$BUILD_DIR/$target_name.snap"; precompile, incremental)
+if :linux in target_platforms
+    AppBundler.build_app(Linux(target_arch), APP_DIR, "$build_dir/$target_name.snap"; precompile, incremental)
 end
 
-if buildall || Sys.iswindows()
-    AppBundler.build_app(Windows(target_arch), APP_DIR, "$BUILD_DIR/$target_name.msix"; precompile, incremental)
+if :windows in target_platforms
+    AppBundler.build_app(Windows(target_arch), APP_DIR, "$build_dir/$target_name.msix"; precompile, incremental, adhoc_signing)
 end
 
-if buildall || Sys.isapple()
-    AppBundler.build_app(MacOS(target_arch), APP_DIR, "$BUILD_DIR/$target_name.dmg"; precompile, incremental)
+if :macos in target_platforms
+    AppBundler.build_app(MacOS(target_arch), APP_DIR, "$build_dir/$target_name.dmg"; precompile, incremental, adhoc_signing)
 end

@@ -104,9 +104,14 @@ build_app(Windows(:x86_64), "path/to/source", "path/to/MyApp.msix")
 # Build without precompilation (e.g., for cross-compiling)
 build_app(Windows(:x86_64), "path/to/source", "path/to/MyApp.msix"; precompile = false)
 """
-function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), precompile = true, incremental = true, force = false, windowed = true)
+function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false)
 
-    msix = MSIX(source)
+    if adhoc_signing
+        msix = MSIX(source; pfx_cert=nothing)
+    else
+        msix = MSIX(source)
+    end
+
     product = PkgImage(source; precompile, incremental)
     
     return bundle(product, msix, destination; compress, force, windowed, arch = arch(platform))
