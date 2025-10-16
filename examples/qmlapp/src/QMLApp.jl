@@ -2,19 +2,26 @@ module QMLApp
 
 using QML
 
-
-const _PROPERTIES = JuliaPropertyMap(
-    "text" => "Hello World Again!",
-    "count" => 16
-)
-
+global _PROPERTIES::JuliaPropertyMap
 
 function julia_main()::Cint
 
-    loadqml((@__DIR__) * "/App.qml"; _PROPERTIES)
+    global _PROPERTIES = JuliaPropertyMap(
+        "text" => "Hello World Again!",
+        "count" => 16
+    )
+
+    loadqml(joinpath(Base.pkgdir(@__MODULE__), "src/App.qml"); _PROPERTIES)
     exec()
 
     return 0
 end
+
+function (@main)(ARGS)
+    return julia_main()
+end
+
+export main
+
 
 end # module QMLApp

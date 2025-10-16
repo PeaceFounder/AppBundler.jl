@@ -2,3 +2,4 @@
 **/build
 /Manifest.toml
 /deps/build.log
+/examples/glapp/.github

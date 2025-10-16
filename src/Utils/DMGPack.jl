@@ -4,6 +4,7 @@ using libdmg_hfsplus_jll: dmg
 using Xorriso_jll: xorriso
 using rcodesign_jll: rcodesign
 using ..DSStore
+using ..HFS
 
 function generate_self_signing_pfx(pfx_path; password = "PASSWORD")
 
@@ -11,8 +12,9 @@ function generate_self_signing_pfx(pfx_path; password = "PASSWORD")
 
 end
 
+
 """
-    pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsstore = nothing, password = "", compression = :lzma, installer_title = "Installer")
+    pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer")
 
 Create a macOS disk image (DMG) from an application bundle with code signing and customizable appearance.
 
@@ -27,60 +29,32 @@ The function assumes that `app_stage` points to a properly structured macOS appl
 
 # Keyword Arguments
 - `pfx_path::Union{String, Nothing} = nothing`: Path to a PKCS#12 certificate file for code signing. If not provided, a temporary self-signed certificate will be generated
-- `dsstore::Union{String, Dict, Nothing} = nothing`: Either a path to an existing `.DS_Store` file or a dictionary of DS_Store entries to configure the DMG appearance
 - `password::String = ""`: Password for the certificate file
 - `compression::Union{Symbol, Nothing} = :lzma`: Compression algorithm to use for the DMG. Options are `:lzma`, `:bzip2`, `:zlib`, `:lzfse`, or `nothing` for no compression
 - `installer_title::String = "Installer"`: Volume name for the DMG
 """
-function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsstore::Union{String, Dict} = nothing, password = "", compression = :lzma, installer_title = "Installer")
+function pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer")
 
     isfile(entitlements) || error("Entitlements at $entitlements not found")
     isnothing(compression) || compression in [:lzma, :bzip2, :zlib, :lzfse] || error("Compression can only be `compression=[:lzma|:bzip|:zlib|:lzfse]`")
     isnothing(pfx_path) || isfile(pfx_path) || error("Signing certificate at $pfx_path not found")
 
-    @info "Codesigning application bundle at $app_stage"
-    
     if isnothing(pfx_path) 
         @warn "Creating a one time self signing certificate..."
         pfx_path = joinpath(tempdir(), "certificate_macos.pfx")
         generate_self_signing_pfx(pfx_path; password = "")
     end
 
-    run(`$(rcodesign()) sign --shallow --p12-file "$pfx_path" --p12-password "$password" --entitlements-xml-path "$entitlements" "$app_stage"`)
+    @info "Codesigning application bundle at $app_stage with certificate at $pfx_path"
+
+    
+    run(`$(rcodesign()) sign --shallow --p12-file "$pfx_path" --p12-password "$password" --entitlements-xml-path "$entitlements" "$app_stage"`) # perhaps this command affects the DS_Store? 
     
     if !isnothing(compression)
 
         @info "Setting up packing stage at $(dirname(app_stage))"
 
-        appname = splitext(basename(app_stage))[1]
-        iso_stage = joinpath(tempdir(), "$appname.iso") 
-        rm(iso_stage; force=true)
-
-        rm(joinpath(dirname(app_stage), "Applications"); force=true)
-        symlink("/Applications", joinpath(dirname(app_stage), "Applications"); dir_target=true)
-        
-        dsstore_destination = joinpath(dirname(app_stage), ".DS_Store")
-        rm(dsstore_destination, force=true)
-
-        if dsstore isa String
-            
-            cp(dsstore, dsstore_destination)
-
-        elseif dsstore isa Dict
-
-            DSStore.open_dsstore(dsstore_destination, "w+") do ds
-
-                ds[".", "icvl"] = ("type", "icnv")
-                ds[".", "vSrn"] = ("long", 1)
-
-                for file_key in keys(dsstore)
-                    file_dict = dsstore[file_key]
-                    for entry_key in keys(file_dict)
-                        ds[file_key, entry_key] = file_dict[entry_key]
-                    end
-                end
-            end
-        end
+        iso_stage = tempname()
 
         @info "Forming iso archive with xorriso at $iso_stage"
         run(`$(xorriso()) -as mkisofs -V "$installer_title" -hfsplus -hfsplus-file-creator-type APPL APPL $(basename(app_stage)) -hfs-bless-by x / -relaxed-filenames -no-pad -o $iso_stage $(dirname(app_stage))`)
@@ -88,16 +62,46 @@ function pack2dmg(app_stage, destination, entitlements; pfx_path = nothing, dsst
         @info "Compressing iso to dmg with $compression algorithm at $destination"
         run(`$(dmg()) dmg $iso_stage $destination --compression=$compression`)
 
-
-        @info "Codesigning DMG bundle"
+        @info "Codesigning DMG bundle with certificate at $pfx_path"
         run(`$(rcodesign()) sign --p12-file "$pfx_path" --p12-password "$password" "$destination"`)
     end
 
     return
 end
 
+function unpack(source, destination)
 
-export pack2dmg
+    raw_image = tempname()
+    run(`$(dmg()) extract $source $raw_image`)
+    HFS.extract_hfs_filesystem(raw_image, destination)
 
+    HFS.explore_hfs_image(raw_image)
+
+    return
+end
+
+"""
+    replace_file_with_hash(filepath::String)
+
+Computes the code hash of a file using rcodesign and replaces the file 
+with the rcodesign output directly.
+"""
+function replace_binary_with_hash(filepath::String)
+    if !isfile(filepath)
+        error("File does not exist: $filepath")
+    end
+    
+    try
+        # Get rcodesign output and write directly to file
+        hash_output = read(`$(rcodesign()) compute-code-hashes $filepath`, String)
+        lines = split(strip(hash_output), '\n')
+        stripped_output = join(lines[2:end], '\n') * '\n'
+        write(filepath, stripped_output)
+        println("Replaced $filepath with its hash(es)")
+        return hash_output
+    catch e
+        error("Failed to process $filepath: $e")
+    end
+end
 
 end

@@ -1,6 +1,9 @@
 module MSIXIcons
 
-using Images, FileIO, ImageTransformations
+# Use minimal focused packages instead of the full Images.jl umbrella
+using FileIO              # For loading/saving images
+using ImageCore           # Core image types and utilities (lightweight)
+using ImageTransformations # Just for imresize function (focused functionality)
 
 """
 Generate all required icons for Windows App Package from a single source icon.
@@ -10,11 +13,11 @@ function generate_app_icons(source_path::String, output_dir::String)
     # Create output directory if it doesn't exist
     mkpath(output_dir)
     
-    # Load the source image
+    # Load the source image using FileIO
     println("Loading source image: $source_path")
     source_img = load(source_path)
     
-    # Define all the icon specifications based on your file listing
+    # Define all the icon specifications
     icon_specs = [
         # BadgeLogo variants
         ("BadgeLogo.scale-100.png", 24, 24),
@@ -47,7 +50,7 @@ function generate_app_icons(source_path::String, output_dir::String)
         ("Square310x310Logo.scale-200.png", 620, 620),
         ("Square310x310Logo.scale-400.png", 1240, 1240),
         
-        # Square310x310Logo1 variants (duplicates for some reason)
+        # Square310x310Logo1 variants
         ("Square310x310Logo1.scale-100.png", 310, 310),
         ("Square310x310Logo1.scale-125.png", 388, 388),
         ("Square310x310Logo1.scale-150.png", 465, 465),
@@ -92,7 +95,7 @@ function generate_app_icons(source_path::String, output_dir::String)
         ("StoreLogo.scale-100.png", 50, 50),
     ]
     
-    # Wide logo variants (need special handling for rectangular aspect ratio)
+    # Wide logo variants
     wide_specs = [
         ("Wide310x150Logo.scale-100.png", 310, 150),
         ("Wide310x150Logo.scale-125.png", 388, 188),
@@ -111,15 +114,14 @@ function generate_app_icons(source_path::String, output_dir::String)
         output_path = joinpath(output_dir, filename)
         
         if contains(filename, "SplashScreen")
-            # Create splash screen with icon centered on transparent/colored background
             resized_img = create_splash_screen(source_img, width, height)
         else
-            # Regular square resize
+            # Use ImageTransformations.imresize for high-quality resizing
             resized_img = imresize(source_img, (height, width))
         end
         
         save(output_path, resized_img)
-        println("  ✓ [$current/$total_icons] Created $filename ($(width)×$(height))")
+        #println("  ✓ [$current/$total_icons] Created $filename ($(width)×$(height))")
     end
     
     # Generate wide tiles
@@ -129,12 +131,12 @@ function generate_app_icons(source_path::String, output_dir::String)
         output_path = joinpath(output_dir, filename)
         wide_img = create_wide_tile(source_img, width, height)
         save(output_path, wide_img)
-        println("  ✓ [$current/$total_icons] Created $filename ($(width)×$(height))")
+        #println("  ✓ [$current/$total_icons] Created $filename ($(width)×$(height))")
     end
     
     println("\nAll $total_icons icons generated successfully in '$output_dir' directory!")
     
-    # Print summary by category
+    # Print summary
     println("\nGenerated icon categories:")
     println("  • BadgeLogo: 5 variants")
     println("  • SplashScreen: 5 variants") 
@@ -150,75 +152,56 @@ end
 
 """
 Create a splash screen by centering the icon on a background.
-For splash screens, we typically want the icon smaller and centered.
 """
 function create_splash_screen(source_img, target_width::Int, target_height::Int)
-    # Make the icon take up about 1/4 of the splash screen height
     icon_size = div(target_height, 4)
-    
-    # Resize the source icon
     resized_icon = imresize(source_img, (icon_size, icon_size))
     
-    # Create background - you can customize this color
-    # Using a subtle background color or transparent
-    if eltype(source_img) <: RGB
-        background_color = RGBA{Float32}(0.01, 0.45, 0.78, 1.0)  # Windows blue theme
-        splash_img = fill(background_color, target_height, target_width)
-        resized_rgba = RGBA.(resized_icon)
-    else
-        background_color = RGBA{Float32}(0.01, 0.45, 0.78, 1.0)
-        splash_img = fill(background_color, target_height, target_width)
-        resized_rgba = resized_icon
-    end
+    # Create background with Windows blue theme
+    background_color = RGBA{Float32}(0.01, 0.45, 0.78, 1.0)  # Windows blue
+    splash_img = fill(background_color, target_height, target_width)
     
-    # Calculate position to center the icon
+    # Calculate center position
     start_row = div(target_height - icon_size, 2) + 1
     start_col = div(target_width - icon_size, 2) + 1
     
-    # Place the resized icon in the center
+    # Convert resized icon to RGBA if needed and place it
+    resized_rgba = RGBA.(resized_icon)
     splash_img[start_row:start_row+icon_size-1, start_col:start_col+icon_size-1] = resized_rgba
     
     return splash_img
 end
 
 """
-Create a wide tile by centering the icon on a transparent or colored background.
+Create a wide tile by centering the icon on a transparent background.
 """
 function create_wide_tile(source_img, target_width::Int, target_height::Int)
-    # For wide tiles, make the icon fit nicely within the height
-    icon_size = Int(round(target_height * 0.6))  # 60% of height
-    
-    # Resize the source icon to be square
+    icon_size = Int(round(target_height * 0.6))
     resized_icon = imresize(source_img, (icon_size, icon_size))
     
     # Create transparent background
-    if eltype(source_img) <: RGB
-        background_color = RGBA{Float32}(0.0, 0.0, 0.0, 0.0)  # Transparent
-        wide_img = fill(background_color, target_height, target_width)
-        resized_rgba = RGBA.(resized_icon)
-    else
-        background_color = RGBA{Float32}(0.0, 0.0, 0.0, 0.0)
-        wide_img = fill(background_color, target_height, target_width)
-        resized_rgba = resized_icon
-    end
+    background_color = RGBA{Float32}(0.0, 0.0, 0.0, 0.0)  # Transparent
+    wide_img = fill(background_color, target_height, target_width)
     
-    # Calculate position to center the icon
+    # Calculate center position
     start_row = div(target_height - icon_size, 2) + 1
     start_col = div(target_width - icon_size, 2) + 1
     
-    # Place the resized icon in the center
+    # Convert resized icon to RGBA if needed and place it
+    resized_rgba = RGBA.(resized_icon)
     wide_img[start_row:start_row+icon_size-1, start_col:start_col+icon_size-1] = resized_rgba
     
     return wide_img
 end
 
 """
-Helper function to generate just the basic icons needed for AppxManifest.xml
-if you don't need all the scale variants.
+Generate basic icons with minimal dependencies.
 """
-function generate_basic_app_icons(source_path::String, output_dir::String="assets")
+function generate_basic_app_icons(source_path::String, output_dir::String="assets"; use_bilinear::Bool=true)
     mkpath(output_dir)
     source_img = load(source_path)
+    
+    resize_func = use_bilinear ? bilinear_resize : simple_resize
     
     basic_specs = [
         ("Square44x44Logo.png", 44, 44),
@@ -233,10 +216,9 @@ function generate_basic_app_icons(source_path::String, output_dir::String="asset
     for (filename, width, height) in basic_specs
         output_path = joinpath(output_dir, filename)
         if width == height
-            resized_img = imresize(source_img, (height, width))
+            resized_img = resize_func(source_img, (height, width))
         else
-            # Wide tile
-            resized_img = create_wide_tile(source_img, width, height)
+            resized_img = create_wide_tile(source_img, width, height, resize_func)
         end
         save(output_path, resized_img)
         println("  ✓ Created $filename ($(width)×$(height))")

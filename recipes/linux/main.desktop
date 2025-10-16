@@ -1,9 +1,0 @@
-[Desktop Entry]
-Name={{APP_DISPLAY_NAME}}
-Exec={{APP_NAME}}
-Icon=${SNAP}/meta/icon.png
-Version={{APP_VERSION}}
-Comment={{APP_SUMMARY}}
-Terminal=false
-Type=Application
-Categories=Utility;

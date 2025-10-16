@@ -1,2 +1,5 @@
+name = "MousetrapApp"
+version = "0.0.1"
+
 [deps]
 Mousetrap = "5deeb4b9-6e04-4da7-8b7f-c77fb1eae65e"

@@ -1,8 +1,109 @@
-using ZipFile
-import p7zip_jll
+using Random: RandomDevice
+using Base64
+using rcodesign_jll: rcodesign
+using TOML
 
-using Tar
-using CodecZlib
+function get_version(app_dir)
+    
+    project = joinpath(app_dir, "Project.toml")
+
+    if isfile(project)
+        try
+            return TOML.parsefile(project)["version"] 
+        catch
+            error("Parsing of $project file failed")
+        end
+    else
+        error("App project file does not exist at $project")
+    end
+end
+
+
+function generate_macos_signing_certificate(root; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
+    
+    password = Base64.base64encode(rand(RandomDevice(), UInt8, 16))
+        
+    destination = joinpath(root, "meta/dmg/certificate.pfx")
+
+    if isfile(destination) && !force
+        error("Certificate at $destination alredy exists. Use `force=true` to overwrite it")
+    end
+
+    mkpath(dirname(destination))
+
+    run(`$(rcodesign()) generate-self-signed-certificate --person-name="$person_name" --p12-file="$destination" --p12-password="$password" --country-name=$country --validity-days="$validity_days"`)
+
+    println("""
+    The certificate is encrypted with a strong encryption algorithm and stored at meta/macos/certificate.pfx; To use certificate set certificate password with environment variable:
+
+        export MACOS_PFX_PASSWORD="$password"
+    """)
+
+    ENV["MACOS_PFX_PASSWORD"] = password
+
+    return
+end
+
+function generate_windows_signing_certificate(root; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
+
+    password = Base64.base64encode(rand(RandomDevice(), UInt8, 16))
+
+    destination = joinpath(root, "meta/msix/certificate.pfx")
+
+    if isfile(destination) && !force
+        error("Certificate at $destination alredy exists. Use `force=true` to overwrite it")
+    end
+
+    mkpath(dirname(destination))
+    
+    MSIXPack.generate_self_signed_certificate(destination; password, name = person_name, country, validity_days)
+
+    println("""
+    The certificate is encrypted with a strong encryption algorithm and stored at meta/windows/certificate.pfx; To use certificate set certificate password with environment variable:
+
+        export WINDOWS_PFX_PASSWORD="$password"
+    """)
+    
+    ENV["WINDOWS_PFX_PASSWORD"] = password
+
+    return
+end
+
+# instantiation of self signed keys could be done at a seperate command!
+function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force = false)
+
+    if !isfile(joinpath(root, "Project.toml"))
+        error("It appears $root does not contain a valid Julia project")
+    else
+        parameters = get_bundle_parameters(joinpath(root, "Project.toml"))
+    end
+
+    mkpath(joinpath(root, ".github/workflows"))
+
+    cp(joinpath(dirname(@__DIR__), "recipes/workflows/GitHub.yml"), joinpath(root, ".github/workflows/Release.yml"); force)
+
+
+    install(joinpath(dirname(@__DIR__), "recipes/workflows/build.jl"), joinpath(root, "meta/build.jl"); parameters, force)
+   
+    println("""
+    Setup done. You may now commit the workflow to the repo that will automatically build artifiacts and attach for new GitHub releases. You can also test builds before releasing. See documentation for more.
+
+    You may now want to add signing certificates for macos and windows builds at `meta/dmg/certificate.pfx` and `meta/msix/certificate.pfx` accordingly. You can generate self signing certificates runing `generate_signing_certiifcates()`
+
+    To test the workflow locally run meta/build.jl. See extra options to customize your build there. 
+    """)
+
+    return
+end
+
+
+function generate_signing_certificates(; root = dirname(Base.ACTIVE_PROJECT[]), person_name = "AppBundler", country = "XX", validity_days = 365, force = false)
+
+    generate_macos_signing_certificate(root; person_name, country, validity_days, force)
+    generate_windows_signing_certificate(root; person_name, country, validity_days, force)
+
+    return
+end
 
 function isext(filename::String, ext::String)
     # Base case: if the filename is empty or doesn't have the extension, return false.
@@ -19,58 +120,6 @@ function isext(filename::String, ext::String)
     root, _ = splitext(filename)
     return isext(root, ext)
 end
-
-function extract_tar_gz(archive_path::String)
-
-    open(archive_path, "r") do io
-        decompressed = GzipDecompressorStream(io)
-        return Tar.extract(decompressed)
-    end
-end
-
-
-function extract_zip(archive_path::String)
-
-    zip = ZipFile.Reader(archive_path)
-
-    output_directory = joinpath(tempdir(), "zip_archive")
-    rm(output_directory, recursive=true, force=true)
-
-    for entry in zip.files
-        if entry.method == ZipFile.Store
-            outpath = joinpath(output_directory, entry.name)
-            mkpath(outpath)
-        end
-    end
-
-
-    for entry in zip.files
-        if entry.method == ZipFile.Deflate
-            outpath = joinpath(output_directory, entry.name)
-            mkpath(dirname(outpath)) # Shouldn't be needed
-
-            open(outpath, "w") do out_file
-                write(out_file, read(entry))
-            end
-        end
-    end
-
-    close(zip)
-
-    return output_directory
-end
-
-function extract(archive::String)
-
-    if isext(archive, ".tar.gz") 
-        return extract_tar_gz(archive)
-    elseif isext(archive, ".zip")
-        return extract_zip(archive)
-    else
-        error("Can not extract $(basename(archive)) as extension is not implemented")
-    end
-end
-
 
 function is_windows_compatible(filename::String; path_length_threshold)
     # Check for invalid characters
@@ -103,7 +152,6 @@ function is_windows_compatible(filename::String; path_length_threshold)
 
     return true
 end
-
 
 function ensure_windows_compatability(src_dir::String; path_length_threshold::Int = 260, skip_long_paths::Bool = false)
 
@@ -153,82 +201,24 @@ function ensure_windows_compatability(src_dir::String; path_length_threshold::In
 end
 
 
-function zip_directory(src_dir::AbstractString, output_zip::AbstractString; path_length_threshold::Int = 260, skip_long_paths::Bool = false)
+function get_path(prefix::Vector, suffix::Vector; dir = false, warn = true)
 
-    rm(output_zip, force=true, recursive=true)
-
-    p7zip = p7zip_jll.p7zip()
-    run(`$p7zip a $output_zip $src_dir/\*`)
-
-    return
-end
-
-
-# import squashfs_tools_jll
-
-# function squash_snap(source, destination)
-    
-#     if squashfs_tools_jll.is_available()    
-#         mksquashfs = squashfs_tools_jll.mksquashfs()
-#     else
-#         @info "squashfs-tools not available from jll. Attempting to use mksquashfs from the system."
-#         mksquashfs = "mksquashfs"
-#     end
-
-#     run(`$mksquashfs $source $destination -noappend -comp xz`)
-
-#     return
-# end
-
-function linux_arch_triplet(arch::Symbol)
-
-    if arch == :aarch64
-        return "aarch64-linux-gnu"
-    elseif arch == :x86_64
-        return "x86_64-linux-gnu"
-    elseif arch == :i686
-        return "i386-linux-gnu"
-    else
-        error("Unuported arhitecture $arch")
-    end
-
-end
-
-function ensure_track_content_fpath(file_path::AbstractString)
-
-    function transform_dependency(match)
-        e = Meta.parse(match)
-        return "include_dependency($(e.args[2]), track_content=true)"
-    end
-
-    content = read(file_path, String)
-    new_content = replace(content, r"include_dependency.*" => transform_dependency)
-    
-    if content != new_content
-
-        chmod(file_path, 0o644)
-        write(file_path, new_content)
-        chmod(file_path, 0o444)
-        @info "include_dependency updated $file_path"
-
-    end
-end
-
-
-function ensure_track_content(dir_path::AbstractString)
-
-    for (root, dirs, files) in walkdir(dir_path)
-        for file in files
-            if endswith(file, ".jl")
-                file_path = joinpath(root, file)
-                try
-                    ensure_track_content_fpath(file_path)
-                catch 
-                    @info "include_dependency skipped $file_path"
-                end
+    for i in prefix
+        for j in suffix
+            fname = joinpath(i, j)
+            if isfile(fname) || (dir && isdir(fname))
+                return fname
             end
         end
     end
+    
+    if warn
+        @warn "No option for $suffix found"
+    end
 
     return
 end
+
+get_path(prefix::String, suffix::String; kwargs...) = get_path([prefix], [suffix]; kwargs...)
+get_path(prefix::String, suffix::Vector; kwargs...) = get_path([prefix], suffix; kwargs...)
+get_path(prefix::Vector, suffix::String; kwargs...) = get_path(prefix, [suffix]; kwargs...)
