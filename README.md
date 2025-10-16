@@ -161,6 +161,7 @@ To debug the DMG bundles, compression is not necessary, and one can stop at the 
 
 - GTK applications fail to find shared libraries in the UWP environment. This will probably be resolved once we get Julia with the `ucrt.dll` runtime.
 - Only runtime behavior `packagedClassicApp` is supported. This is because of `msvcrt32.dll` reliance, which will be resolved once Julia transitions to `ucrt.dll`.
+- When OpenSSL is installed in the `C:\Windows\System32` folder, `osslsigncode` fails as system-wide OpenSSL takes precedence over Julia's packaged `OpenSSL_jll`. 
 
 To debug issues with MSIX, you can stop bundling at a folder stage and test it with `Add-AppPackage -register AppxManifest.xml`.
 
