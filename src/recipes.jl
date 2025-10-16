@@ -58,51 +58,64 @@ function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bo
     return
 end
 
+
 """
-    build_app(platform::Windows, source, destination; debug = false, precompile = true, incremental = true)
+    build_app(platform::Windows, source, destination; compress = isext(destination, ".msix"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false)
 
-Build a complete Windows application from Julia source code, optionally packaging it as a MSIX disk image.
+Build a complete Windows application from Julia source code, optionally packaging it as a MSIX installer.
 
-This function coordinates the entire process of creating a standalone MSIX application bundle 
+This function coordinates the entire process of creating a standalone Windows application 
 from Julia source code. It handles bundling the application, precompiling code for faster startup, 
-code signing the bundle, and optionally creating a MSIX for distribution. Note that it 
+code signing, and optionally creating a MSIX installer for distribution. Note that it 
 requires a Windows host for precompilation unless `precompile=false` is specified, and the architecture 
 of the host must match the target architecture. For code signing, the function uses the 
-`WINDOWS_PFX_PASSWORD` environment variable for the certificate password if `meta/windows/certificate.pfx` is available otherwise one time self signing certificate is created for the codesigning.
+`WINDOWS_PFX_PASSWORD` environment variable for the certificate password if `meta/msix/certificate.pfx` 
+is available, otherwise a one-time self-signing certificate is created for code signing.
+
+The application is expected to have a `main` entry point in the application module (i.e., `MyModule.main([])`).
 
 # Arguments
-- `platform::Windows`: Windows platform specification, potentially including architecture information
-- `source::String`: Path to the source directory containing the application's source code, Project.toml, and main.jl
+- `platform::Windows`: Windows platform specification with architecture (e.g., `Windows(:x86_64)`)
+- `source::String`: Path to the source directory containing the application's source code and Project.toml
 - `destination::String`: Path where the final application directory or MSIX installer should be created
 
 # Keyword Arguments
-- `debug::Bool = false`: Creates application by keeping subsystem as console app for easier debugging. 
+- `compress::Bool = isext(destination, ".msix")`: Whether to create a MSIX installer. Defaults to `true` 
+  if destination has .msix extension, otherwise creates an application directory
 - `precompile::Bool = true`: Whether to precompile the application code for faster startup
 - `incremental::Bool = true`: Whether to perform incremental precompilation (preserving existing compiled files)
+- `force::Bool = false`: If `true`, overwrites existing destination
+- `windowed::Bool = true`: If `true`, creates a GUI application without console window. Set to `false` for 
+  console applications or easier debugging
+- `adhoc_signing::Bool = false`: If `true`, skips certificate-based signing (for development/testing only)
 
 # Directory Structure Expectations
 The `source` directory is expected to have the following structure:
 - `Project.toml`: Contains application metadata and dependencies
-- `main.jl`: The application's entry point script
-- `src/` (optional): Directory containing application source code
+- `Manifest.toml`: Dependency lock file
+- `src/`: Directory containing application source code with a `main` entry point
 - `meta/` (optional): Directory containing customizations
-  - `windows/` (optional): Platform-specific customizations
+  - `msix/` (optional): Platform-specific customizations
     - `certificate.pfx` (optional): Code signing certificate
-    - `AppxManifest.xml` (optional): Custom application specification file
-    - `resources.pri` (optional): Custom asset resource file
-    - `MSIXAppInstallerData.xml` (optional): installer customization
-    - `startup.jl` (optional): app launcher customization
+    - `AppxManifest.xml` (optional): Custom MSIX manifest template
+    - `resources.pri` (optional): Custom package resource index
+    - `MSIXAppInstallerData.xml` (optional): Custom installer configuration
+    - `startup.jl` (optional): Custom application launcher script
 
 # Examples
 ```julia
-# Build aapplication directoruy bundle without MSIX packaging
-build_app(MacOS(:x86_64), "path/to/source", "path/to/MyApp")
+# Build application directory without MSIX packaging
+build_app(Windows(:x86_64), source, "MyApp")
 
 # Build a .msix installer
-build_app(Windows(:x86_64), "path/to/source", "path/to/MyApp.msix")
+build_app(Windows(:x86_64), source, "MyApp.msix")
+
+# Build console application for debugging
+build_app(Windows(:x86_64), source, "MyApp.msix"; windowed = false)
 
 # Build without precompilation (e.g., for cross-compiling)
-build_app(Windows(:x86_64), "path/to/source", "path/to/MyApp.msix"; precompile = false)
+build_app(Windows(:x86_64), source, "MyApp.msix"; precompile = false)
+```
 """
 function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false)
 
@@ -117,7 +130,60 @@ function build_app(platform::Windows, source, destination; compress::Bool = isex
     return bundle(product, msix, destination; compress, force, windowed, arch = arch(platform))
 end
 
-# For some reaseon I did not have documentation here
+
+"""
+    build_app(platform::Linux, source, destination; compress = isext(destination, ".snap"), precompile = true, incremental = true, force = false)
+
+Build a complete Linux application from Julia source code, optionally packaging it as a Snap package.
+
+This function coordinates the entire process of creating a standalone Linux Snap application 
+from Julia source code. It handles bundling the application, precompiling code for faster startup, 
+and optionally creating a Snap package for distribution. Note that it requires a Linux host for 
+precompilation unless `precompile=false` is specified, and the architecture of the host must match 
+the target architecture.
+
+The application is expected to have a `main` entry point in the application module (i.e., `MyModule.main([])`).
+
+# Arguments
+- `platform::Linux`: Linux platform specification with architecture (e.g., `Linux(:x86_64)`, `Linux(:aarch64)`)
+- `source::String`: Path to the source directory containing the application's source code and Project.toml
+- `destination::String`: Path where the final application directory or Snap package should be created
+
+# Keyword Arguments
+- `compress::Bool = isext(destination, ".snap")`: Whether to create a Snap package. Defaults to `true` 
+  if destination has .snap extension, otherwise creates an application directory
+- `precompile::Bool = true`: Whether to precompile the application code for faster startup
+- `incremental::Bool = true`: Whether to perform incremental precompilation (preserving existing compiled files)
+- `force::Bool = false`: If `true`, overwrites existing destination
+
+# Directory Structure Expectations
+The `source` directory is expected to have the following structure:
+- `Project.toml`: Contains application metadata and dependencies
+- `Manifest.toml`: Dependency lock file
+- `src/`: Directory containing application source code with a `main` entry point
+- `meta/` (optional): Directory containing customizations
+  - `snap/` (optional): Platform-specific customizations
+    - `icon.png` (optional): Custom application icon
+    - `snap.yaml` (optional): Custom Snap metadata template
+    - `main.desktop` (optional): Custom desktop entry template
+    - `configure.sh` (optional): Custom configuration hook script
+    - `startup.jl` (optional): Custom application launcher script
+
+# Examples
+```julia
+# Build application directory without Snap packaging
+build_app(Linux(:x86_64), source, "MyApp")
+
+# Build a .snap package
+build_app(Linux(:x86_64), source, "MyApp.snap")
+
+# Build for ARM64 architecture
+build_app(Linux(:aarch64), source, "MyApp.snap")
+
+# Build without precompilation (e.g., for cross-compiling)
+build_app(Linux(:x86_64), source, "MyApp.snap"; precompile = false)
+```
+"""
 function build_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"), precompile = true, incremental = true, force = false)
 
     snap = Snap(source)
@@ -127,7 +193,7 @@ function build_app(platform::Linux, source, destination; compress::Bool = isext(
 end
 
 """
-    build_app(platform::MacOS, source, destination; compression = :lzma, precompile = true, incremental = true)
+    build_app(platform::MacOS, source, destination; compress = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, adhoc_signing = false)
 
 Build a complete macOS application from Julia source code, optionally packaging it as a DMG disk image.
 
@@ -136,43 +202,49 @@ from Julia source code. It handles bundling the application, precompiling code f
 code signing the bundle, and optionally creating a DMG disk image for distribution. Note that it 
 requires a macOS host for precompilation unless `precompile=false` is specified, and the architecture 
 of the host must match the target architecture. For code signing, the function uses the 
-`MACOS_PFX_PASSWORD` environment variable for the certificate password if `meta/macos/certificate.pfx` is available otherwise one time self signing certificate is created for the codesigning.
+`MACOS_PFX_PASSWORD` environment variable for the certificate password if `meta/dmg/certificate.pfx` 
+is available, otherwise a one-time self-signing certificate is created for code signing.
+
+The application is expected to have a `main` entry point in the application module (i.e., `MyModule.main()`).
 
 # Arguments
-- `platform::MacOS`: macOS platform specification, potentially including architecture information
-- `source::String`: Path to the source directory containing the application's source code, Project.toml, and main.jl
+- `platform::MacOS`: macOS platform specification with architecture (e.g., `MacOS(:x86_64)`, `MacOS(:arm64)`)
+- `source::String`: Path to the source directory containing the application's source code and Project.toml
 - `destination::String`: Path where the final application (.app) or disk image (.dmg) should be created
 
 # Keyword Arguments
-- `compression::Union{Symbol, Nothing} = :lzma`: Compression algorithm 
-  to use for the DMG. Options are `:lzma`, `:bzip2`, `:zlib`, `:lzfse`, or `nothing` for no compression.
-  Defaults to `:lzma` if destination has a .dmg extension, otherwise `nothing` that creates an `.app` as final product 
+- `compress::Bool = isext(destination, ".dmg")`: Whether to create a DMG disk image. Defaults to `true` 
+  if destination has .dmg extension, otherwise creates a .app bundle
 - `precompile::Bool = true`: Whether to precompile the application code for faster startup
 - `incremental::Bool = true`: Whether to perform incremental precompilation (preserving existing compiled files)
+- `force::Bool = false`: If `true`, overwrites existing destination
+- `adhoc_signing::Bool = false`: If `true`, skips certificate-based signing (for development/testing only)
 
 # Directory Structure Expectations
 The `source` directory is expected to have the following structure:
 - `Project.toml`: Contains application metadata and dependencies
-- `main.jl`: The application's entry point script
-- `src/` (optional): Directory containing application source code
+- `Manifest.toml`: Dependency lock file
+- `src/`: Directory containing application source code with a `main` entry point
 - `meta/` (optional): Directory containing customizations
   - `dmg/` (optional): Platform-specific customizations
     - `certificate.pfx` (optional): Code signing certificate
     - `Entitlements.plist` (optional): Custom entitlements file
+    - `Info.plist` (optional): Custom app metadata template
     - `DS_Store` or `DS_Store.toml` (optional): DMG appearance configuration
-    - `startup.jl` (optional): app launcher customization
-    - Other template overrides (optional): Custom versions of template files (see `bundle_app` docstring)
+    - `icon.icns` or `icon.png` (optional): Custom application icon
+    - `startup.jl` (optional): Custom application launcher script
 
 # Examples
 ```julia
 # Build a .app bundle without DMG packaging
-build_app(MacOS(:x86_64), "path/to/source", "path/to/MyApp.app")
+build_app(MacOS(:x86_64), source, "MyApp.app")
 
-# Build a .dmg installer with LZMA compression
-build_app(MacOS(:arm64), "path/to/source", "path/to/MyApp.dmg")
+# Build a .dmg installer
+build_app(MacOS(:aarch64), source, "MyApp.dmg")
 
 # Build without precompilation (e.g., for cross-compiling)
-build_app(MacOS(:arm64), "path/to/source", "path/to/MyApp.dmg"; precompile = false)
+build_app(MacOS(:aarch64), source, "MyApp.dmg"; precompile = false)
+```
 """
 function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, adhoc_signing = false)
 

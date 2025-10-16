@@ -1,16 +1,16 @@
 using SafeTestsets
 
-# @time @safetestset "DS_Store parser" begin
-#     include("dsstore.jl")
-# end
+@time @safetestset "DS_Store parser" begin
+    include("dsstore.jl")
+end
 
-# @time @safetestset "Bundling core tetsts" begin
-#     include("bundle.jl")
-# end
+@time @safetestset "Bundling core tetsts" begin
+    include("bundle.jl")
+end
 
-# @time @safetestset "Staging tests" begin
-#     include("stage.jl")
-# end
+@time @safetestset "Staging tests" begin
+    include("stage.jl")
+end
 
 @time @safetestset "GLApp example" begin
 
@@ -23,9 +23,7 @@ using SafeTestsets
         AppBundler.generate_signing_certificates(; root = app_dir, force = true)
 
         push!(ARGS, "--compiled-modules=no")
-        #withenv("PRECOMPILE"=>"false", "TESTRUN"=>"true") do
         @eval include("../examples/glapp/meta/build.jl")
-        #end
     finally
         # cleanup
         empty!(ARGS)
@@ -36,30 +34,8 @@ using SafeTestsets
     end
 end
 
-
-# if Sys.isunix()
-
-#     if get(ENV, "JULIA_RUN_EXAMPLES", "false") == "true"
-#         @info "Running extensive example tests"
-        
-# @time @safetestset "GTKApp Example" begin
-#    include("../examples/gtkapp/meta/build.jl")
-# end
-
-#         @time @safetestset "Mousetrap Example" begin
-#             include("../examples/mousetrap/meta/build.jl")
-#         end
-
-#         @time @safetestset "QMLApp Example" begin
-#             include("../examples/qmlapp/meta/build.jl")
-#         end
-
-#         @time @safetestset "GLApp Example" begin
-#             include("../examples/glapp/meta/build.jl")
-#         end
-        
-#     else
-#         @info "Skipping example tests (set JULIA_RUN_EXAMPLES=true to run)"
-#     end
-
-# end
+if get(ENV, "JULIA_RUN_EXAMPLES", "false") == "true"
+    @time @safetestset "Examples" begin
+        include("examples.jl")
+    end
+end

@@ -188,40 +188,6 @@ function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_d
 end
 
 
-# ismacos(platform::AbstractPlatform) = os(platform) == "macos"
-# islinux(platform::AbstractPlatform) = os(platform) == "linux" 
-# iswindows(platform::AbstractPlatform) = os(platform) == "windows"
-
-# function platform_type(platform::Platform)
-#     if islinux(platform)
-
-#         return Linux(Symbol(arch(platform)))
-
-#     elseif ismacos(platform)
-
-#         return MacOS(Symbol(arch(platform)))
-
-#     elseif iswindows(platform)
-        
-#         return Windows(Symbol(platform))
-
-#     else
-#         return platform
-#     end
-# end
-
-
-# function HostPlatform()
-
-#     platform = Base.BinaryPlatforms.HostPlatform()
-
-#     return platform_type(platform)
-# end
-
-
-# julia_download_url(platform::Platform, version::VersionNumber) = julia_download_url(platform_type(platform), version)
-
-
 function julia_download_url(platform::Linux, version::VersionNumber)
 
     if arch(platform) == :x86_64
@@ -280,23 +246,6 @@ function julia_download_url(platform::Windows, version::VersionNumber)
     return url
 end
 
-# function julia_version(platform::AbstractPlatform)
-    
-#     if haskey(platform, "julia_version")
-#         version = VersionNumber(platform["julia_version"])
-#     else
-#         version = VERSION
-#     end
-
-#     # if version.major == VERSION.major && version.minor == VERSION.minor && version > VERSION
-#     #     return VERSION
-#     # else
-#     #     return version
-#     # end
-
-#     return version
-# end
-
 function retrieve_julia(platform::AbstractPlatform, julia_dir; version = julia_version(platform)) 
 
     base_url = "https://julialang-s3.julialang.org/bin"
@@ -330,21 +279,6 @@ function copy_app(source, destination)
 
         cp(joinpath(source, i), joinpath(destination, i))
     end
-
-    # Remove Pkg dependency
-
-    # rm(joinpath(destination, "Manifest.toml"))
-    # # OLD_PROJECT = Base.active_project()
-    # # try
-    # #     ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
-    # #     Pkg.activate(destination)
-    # #     Pkg.resolve()
-    # # finally
-    # #     Pkg.activate(OLD_PROJECT)
-    # #     ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 1
-    # # end
-
-    # Creating a module if it does not exists
 
     toml_dict = TOML.parsefile(joinpath(source, "Project.toml"))
 
@@ -410,6 +344,37 @@ function get_julia_version(source::String)
 end
 
 
+"""
+    PkgImage(source; precompile = true, incremental = true, julia_version = get_julia_version(source))
+
+Create a package image configuration for Julia application compilation.
+
+This constructor initializes a PkgImage configuration that controls how a Julia application
+is compiled and packaged, including precompilation settings and target Julia version.
+
+# Arguments
+- `source::String`: Path to the application source directory containing Project.toml and Manifest.toml
+
+# Keyword Arguments
+- `precompile = true`: If `true`, precompile the application during staging. If `false`, precompilation 
+  will occur on the target system at first launch
+- `incremental = true`: If `true`, use incremental compilation (faster). If `false`, perform clean 
+  compilation by removing existing compiled artifacts
+- `julia_version = get_julia_version(source)`: Target Julia version for the application. Defaults to 
+  the version specified in Manifest.toml, or current Julia version if not found
+
+# Examples
+```julia
+# Create package image with default settings
+pkg = PkgImage(app_dir)
+
+# Create without precompilation (compile on target system)
+pkg = PkgImage(app_dir; precompile = false)
+
+# Create with specific Julia version and clean compilation
+pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
+```
+"""
 @kwdef struct PkgImage
     source::String
     precompile::Bool = true
@@ -419,8 +384,6 @@ end
 
 PkgImage(source; precompile = true, incremental = true, julia_version = get_julia_version(source)) = PkgImage(; source, precompile, incremental, julia_version)
 
-
-#get_parameters(product::PkgImage) = get_bundle_parameters("$(product.source)/Project.toml")
 
 
 function get_module_name(source_dir)
@@ -531,14 +494,61 @@ function get_cpu_target(platform::AbstractPlatform)
 end
 
 
+"""
+    stage(product::PkgImage, platform::AbstractPlatform, destination::String; module_name = get_module_name(product.source))
+
+Stage a Julia application by downloading Julia runtime, copying packages, and optionally precompiling.
+
+This function performs the complete staging process for a Julia application, preparing it for
+distribution on the target platform. The process includes downloading the appropriate Julia runtime,
+copying application dependencies, retrieving artifacts, configuring startup files, and optionally
+precompiling the application.
+
+# Arguments
+- `product::PkgImage`: Package image configuration specifying source, precompilation settings, and Julia version
+- `platform::AbstractPlatform`: Target platform (e.g., `MacOS(:arm64)`, `Windows(:x86_64)`, `Linux(:x86_64)`)
+- `destination::String`: Target directory where the staged application will be created
+
+# Keyword Arguments
+- `module_name = get_module_name(product.source)`: Name of the main application module. Defaults to the 
+  name specified in Project.toml
+
+# Staging Process
+
+The function performs the following steps in order:
+1. **Validation**: Checks cross-compilation support if precompilation is enabled
+2. **Julia Runtime**: Downloads and extracts the appropriate Julia version for the target platform
+3. **Dependencies**: Copies all non-stdlib packages from the application's Project.toml
+4. **Application**: Copies the application source code to the packages directory
+5. **Artifacts**: Downloads and installs platform-specific binary artifacts
+6. **Configuration**: Sets up startup.jl with appropriate DEPOT_PATH and LOAD_PATH configuration
+7. **Precompilation** (optional): Precompiles the application if `product.precompile = true`
+
+# Cross-Compilation Limitations
+
+- **Windows**: Can only compile on Windows systems
+- **macOS**: Can only compile on macOS systems. Cannot compile arm64 binaries from x86_64 Macs
+- **Linux**: Can only compile on Linux systems with matching architecture
+
+# Examples
+```julia
+# Stage application for macOS arm64
+pkg = PkgImage("src/")
+stage(pkg, MacOS(:arm64), "build/MyApp.app/Contents/Resources/julia")
+
+# Stage without precompilation for faster builds
+pkg = PkgImage(app_dir; precompile = false)
+stage(pkg, Linux(:x86_64), "build/linux_staging")
+
+# Stage with specific module name
+stage(pkg, Windows(:x86_64), "build/windows_staging"; module_name = "MyCustomApp")
+```
+"""
 function stage(product::PkgImage, platform::AbstractPlatform, destination::String; module_name = get_module_name(product.source))
 
     if product.precompile
         validate_cross_compilation(platform)
     end
-
-    #rm(destination, recursive=true, force=true)
-    #mkpath(dirname(destination))
 
     @info "Downloading Julia $(product.julia_version) for $platform"
     retrieve_julia(platform, "$destination"; version = product.julia_version)

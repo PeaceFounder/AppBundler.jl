@@ -114,8 +114,7 @@ function parse_args(raw_args)
 
     # Set default build directory if not specified
     if isnothing(config[:build_dir])
-        config[:build_dir] = abspath(joinpath(dirname(@__DIR__), "build"))
-        mkpath(config[:build_dir])
+        config[:build_dir] = mktempdir()
     end
     
     return config

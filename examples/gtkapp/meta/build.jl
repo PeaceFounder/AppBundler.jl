@@ -1,16 +1,29 @@
 using AppBundler
 
-import Pkg.BinaryPlatforms: Linux, MacOS, Windows
-
 APP_DIR = dirname(@__DIR__)
 
-BUILD_DIR = joinpath(APP_DIR, "build")
-mkpath(BUILD_DIR)
+config = AppBundler.parse_args(ARGS)
 
-AppBundler.build_app(MacOS(:x86_64), APP_DIR, "$BUILD_DIR/gtkapp-x64.dmg", precompile = Sys.isapple())
-AppBundler.build_app(MacOS(:aarch64), APP_DIR, "$BUILD_DIR/gtkapp-arm64.dmg", precompile = Sys.isapple() && Sys.ARCH == :aarch64, force = true)
+build_dir = config[:build_dir] 
+@info "Build products will be created at $build_dir"
 
-AppBundler.build_app(Linux(:x86_64), APP_DIR, "$BUILD_DIR/gtkapp-x64.snap"; precompile = false)
-AppBundler.build_app(Linux(:aarch64), APP_DIR, "$BUILD_DIR/gtkapp-arm64.snap"; precompile = true, force = true)
+precompile = config[:precompile]
+incremental = config[:incremental]
+target_platforms = config[:target_platforms]
+target_arch = config[:target_arch]
+adhoc_signing = config[:adhoc_signing]
 
-AppBundler.build_app(Windows(:x86_64), APP_DIR, "$BUILD_DIR/gtkapp-win64.msix", precompile = Sys.iswindows(), force=true)
+version = AppBundler.get_version(APP_DIR)
+target_name = "gtkapp-$version-$(target_arch)"
+
+if :linux in target_platforms
+    AppBundler.build_app(Linux(target_arch), APP_DIR, "$build_dir/$target_name.snap"; precompile, incremental)
+end
+
+if :windows in target_platforms
+    AppBundler.build_app(Windows(target_arch), APP_DIR, "$build_dir/$target_name.msix"; precompile, incremental, adhoc_signing)
+end
+
+if :macos in target_platforms
+    AppBundler.build_app(MacOS(target_arch), APP_DIR, "$build_dir/$target_name.dmg"; precompile, incremental, adhoc_signing)
+end

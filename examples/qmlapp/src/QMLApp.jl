@@ -11,7 +11,7 @@ function julia_main()::Cint
         "count" => 16
     )
 
-    loadqml((@__DIR__) * "/App.qml"; _PROPERTIES)
+    loadqml(joinpath(Base.pkgdir(@__MODULE__), "src/App.qml"); _PROPERTIES)
     exec()
 
     return 0
