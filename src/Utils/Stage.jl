@@ -92,6 +92,28 @@ function merge_directories(source::String, destination::String; overwrite::Bool=
     end
 end
 
+function install_project_toml(uuid, pkginfo, destination)
+    # Extract information from pkginfo
+    project_dict = Dict(
+        "name" => pkginfo.name,
+        "uuid" => string(uuid),  # or use the package UUID if you have it
+        "version" => string(pkginfo.version),
+        "deps" => pkginfo.dependencies
+    )
+
+    # Convert UUIDs to strings for TOML
+    exclude = ["Test"]
+    deps_dict = Dict(name => string(uuid) for (name, uuid) in pkginfo.dependencies if name ∉ exclude)
+    project_dict["deps"] = deps_dict
+
+    # Write to Project.toml
+    open(destination, "w") do io
+        TOML.print(io, project_dict)
+    end
+
+    return
+end
+
 function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
 
     #mkdir(packages_dir)
@@ -100,11 +122,10 @@ function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
     app_name = basename(app_dir)
     OLD_PROJECT = Base.active_project()
 
-    TEMP_ENV = joinpath(tempdir(), "temp_env")
+    TEMP_ENV = mktempdir() #joinpath(tempdir(), "temp_env")
 
     try
 
-        mkdir(TEMP_ENV)
         cp(joinpath(app_dir, "Project.toml"), joinpath(TEMP_ENV, "Project.toml"), force=true)
         cp(joinpath(app_dir, "Manifest.toml"), joinpath(TEMP_ENV, "Manifest.toml"), force=true)
 
@@ -133,6 +154,11 @@ function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
 
                 if !isdir(pkg_dir)
                     cp(pkginfo.source, pkg_dir)
+                    if !isfile(joinpath(pkg_dir, "Project.toml"))
+                        # We need to make a Project.toml from pkginfo
+                        @warn "$(pkginfo.name) uses the legacy REQUIRE format. As a courtesy to AppBundler developers, please update it to use Project.toml."
+                        install_project_toml(uuid, pkginfo, joinpath(pkg_dir, "Project.toml"))
+                    end
                 else
                     @info "$(pkginfo.name) already exists in $packages_dir"
                 end

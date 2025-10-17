@@ -1,5 +1,6 @@
 module GLApp
 
+using SignedDistanceFields
 using ModernGL, GLAbstraction, GLFW
 const GLA = GLAbstraction
 
