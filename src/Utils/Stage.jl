@@ -116,36 +116,31 @@ end
 
 function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
 
-    #mkdir(packages_dir)
     mkpath(packages_dir)
 
     app_name = basename(app_dir)
     OLD_PROJECT = Base.active_project()
 
-    TEMP_ENV = mktempdir() #joinpath(tempdir(), "temp_env")
+    TEMP_ENV = mktempdir() 
 
     try
 
         cp(joinpath(app_dir, "Project.toml"), joinpath(TEMP_ENV, "Project.toml"), force=true)
-        cp(joinpath(app_dir, "Manifest.toml"), joinpath(TEMP_ENV, "Manifest.toml"), force=true)
+        chmod(joinpath(TEMP_ENV, "Project.toml"), 0o444) # perhaps 0o444 could work as well
+
+        if isfile(joinpath(app_dir, "Manifest.toml"))
+            cp(joinpath(app_dir, "Manifest.toml"), joinpath(TEMP_ENV, "Manifest.toml"), force=true)
+            chmod(joinpath(TEMP_ENV, "Manifest.toml"), 0o444)
+        end
 
         if isfile(joinpath(app_dir, "deps/build.jl"))
             mkdir(joinpath(TEMP_ENV, "deps"))
             cp(joinpath(app_dir, "deps/build.jl"), joinpath(TEMP_ENV, "deps/build.jl"))
         end
-
-        # Need to debug this more closelly
-        chmod(joinpath(TEMP_ENV, "Project.toml"), 0o444) # perhaps 0o444 could work as well
-        chmod(joinpath(TEMP_ENV, "Manifest.toml"), 0o444)
-        
         
         ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
         Pkg.activate(TEMP_ENV)
         Pkg.instantiate()
-
-        # if with_splash_screen
-        #     Pkg.add(["GLFW", "GLAbstraction"]; preserve=Pkg.PRESERVE_ALL)
-        # end
 
         for (uuid, pkginfo) in Pkg.dependencies()
             if !(uuid in keys(Pkg.Types.stdlibs()))

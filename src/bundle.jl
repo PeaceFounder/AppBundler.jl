@@ -572,6 +572,12 @@ end
 ```
 """
 function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), main_redirect = false, arch = :x86_64) 
+    
+    installer_title = join([dmg.parameters["APP_DISPLAY_NAME"], "Installer"], " ")
+
+    if length(installer_title) > 32
+        error("Installer title \"$installer_title\" exceeds the maximum 32 characters allowed by xorriso (current length: $(length(installer_title))). Please shorten APP_DISPLAY_NAME to $(32 - length(" Installer")) characters or less.")
+    end
 
     if ispath(destination)
         if force
@@ -591,8 +597,6 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     end
 
     setup(app_stage)
-    
-    installer_title = join([dmg.parameters["APP_DISPLAY_NAME"], "Installer"], " ")
 
     # Remove AppleDouble metadata files (._*) that macOS creates to preserve extended attributes
     # and executable permissions on non-HFS+ filesystems. These files are created by xorriso during
