@@ -140,7 +140,7 @@ Common customization scenarios include sandboxing configuration (adding specific
 
 ## Troubleshooting and Known Limitations
 
-Currently, Julia does not cross-compile, except for macOS where `:aarch64` can also run `:x86_64` applications. Hence, one needs to have the host as a target, which nowadays can be easy to get via continuous integration infrastructure like GitHub, GitLab, etc. The bundling, however, is cross-platform compatible, where UNIX hosts can generate all compatible installers, which may be relevant for other programming language projects.
+Currently, Julia does not cross-compile, except for macOS where `:aarch64` can also run `:x86_64` applications. Hence, one needs to have the host as a target, which nowadays can be easy to get via continuous integration infrastructure like GitHub, GitLab, etc. The bundling, however, is cross-platform compatible, where UNIX hosts can generate all compatible installers, which may be relevant for other programming language projects. A releated issue is reliance on `deps/build.jl` script which may cause issues.
 
 Another set of issues comes from sandboxing, where each of the installer formats enforces its own way to isolate the running application from the system resources. This requires careful configuration of the parameters and patience in debugging issues and coming up with workarounds. Sandboxing is often expected for app stores for the application to receive a positive review. Currently, only macOS sandboxing with a special trick seems to work, whereas Snap only works for GTK applications, and MSIX is completely broken for Julia due to `msvcrt32.dll` runtime library use over the more modern `ucrt.dll`.
 
