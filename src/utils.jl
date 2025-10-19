@@ -128,6 +128,7 @@ function is_windows_compatible(filename::String; path_length_threshold)
         @warn "$(filename) contains invalid characters for Windows."
         return false
     end
+
     # if occursin(r"[\\/:*?\"<>|]", filename)
     #     @warn "$filename contains invalid characters for Windows.\n"
     #     return false
@@ -153,29 +154,43 @@ function is_windows_compatible(filename::String; path_length_threshold)
     return true
 end
 
-function ensure_windows_compatability(src_dir::String; path_length_threshold::Int = 260, skip_long_paths::Bool = false)
+function ensure_windows_compatability(src_dir::String; path_length_threshold::Int = 260, skip_long_paths::Bool = false, skip_symlinks = false)
 
     error_paths = []
     
     max_length = 0
 
-    for (root, dirs, files) in walkdir(src_dir)
+    for (root, dirs, files) in walkdir(src_dir; follow_symlinks=false)
         for file in files
             filepath = joinpath(root, file)
             rel_path = relpath(filepath, src_dir)
+
+            if skip_symlinks && islink(filepath)
+                rm(filepath)
+                println("Removed symlink: $filepath")
+                continue
+            end
             
             if skip_long_paths && length(rel_path) > path_length_threshold
                 rm(filepath)
                 continue
             end
 
-            if !is_windows_compatible(rel_path; path_length_threshold)
+            if Sys.isunix() && !is_windows_compatible(rel_path; path_length_threshold)
                 push!(error_paths, rel_path)
-                #error("Aborting due to Windows-incompatible filename.")
+                error("Aborting due to Windows-incompatible filename.")
             end
 
             if length(rel_path) > max_length
                 max_length = length(rel_path)
+            end
+        end
+
+        for dir in dirs
+            dirpath = joinpath(root, dir)
+            if skip_symlinks && islink(dirpath)
+                rm(dirpath)
+                println("Removed symlink: $dirpath")
             end
         end
     end

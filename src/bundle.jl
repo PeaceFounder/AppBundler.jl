@@ -54,8 +54,9 @@ and settings for path length handling and code signing.
 - `appxmanifest = get_path(prefix, "msix/AppxManifest.xml")`: Path to MSIX application manifest template
 - `resources_pri = get_path(prefix, "msix/resources.pri")`: Path to package resource index file
 - `msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml")`: Path to installer configuration template
-- `path_length_threshold = 260`: Maximum allowed path length for files in the MSIX package (Windows limitation)
+- `path_length_threshold = 260`: Maximum allowed path length for files in the MSIX package
 - `skip_long_paths = false`: If `true`, skip files exceeding path length threshold; if `false`, throw an error
+- `skip_symlinks = true`: If `true`, skip file and directory symlinks
 - `pfx_cert = get_path(prefix, "msix/certificate.pfx")`: Path to code signing certificate (optional)
 - `parameters = Dict()`: Dictionary of parameters for template rendering (e.g., APP_NAME, APP_VERSION)
 
@@ -87,6 +88,7 @@ struct MSIX
     resources_pri::String
     path_length_threshold::Int 
     skip_long_paths::Bool 
+    skip_symlinks::Bool
     pfx_cert::Union{String, Nothing} 
     parameters::Dict
 end
@@ -99,11 +101,12 @@ function MSIX(;
               msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml"),
               path_length_threshold = 260,
               skip_long_paths = false,
+              skip_symlinks = true,
               pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
               parameters = Dict()
               )
     
-    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, pfx_cert, parameters)
+    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, pfx_cert, parameters)
 end
 
 """
@@ -653,9 +656,7 @@ a temporary one-time self-signed certificate is generated and used for signing t
 
 # Path Length Handling
 
-The MSIX configuration includes `path_length_threshold` and `skip_long_paths` settings to handle Windows' 
-path length limitations. Files exceeding the threshold will either be skipped or cause an error depending 
-on the configuration.
+The MSIX configuration includes `path_length_threshold`, `skip_long_paths` and `skip_symlinks` settings to handle Windows' path limitations. Files exceeding the length threshold will either be skipped or cause an error depending on the configuration.
 
 # Examples
 ```julia
@@ -680,12 +681,10 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
     stage(msix, app_stage)    
     setup(app_stage)
 
-    # ToDo: move path_length_threshold and skip_long_paths checks here
-    (; path_length_threshold, skip_long_paths) = msix
-    Sys.iswindows() || ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths)
+    (; path_length_threshold, skip_long_paths, skip_symlinks) = msix
+    ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks)
 
     if compress
-        (; path_length_threshold, skip_long_paths) = msix
         MSIXPack.pack(app_stage, destination; pfx_path = msix.pfx_cert, password)        
     end
     
