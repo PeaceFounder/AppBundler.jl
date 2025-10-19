@@ -497,6 +497,47 @@ function get_cpu_target(platform::AbstractPlatform)
     end
 end
 
+# A dublicate is in utils
+"""
+Move directories from source to destination. 
+Only recurse into directories that already exist in destination.
+"""
+function apply_patches(source::String, destination::String; overwrite::Bool=false)
+    
+    if !isdir(source)
+        return
+    end
+    
+    # Create destination if needed
+    !isdir(destination) && mkpath(destination)
+    
+    # Get top-level items
+    for item in readdir(source)
+        src_path = joinpath(source, item)
+        dest_path = joinpath(destination, item)
+        
+        if isdir(src_path)
+            # Try to move entire directory
+            if !isdir(dest_path)
+                # Destination doesn't exist, move whole directory
+                cp(src_path, dest_path)
+                println("Copied directory: $item")
+            else
+                # Destination exists, recurse into it
+                #println("Merging into existing directory: $item")
+                apply_patches(src_path, dest_path; overwrite=overwrite)
+            end
+        else
+            # Copy file
+            if isfile(dest_path)
+                println("Overwriting file: $dest_path")
+            else
+                println("Copying file: $dest_path")
+            end
+            cp(src_path, dest_path; force=overwrite)
+        end
+    end
+end
 
 """
     stage(product::PkgImage, platform::AbstractPlatform, destination::String; module_name = get_module_name(product.source))
@@ -560,6 +601,8 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
     retrieve_packages(product.source, "$destination/share/julia/packages")
     copy_app(product.source, "$destination/share/julia/packages/$module_name")
 
+    apply_patches(joinpath(product.source, "meta/patches"), "$destination/share/julia/packages"; overwrite=true)
+    
     retrieve_artifacts(platform, "$destination/share/julia/packages", "$destination/share/julia/artifacts")
 
     # Perhaps the LOAD_PATH could be manipulated only for the compilation
