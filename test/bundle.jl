@@ -90,7 +90,9 @@ end
         dest = joinpath(mktempdir(), "gtkapp.msix")
         bundle(msix, dest) do app_stage
             @info "The MSIX app stage is $app_stage"
+            touch(joinpath(app_stage, "MRF_signal_Δθ_23_NTRs_500.mrd"))
         end
+        
 
         verify_msix_signature(dest)
 

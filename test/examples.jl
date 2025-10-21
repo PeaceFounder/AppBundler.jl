@@ -4,7 +4,7 @@
 #   julia --project=. test/examples.jl
 #   julia --project=. test/examples.jl --target-platform=all --compiled-modules=no
 #
-# Tests QML, GTK, OpenGL, and Mousetrap app bundling by installing GitHub workflows
+# Tests QML, GTK, OpenGL, Mousetrap, Blink and Makie app bundling by installing GitHub workflows
 # and executing build scripts from examples/*/meta/build.jl
 
 # run theese examples with
@@ -36,4 +36,16 @@ end
     app_dir = joinpath(dirname(@__DIR__), "examples/mousetrap")
     AppBundler.install_github_workflow(; root = app_dir, force = true)
     @eval include("../examples/mousetrap/meta/build.jl")
+end 
+
+@testset "BlinkApp" begin
+    app_dir = joinpath(dirname(@__DIR__), "examples/blinkapp")
+    AppBundler.install_github_workflow(; root = app_dir, force = true)
+    @eval include("../examples/blinkapp/meta/build.jl")
+end 
+
+@testset "MakieApp" begin
+    app_dir = joinpath(dirname(@__DIR__), "examples/makieapp")
+    AppBundler.install_github_workflow(; root = app_dir, force = true)
+    @eval include("../examples/makieapp/meta/build.jl")
 end 

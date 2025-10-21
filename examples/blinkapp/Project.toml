@@ -1,0 +1,10 @@
+name = "BlinkApp"
+uuid = "ba1adb9c-04e5-4371-be79-c8279ceb5a56"
+authors = ["Janis Erdmanis <janiserdmanis@protonmail.ch>"]
+version = "0.1.0"
+
+[deps]
+Blink = "ad839575-38b3-5650-b840-f874b8c74a25"
+
+[compat]
+Blink = "0.12.9"

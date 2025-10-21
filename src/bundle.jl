@@ -89,6 +89,7 @@ struct MSIX
     path_length_threshold::Int 
     skip_long_paths::Bool 
     skip_symlinks::Bool
+    skip_unicode_paths::Bool
     pfx_cert::Union{String, Nothing} 
     parameters::Dict
 end
@@ -102,11 +103,12 @@ function MSIX(;
               path_length_threshold = 260,
               skip_long_paths = false,
               skip_symlinks = true,
+              skip_unicode_paths = true,
               pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
               parameters = Dict()
               )
     
-    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, pfx_cert, parameters)
+    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, pfx_cert, parameters)
 end
 
 """
@@ -681,8 +683,8 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
     stage(msix, app_stage)    
     setup(app_stage)
 
-    (; path_length_threshold, skip_long_paths, skip_symlinks) = msix
-    ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks)
+    (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
+    ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
 
     if compress
         MSIXPack.pack(app_stage, destination; pfx_path = msix.pfx_cert, password)        

@@ -81,9 +81,11 @@ function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force 
     mkpath(joinpath(root, ".github/workflows"))
 
     cp(joinpath(dirname(@__DIR__), "recipes/workflows/GitHub.yml"), joinpath(root, ".github/workflows/Release.yml"); force)
-
+    chmod(joinpath(root, ".github/workflows/Release.yml"), 0o666)
 
     install(joinpath(dirname(@__DIR__), "recipes/workflows/build.jl"), joinpath(root, "meta/build.jl"); parameters, force)
+    #chmod(joinpath(root, "meta/build.jl"), 0o444)
+    chmod(joinpath(root, "meta/build.jl"), 0o666)
    
     println("""
     Setup done. You may now commit the workflow to the repo that will automatically build artifiacts and attach for new GitHub releases. You can also test builds before releasing. See documentation for more.
@@ -154,7 +156,7 @@ function is_windows_compatible(filename::String; path_length_threshold)
     return true
 end
 
-function ensure_windows_compatability(src_dir::String; path_length_threshold::Int = 260, skip_long_paths::Bool = false, skip_symlinks = false)
+function ensure_windows_compatability(src_dir::String; path_length_threshold::Int = 260, skip_long_paths::Bool = false, skip_symlinks = false, skip_unicode_paths=false)
 
     error_paths = []
     
@@ -173,6 +175,13 @@ function ensure_windows_compatability(src_dir::String; path_length_threshold::In
             
             if skip_long_paths && length(rel_path) > path_length_threshold
                 rm(filepath)
+                println("Removed long path: $filepath")
+                continue
+            end
+
+            if skip_unicode_paths && !isascii(file)
+                rm(filepath)
+                println("Removed unicode path: $filepath")
                 continue
             end
 

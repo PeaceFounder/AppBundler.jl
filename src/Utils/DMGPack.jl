@@ -46,7 +46,6 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
     end
 
     @info "Codesigning application bundle at $app_stage with certificate at $pfx_path"
-
     
     run(`$(rcodesign()) sign --shallow --p12-file "$pfx_path" --p12-password "$password" --entitlements-xml-path "$entitlements" "$app_stage"`) # perhaps this command affects the DS_Store? 
     
