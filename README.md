@@ -46,6 +46,18 @@ Once applications are installed, define a `USER_DATA` environment variable where
 
 To see how this works, explore [AppBundler.jl/examples](https://github.com/PeaceFounder/AppBundler.jl/tree/main/examples) and [PeaceFounderClient](https://github.com/PeaceFounder/PeaceFounderClient/releases/tag/v0.1.3-alpha) where you can check out the releases page to see what to expect.
 
+## Examples
+
+The following GUI frameworks have been tested with AppBundler across different platforms:
+
+| Framework | Platform Support | Notes | Examples |
+|-----------|-----------------|-------|----------|
+| QML | ✓ All platforms | Fully supported | [PeaceFounderClient](https://github.com/PeaceFounder/PeaceFounderClient/releases) |
+| GLFW | ✓ All platforms | Fully supported | none |
+| Gtk/Mousetrap | ⚠ macOS, Linux | Does not launch on Windows | none |
+| Makie | ⚠ macOS, Linux | [GLMakie does not work on Windows](https://github.com/MakieOrg/Makie.jl/issues/5342) | [ImageColorThresholderApp](https://github.com/rakeshksr/ImageColorThresholderApp.jl/pull/4) |
+| Blink | ⚠ All platforms | Requires heavy patching for relocability | [KomaMRI](https://github.com/JanisErdmanis/KomaMRI.jl) |
+
 ## Installing Built Applications
 
 *The following instructions are for end users installing your built applications.*
