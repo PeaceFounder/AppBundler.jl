@@ -1,0 +1,10 @@
+name = "ElectronApp"
+uuid = "2565c389-76f4-4174-af7d-3a23bbb6b6ac"
+authors = ["Janis Erdmanis <janiserdmanis@protonmail.ch>"]
+version = "0.1.0"
+
+[deps]
+Electron = "a1bb12fb-d4d1-54b4-b10a-ee7951ef7ad3"
+
+[compat]
+Electron = "6.0.0"

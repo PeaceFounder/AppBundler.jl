@@ -49,3 +49,9 @@ end
     AppBundler.install_github_workflow(; root = app_dir, force = true)
     @eval include("../examples/makieapp/meta/build.jl")
 end 
+
+@testset "ElectronApp" begin
+    app_dir = joinpath(dirname(@__DIR__), "examples/electronapp")
+    AppBundler.install_github_workflow(; root = app_dir, force = true)
+    @eval include("../examples/electronapp/meta/build.jl")
+end 
