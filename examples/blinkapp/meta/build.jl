@@ -21,10 +21,9 @@ if :linux in target_platforms
 end
 
 if :windows in target_platforms
-    AppBundler.build_app(Windows(target_arch), APP_DIR, "$build_dir/$target_name.msix"; precompile, incremental, adhoc_signing)
+    AppBundler.build_app(Windows(target_arch), APP_DIR, "$build_dir/$target_name"; precompile, incremental, adhoc_signing, windowed=false)
 end
 
 if :macos in target_platforms
-    AppBundler.build_app(MacOS(target_arch), APP_DIR, "$build_dir/$target_name"; precompile, incremental=true, adhoc_signing)
-    mv("$build_dir/$target_name", "$build_dir/$target_name.app")
+    AppBundler.build_app(MacOS(target_arch), APP_DIR, "$build_dir/$target_name.dmg"; precompile, incremental=true, adhoc_signing)
 end

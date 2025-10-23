@@ -39,13 +39,29 @@ function bundle(product::PkgImage, snap::Snap, destination::String; compress::Bo
     return
 end
 
+function normalize_executable(path::String)
+
+    tempfile = joinpath(mktempdir(), basename(path))
+    cp(path, tempfile)
+    mv(tempfile, path; force=true)
+
+    return
+end
+
 function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bool = isext(dest, ".msix"), force = false, arch = :x86_64, windowed = true)
 
     bundle(msix, destination; compress, force) do app_stage
         
         stage(product, Windows(arch), app_stage)
         mv("$app_stage/libexec/julia/lld.exe", "$app_stage/bin/lld.exe") # julia.exe can't find shared libraries in UWP
-        
+
+        # Executables extracted from tar archives carry Unix-style metadata that causes 
+        # Windows AppX validation to fail with "The parameter is incorrect" when launched 
+        # from the Start Menu.
+        normalize_executable("$app_stage/bin/julia.exe")
+   
+        touch("$app_stage/bin/julia.exe") # updating timestamp to avoid Invalid Parameter error
+
         startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "msix/startup.jl")
         install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
         
