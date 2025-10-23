@@ -44,7 +44,7 @@ The setup is designed such that `meta/build.jl` can be further modified by a use
 
 Once applications are installed, define a `USER_DATA` environment variable where apps can store their data. On Linux and Windows, those are designated application locations which get removed with the uninstallation of the app, whereas on macOS, apps use `~/.config/myapp` and `~/.cache/myapp` folders unless one manages to get an app running from a sandbox, in which case the `$HOME/Library/Application Support/Local` folder will be used.
 
-To see how this works, explore [AppBundler.jl/examples](https://github.com/PeaceFounder/AppBundler.jl/tree/main/examples) and [PeaceFounderClient](https://github.com/PeaceFounder/PeaceFounderClient/releases/tag/v0.1.3-alpha) where you can check out the releases page to see what to expect.
+To see how this works, explore [AppBundler.jl/examples](https://github.com/PeaceFounder/AppBundler.jl/tree/main/examples).
 
 ## Examples
 
