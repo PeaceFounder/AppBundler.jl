@@ -56,7 +56,7 @@ The following GUI frameworks have been tested with AppBundler across different p
 | GLFW | ✓ All platforms | Fully supported | none |
 | Gtk/Mousetrap | ⚠ macOS, Linux | Does not launch on Windows | none |
 | Makie | ⚠ macOS, Linux | [GLMakie does not work on Windows](https://github.com/MakieOrg/Makie.jl/issues/5342) | [ImageColorThresholderApp](https://github.com/rakeshksr/ImageColorThresholderApp.jl/pull/4) |
-| Blink | ⚠ All platforms | Requires heavy patching for relocability | [KomaMRI](https://github.com/JanisErdmanis/KomaMRI.jl) |
+| Blink | ⚠ All platforms | Requires heavy patching for relocability | [KomaMRI](https://github.com/JuliaHealth/KomaMRI.jl/pull/640) |
 
 ## Installing Built Applications
 
