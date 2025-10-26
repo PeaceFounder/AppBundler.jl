@@ -117,7 +117,12 @@ function retrieve_packages(app_dir, packages_dir; julia_cmd=nothing)
         packages_src = joinpath(pkgdir(parentmodule(@__MODULE__)), "src/Utils/packages.jl")
 
         withenv("JULIA_PROJECT" => app_dir, "JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-            run(`$julia_cmd --startup-file=no --eval "import Pkg; Pkg.instantiate(); include(\"$packages_src\"); retrieve_packages(\"$packages_dir\")"`)
+            run(`$julia_cmd --startup-file=no --eval $("""
+                import Pkg
+                Pkg.instantiate()
+                include(raw"$packages_src")
+                retrieve_packages(raw"$packages_dir")
+            """)`)
         end
     end
 
