@@ -27,8 +27,6 @@ src_dir = joinpath(dirname(@__DIR__), "examples/glapp")
 
 @show build_dir = mktempdir()
 
-product_spec = PkgImage(src_dir; precompile = true)
-
 if Sys.islinux()
     platform = Linux(Sys.ARCH)
 elseif Sys.isapple()
@@ -37,4 +35,8 @@ elseif Sys.iswindows()
     platform = Windows(Sys.ARCH)
 end
 
+product_spec = PkgImage(src_dir; precompile = true)
 stage(product_spec, platform, build_dir)
+
+product_spec = PkgImage(src_dir; precompile = false, target_instantiation = true)
+stage(product_spec, platform, mktempdir())

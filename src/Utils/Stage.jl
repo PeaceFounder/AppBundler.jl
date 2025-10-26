@@ -92,66 +92,37 @@ function merge_directories(source::String, destination::String; overwrite::Bool=
     end
 end
 
-function install_project_toml(uuid, pkginfo, destination)
-    # Extract information from pkginfo
-    project_dict = Dict(
-        "name" => pkginfo.name,
-        "uuid" => string(uuid),  # or use the package UUID if you have it
-        "version" => string(pkginfo.version),
-        "deps" => pkginfo.dependencies
-    )
+include("packages.jl")
 
-    # Convert UUIDs to strings for TOML
-    exclude = ["Test"]
-    deps_dict = Dict(name => string(uuid) for (name, uuid) in pkginfo.dependencies if name ∉ exclude)
-    project_dict["deps"] = deps_dict
+function retrieve_packages(app_dir, packages_dir; julia_cmd=nothing)
 
-    # Write to Project.toml
-    open(destination, "w") do io
-        TOML.print(io, project_dict)
-    end
+    if isnothing(julia_cmd)
 
-    return
-end
+        OLD_PROJECT = Base.active_project()
 
-function retrieve_packages(app_dir, packages_dir; with_splash_screen=false)
+        try
+            ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
 
-    mkpath(packages_dir)
+            Pkg.activate(app_dir)
+            Pkg.instantiate()
+            
+            retrieve_packages(packages_dir)
 
-    OLD_PROJECT = Base.active_project()
-
-    try
-        ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
-
-        Pkg.activate(app_dir)
-        Pkg.instantiate()
-
-        for (uuid, pkginfo) in Pkg.dependencies()
-            if !(uuid in keys(Pkg.Types.stdlibs()))
-
-                pkg_dir = joinpath(packages_dir, pkginfo.name)
-
-                if !isdir(pkg_dir)
-                    cp(pkginfo.source, pkg_dir)
-                    if !isfile(joinpath(pkg_dir, "Project.toml"))
-                        # We need to make a Project.toml from pkginfo
-                        @warn "$(pkginfo.name) uses the legacy REQUIRE format. As a courtesy to AppBundler developers, please update it to use Project.toml."
-                        install_project_toml(uuid, pkginfo, joinpath(pkg_dir, "Project.toml"))
-                    end
-                else
-                    @info "$(pkginfo.name) already exists in $packages_dir"
-                end
-            end
+        finally
+            Pkg.activate(OLD_PROJECT)
+            ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 1
         end
 
-    finally
-        Pkg.activate(OLD_PROJECT)
-        ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 1
+    else
+        packages_src = joinpath(pkgdir(parentmodule(@__MODULE__)), "src/Utils/packages.jl")
+
+        withenv("JULIA_PROJECT" => app_dir, "JULIA_PKG_PRECOMPILE_AUTO" => 0) do
+            run(`$julia_cmd --startup-file=no --eval "import Pkg; Pkg.instantiate(); include(\"$packages_src\"); retrieve_packages(\"$packages_dir\")"`)
+        end
     end
 
     return
 end
-
 
 # If one wishes he can specify artifacts_cache directory to be that in DEPOT_PATH 
 # That way one could avoid downloading twice when it is deployed as a build script
@@ -214,7 +185,6 @@ function julia_download_url(platform::Linux, version::VersionNumber)
     return url
 end
 
-
 function julia_download_url(platform::MacOS, version::VersionNumber)
 
     if arch(platform) == :x86_64
@@ -236,7 +206,6 @@ function julia_download_url(platform::MacOS, version::VersionNumber)
     
     return url
 end
-
 
 function julia_download_url(platform::Windows, version::VersionNumber)
 
@@ -384,11 +353,10 @@ pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
     precompile::Bool = true
     incremental::Bool = true
     julia_version::VersionNumber = get_julia_version(source)
+    target_instantiation::Bool = VERSION.minor != julia_version.minor
 end
 
-PkgImage(source; precompile = true, incremental = true, julia_version = get_julia_version(source)) = PkgImage(; source, precompile, incremental, julia_version)
-
-
+PkgImage(source; precompile = true, incremental = true, julia_version = get_julia_version(source), target_instantiation=VERSION.minor != julia_version.minor) = PkgImage(; source, precompile, incremental, julia_version, target_instantiation)
 
 function get_module_name(source_dir)
     
@@ -598,13 +566,15 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
     @info "Downloading Julia $(product.julia_version) for $platform"
     retrieve_julia(platform, "$destination"; version = product.julia_version)
 
-    retrieve_packages(product.source, "$destination/share/julia/packages")
+    @info "Retrieving packages for Julia $(product.julia_version)"
+    retrieve_packages(product.source, "$destination/share/julia/packages"; julia_cmd=product.target_instantiation ? "$destination/bin/julia" : nothing)
+
     copy_app(product.source, "$destination/share/julia/packages/$module_name")
 
     apply_patches(joinpath(product.source, "meta/patches"), "$destination/share/julia/packages"; overwrite=true)
     
+    @info "Retrieving artifacts"
     retrieve_artifacts(platform, "$destination/share/julia/packages", "$destination/share/julia/artifacts")
-
     # Perhaps the LOAD_PATH could be manipulated only for the compilation
     override_startup_file(product.source, "$destination/etc/julia/startup.jl"; parameters = Dict("MODULE_NAME" => module_name))
 

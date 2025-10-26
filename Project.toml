@@ -1,7 +1,7 @@
 name = "AppBundler"
 uuid = "40eb83ae-c93a-480c-8f39-f018b568f472"
 authors = ["Janis Erdmanis <janiserdmanis@protonmail.ch>"]
-version = "0.4.7"
+version = "0.4.8"
 
 [deps]
 AppBundlerUtils_jll = "20612f45-4fe6-500a-af5c-19078bfe0d65"
