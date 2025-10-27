@@ -39,4 +39,4 @@ product_spec = PkgImage(src_dir; precompile = true)
 stage(product_spec, platform, build_dir)
 
 product_spec = PkgImage(src_dir; precompile = false, target_instantiation = true)
-stage(product_spec, platform, mktempdir())
+stage(product_spec, platform, build_dir)

@@ -42,8 +42,8 @@ end
 function normalize_executable(path::String)
 
     tempfile = joinpath(mktempdir(), basename(path))
-    cp(path, tempfile)
-    mv(tempfile, path; force=true)
+    mv(path, tempfile)
+    cp(tempfile, path)
 
     return
 end

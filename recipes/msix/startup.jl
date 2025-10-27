@@ -59,16 +59,9 @@ push!(DEPOT_PATH, user_depot, joinpath(libdir, "share/julia"))
 @info "DEPOT_PATH = $DEPOT_PATH"
 @info "USER_DATA = $(ENV["USER_DATA"])"
 
-# function __precompile__()
-#     popfirst!(DEPOT_PATH)
-#     @eval using {{MODULE_NAME}}
-# end
-
-# Perhaps I could inline it directly
-function __main__()
-    @eval begin
-        import {{MODULE_NAME}}
-        {{MODULE_NAME}}.main([])
+if isinteractive()
+    if length(ARGS) == 0
+        println("No arguments provided. To call the help use:")
+        println("cmdapp.exe --eval \"using {{MODULE_NAME}}\" --help")
     end
-    #@eval include(joinpath(Base.ACTIVE_PROJECT[], "main.jl"))
 end

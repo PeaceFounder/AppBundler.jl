@@ -1,0 +1,19 @@
+name: {{APP_NAME_LOWERCASE}}
+title: {{APP_DISPLAY_NAME}}
+base: core22
+version: '{{APP_VERSION}}'
+summary: {{APP_SUMMARY}} 
+description: {{APP_DESCRIPTION}}
+grade: devel
+confinement: classic 
+
+apps:
+  {{APP_NAME_LOWERCASE}}:
+    command: bin/{{APP_NAME_LOWERCASE}}
+    plugs:
+      - network
+
+hooks:
+  configure:
+    plugs:
+      - network

@@ -743,8 +743,7 @@ function bundle(setup::Function, snap::Snap, destination::String; compress::Bool
     end
 
     app_stage = compress ? mktempdir() : destination
-    chmod(app_stage, 0o755)
-
+    
     stage(snap, app_stage; install_configure)    
     setup(app_stage)
 
