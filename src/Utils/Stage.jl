@@ -131,7 +131,7 @@ end
 
 # If one wishes he can specify artifacts_cache directory to be that in DEPOT_PATH 
 # That way one could avoid downloading twice when it is deployed as a build script
-function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_dir; artifacts_cache_dir = artifacts_cache())
+function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_dir; artifacts_cache_dir = artifacts_cache(), skip_packages = [])
 
     if !haskey(platform, "julia_version")
         platform = deepcopy(platform)
@@ -145,6 +145,10 @@ function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_d
         Artifacts.ARTIFACTS_DIR_OVERRIDE[] = artifacts_cache_dir
 
         for dir in readdir(modules_dir)
+
+            if dir in skip_packages
+                continue
+            end
 
             artifacts_toml = joinpath(modules_dir, dir, "Artifacts.toml")
 
@@ -359,9 +363,10 @@ pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
     incremental::Bool = true
     julia_version::VersionNumber = get_julia_version(source)
     target_instantiation::Bool = VERSION.minor != julia_version.minor
+    use_stdlib_dir::Bool = false
 end
 
-PkgImage(source; precompile = true, incremental = true, julia_version = get_julia_version(source), target_instantiation=VERSION.minor != julia_version.minor) = PkgImage(; source, precompile, incremental, julia_version, target_instantiation)
+PkgImage(source; precompile = true, incremental = true, julia_version = get_julia_version(source), target_instantiation=VERSION.minor != julia_version.minor, use_stdlib_dir = false) = PkgImage(; source, precompile, incremental, julia_version, target_instantiation, use_stdlib_dir)
 
 function get_module_name(source_dir)
     
@@ -568,18 +573,46 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
         validate_cross_compilation(platform)
     end
 
+    if !haskey(platform, "julia_version")
+        platform = deepcopy(platform)
+        v = product.julia_version
+        platform["julia_version"] = "$(v.major).$(v.minor).$(v.patch)" # why not string(product.version)? Test on QML
+
+    else
+        error("""
+            Cannot specify `julia_version` in both the platform and PkgImage product.
+            
+            The Julia version is already set in the PkgImage product (version $(product.version)).
+            Remove `julia_version` from the platform specification to resolve this conflict.
+            
+            Context: When building products, the platform represents the build system configuration.
+            For artifact retrieval, Julia itself is considered part of the target system, where
+            specifying the version directly in the platform is appropriate.
+            """)
+    end
+
     @info "Downloading Julia $(product.julia_version) for $platform"
     retrieve_julia(platform, "$destination"; version = product.julia_version)
 
     @info "Retrieving packages for Julia $(product.julia_version)"
-    retrieve_packages(product.source, "$destination/share/julia/packages"; julia_cmd=product.target_instantiation ? "$destination/bin/julia" : nothing)
 
-    copy_app(product.source, "$destination/share/julia/packages/$module_name")
+    packages_dir = if !product.use_stdlib_dir # Debug
+        v = product.julia_version        
+        "$destination/share/julia/stdlib/v$(v.major).$(v.minor)/" 
+    else
+        "$destination/share/julia/packages"
+    end
 
-    apply_patches(joinpath(product.source, "meta/patches"), "$destination/share/julia/packages"; overwrite=true)
+    skip_packages = isdir(packages_dir) ? readdir(packages_dir) : []
+    retrieve_packages(product.source, packages_dir; julia_cmd=product.target_instantiation ? "$destination/bin/julia" : nothing)
+
+    # redundant for julia distributions
+    copy_app(product.source, joinpath(packages_dir, module_name))
+
+    apply_patches(joinpath(product.source, "meta/patches"), packages_dir; overwrite=true)
     
     @info "Retrieving artifacts"
-    retrieve_artifacts(platform, "$destination/share/julia/packages", "$destination/share/julia/artifacts")
+    retrieve_artifacts(platform, packages_dir, "$destination/share/julia/artifacts"; skip_packages)
     # Perhaps the LOAD_PATH could be manipulated only for the compilation
     override_startup_file(product.source, "$destination/etc/julia/startup.jl"; parameters = Dict("MODULE_NAME" => module_name))
 
@@ -590,8 +623,7 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
             rm("$destination/share/julia/compiled", recursive=true)
         end
 
-        withenv("JULIA_PROJECT" => "$destination/share/julia/packages/$module_name", "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => get_cpu_target(platform)) do
-
+        withenv("JULIA_PROJECT" => joinpath(packages_dir, module_name), "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => get_cpu_target(platform)) do
             julia = "$destination/bin/julia"
             run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import $module_name"`)
         end
