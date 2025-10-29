@@ -103,13 +103,15 @@ function retrieve_packages(app_dir, packages_dir; julia_cmd=nothing)
         try
             ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
 
-            Pkg.activate(app_dir)
+            #Pkg.activate(app_dir)
+            Base.ACTIVE_PROJECT[] = app_dir
             Pkg.instantiate()
             
             retrieve_packages(packages_dir)
 
         finally
-            Pkg.activate(OLD_PROJECT)
+            #Pkg.activate(OLD_PROJECT)
+            Base.ACTIVE_PROJECT[] = OLD_PROJECT
             ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 1
         end
 
@@ -249,65 +251,6 @@ function retrieve_julia(platform::AbstractPlatform, julia_dir; version = julia_v
     return nothing
 end
 
-
-function copy_app(source, destination)
-
-    mkdir(destination)
-
-    for i in readdir(source)
-
-        (i == "build") && continue
-        (i == "meta") && continue
-
-        cp(joinpath(source, i), joinpath(destination, i))
-    end
-
-    toml_dict = TOML.parsefile(joinpath(source, "Project.toml"))
-
-    # This may be temporary
-    if haskey(toml_dict, "name") && haskey(toml_dict, "uuid")
-        module_name = toml_dict["name"]
-    else
-        #rm(joinpath(destination, "Project.toml"))
-
-        if !haskey(toml_dict, "name")
-            @warn "Name of the application not found in Project.toml"
-            toml_dict["name"] = basename(destination)
-        end
-
-        if !haskey(toml_dict, "uuid")
-            @info "Assigning UUID for the Project.toml"
-            toml_dict["uuid"] = string(uuid4())
-        end
-
-        open(joinpath(destination, "Project.toml"), "w") do io
-            TOML.print(io, toml_dict)
-        end
-    end
-    
-    module_name = toml_dict["name"]
-
-    path = joinpath(destination, "src/$module_name.jl")
-
-    if !isfile(path)
-
-        mkpath(joinpath(destination, "src"))
-
-        dependencies = toml_dict["deps"]
-        deps = join(["using $i" for i in keys(dependencies)], "\n")
-
-        write(path, """
-        module $module_name
-        $deps
-        end
-        """)
-
-    end
-
-    return
-end
-
-
 """
     get_julia_version(source::String) -> VersionNumber
 
@@ -325,6 +268,45 @@ function get_julia_version(source::String)
     end
 end
 
+function get_project_deps(source::String)
+
+    project_file = joinpath(source, "Project.toml")
+
+    isfile(project_file) || error("$project_file does not exist")
+
+    project_dict = TOML.parsefile(project_file)
+    
+    deps_list = []
+
+    if haskey(project_dict, "name")
+        if isfile(joinpath(source, "src", project_dict["name"] * ".jl"))
+            push!(deps_list, Symbol(project_dict["name"]))
+        end
+    end
+
+    if haskey(project_dict, "deps")
+        for (name, uuid) in project_dict["deps"]
+            push!(deps_list, Symbol(name))
+        end
+    end    
+
+    return deps_list
+end
+
+function get_module_name(source::String)
+
+    project_file = joinpath(source, "Project.toml")
+    project_dict = TOML.parsefile(project_file)
+    
+    if haskey(project_dict, "name")
+        if isfile(joinpath(source, "src", project_dict["name"] * ".jl"))
+            #return Symbol(project_dict["name"])
+            return project_dict["name"]
+        end
+    end
+
+    return nothing
+end
 
 """
     PkgImage(source; precompile = true, incremental = true, julia_version = get_julia_version(source))
@@ -363,24 +345,13 @@ pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
     incremental::Bool = true
     julia_version::VersionNumber = get_julia_version(source)
     target_instantiation::Bool = VERSION.minor != julia_version.minor
-    use_stdlib_dir::Bool = false
+    use_stdlib_dir::Bool = true
+    precompiled_modules::Vector{Symbol} = precompile ? get_project_deps(source) : []
 end
 
-PkgImage(source; precompile = true, incremental = true, julia_version = get_julia_version(source), target_instantiation=VERSION.minor != julia_version.minor, use_stdlib_dir = false) = PkgImage(; source, precompile, incremental, julia_version, target_instantiation, use_stdlib_dir)
+PkgImage(source; kwargs...) = PkgImage(; source, kwargs...)
 
-function get_module_name(source_dir)
-    
-    if isfile(joinpath(source_dir), "Project.toml")
-        toml_dict = TOML.parsefile(joinpath(source_dir,"Project.toml"))
-        return get(toml_dict, "name", "MainEntry")
-    else
-        @warn "Returning source directory name as last resort for module name as Project.toml not found"
-        return basename(source_dir)
-    end
-
-end
-
-function override_startup_file(source, destination; parameters = Dict())
+function override_startup_file(source, destination; module_name="")
 
     user_startup_file = joinpath(source, "meta/startup.jl")
     if isfile(user_startup_file)
@@ -389,11 +360,11 @@ function override_startup_file(source, destination; parameters = Dict())
         startup_file = joinpath(dirname(dirname(@__DIR__)), "recipes/startup.jl")
     end
     #cp(startup_file, destination, force=true)
-    install(startup_file, destination; parameters, force = true)
+    install(startup_file, destination; force=true, parameters = Dict("MODULE_NAME"=>module_name))
+    #install(startup_file, destination; force=true, parameters)
 
     return
 end
-
 
 """
     validate_cross_compilation(product::PkgImage, platform::AbstractPlatform) -> Bool
@@ -517,8 +488,22 @@ function apply_patches(source::String, destination::String; overwrite::Bool=fals
     end
 end
 
+function copy_app(source, destination)
+
+    mkdir(destination)
+
+    for i in readdir(source)
+        if i in ["build", "meta"]
+            continue
+        end
+        cp(joinpath(source, i), joinpath(destination, i))
+    end
+
+    return
+end
+
 """
-    stage(product::PkgImage, platform::AbstractPlatform, destination::String; module_name = get_module_name(product.source))
+    stage(product::PkgImage, platform::AbstractPlatform, destination::String)
 
 Stage a Julia application by downloading Julia runtime, copying packages, and optionally precompiling.
 
@@ -531,10 +516,6 @@ precompiling the application.
 - `product::PkgImage`: Package image configuration specifying source, precompilation settings, and Julia version
 - `platform::AbstractPlatform`: Target platform (e.g., `MacOS(:arm64)`, `Windows(:x86_64)`, `Linux(:x86_64)`)
 - `destination::String`: Target directory where the staged application will be created
-
-# Keyword Arguments
-- `module_name = get_module_name(product.source)`: Name of the main application module. Defaults to the 
-  name specified in Project.toml
 
 # Staging Process
 
@@ -563,11 +544,9 @@ stage(pkg, MacOS(:arm64), "build/MyApp.app/Contents/Resources/julia")
 pkg = PkgImage(app_dir; precompile = false)
 stage(pkg, Linux(:x86_64), "build/linux_staging")
 
-# Stage with specific module name
-stage(pkg, Windows(:x86_64), "build/windows_staging"; module_name = "MyCustomApp")
 ```
 """
-function stage(product::PkgImage, platform::AbstractPlatform, destination::String; module_name = get_module_name(product.source))
+function stage(product::PkgImage, platform::AbstractPlatform, destination::String)
 
     if product.precompile
         validate_cross_compilation(platform)
@@ -575,9 +554,7 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 
     if !haskey(platform, "julia_version")
         platform = deepcopy(platform)
-        v = product.julia_version
-        platform["julia_version"] = "$(v.major).$(v.minor).$(v.patch)" # why not string(product.version)? Test on QML
-
+        platform["julia_version"] = string(product.julia_version) # previously "$(v.major).$(v.minor).$(v.patch)" 
     else
         error("""
             Cannot specify `julia_version` in both the platform and PkgImage product.
@@ -596,25 +573,27 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 
     @info "Retrieving packages for Julia $(product.julia_version)"
 
-    packages_dir = if !product.use_stdlib_dir # Debug
+    packages_dir = if product.use_stdlib_dir
         v = product.julia_version        
-        "$destination/share/julia/stdlib/v$(v.major).$(v.minor)/" 
+        "$destination/share/julia/stdlib/v$(v.major).$(v.minor)/"
     else
-        "$destination/share/julia/packages"
+        @warn "Override the meta/startup.jl and meta/dmg/startup.jl manually to set the LOAD_PATH"
+        "$destination/share/julia/packages" # may be useful when libs can be upgraded
     end
 
     skip_packages = isdir(packages_dir) ? readdir(packages_dir) : []
     retrieve_packages(product.source, packages_dir; julia_cmd=product.target_instantiation ? "$destination/bin/julia" : nothing)
 
-    # redundant for julia distributions
-    copy_app(product.source, joinpath(packages_dir, module_name))
+    module_name = get_module_name(product.source)
+    if !isnothing(module_name)
+        copy_app(product.source, joinpath(packages_dir, module_name))
+    end
 
+    override_startup_file(product.source, "$destination/etc/julia/startup.jl"; module_name) 
     apply_patches(joinpath(product.source, "meta/patches"), packages_dir; overwrite=true)
     
     @info "Retrieving artifacts"
     retrieve_artifacts(platform, packages_dir, "$destination/share/julia/artifacts"; skip_packages)
-    # Perhaps the LOAD_PATH could be manipulated only for the compilation
-    override_startup_file(product.source, "$destination/etc/julia/startup.jl"; parameters = Dict("MODULE_NAME" => module_name))
 
     if product.precompile
         @info "Precompiling"
@@ -623,9 +602,9 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
             rm("$destination/share/julia/compiled", recursive=true)
         end
 
-        withenv("JULIA_PROJECT" => joinpath(packages_dir, module_name), "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => get_cpu_target(platform)) do
+        withenv("JULIA_PROJECT" => product.source, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => get_cpu_target(platform)) do
             julia = "$destination/bin/julia"
-            run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import $module_name"`)
+            run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import $(join(product.precompiled_modules, ','))"`)
         end
 
     else

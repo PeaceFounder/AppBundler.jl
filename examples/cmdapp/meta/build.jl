@@ -14,7 +14,7 @@ target_arch = config[:target_arch]
 adhoc_signing = config[:adhoc_signing]
 
 version = AppBundler.get_version(APP_DIR)
-target_name = "appbundler-$version-$(target_arch)"
+target_name = "cmdapp-$version-$(target_arch)"
 
 if :linux in target_platforms
     AppBundler.build_app(Linux(target_arch), APP_DIR, "$build_dir/$target_name.snap"; precompile, incremental)

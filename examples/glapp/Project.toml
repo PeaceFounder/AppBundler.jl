@@ -1,4 +1,5 @@
 name = "GLApp"
+uuid = "f2327db0-a815-49ae-b1d5-b75d60dca6ce"
 version = "0.0.1"
 
 [deps]

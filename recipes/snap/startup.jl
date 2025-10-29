@@ -1,15 +1,13 @@
 # Need to set up environment variables just like done on macos and windows
 
-#libdir = dirname(dirname(dirname(@__DIR__)))
 libdir = dirname(dirname(@__DIR__))
 
 empty!(LOAD_PATH)
-push!(LOAD_PATH, "@", joinpath(libdir, "share/julia/packages"), joinpath(libdir, "share/julia/packages/{{MODULE_NAME}}"), "@stdlib")
-#push!(LOAD_PATH, joinpath(libdir, "packages"), "@stdlib", "@")
+push!(LOAD_PATH, "@", "@stdlib")
+isempty("{{MODULE_NAME}}") || push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}"))
 
 empty!(DEPOT_PATH)
 push!(DEPOT_PATH, joinpath(libdir, "share/julia"))
-#push!(DEPOT_PATH, libdir, joinpath(libdir, "julia/share/julia"))
 
 if haskey(ENV, "SNAP")
     @info "Application running as SNAP"
@@ -31,7 +29,7 @@ else
 
 end
 
-#Base.ACTIVE_PROJECT[] = joinpath(libdir, "{{MODULE_NAME}}")
+Base.ACTIVE_PROJECT[] = ENV["USER_DATA"]
 
 @info "Active project is $(Base.ACTIVE_PROJECT[])"
 @info "LOAD_PATH = $LOAD_PATH"
@@ -43,6 +41,8 @@ function __precompile__()
     @eval import {{MODULE_NAME}}
 end
 
-# function __main__()
-#     @eval include(joinpath(Base.ACTIVE_PROJECT[], "main.jl"))
-# end
+if isinteractive() && !isempty("{{MODULE_NAME}}") && isempty(ARGS)
+    julia = relpath(joinpath(Sys.BINDIR, "julia"), pwd())
+    println("No arguments provided. To display help, use:")
+    println("  $julia --eval \"using {{MODULE_NAME}}\" --help")
+end
