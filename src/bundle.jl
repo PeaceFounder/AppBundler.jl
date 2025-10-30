@@ -11,7 +11,9 @@ function get_bundle_parameters(project_toml)
 
     parameters = Dict{String, Any}()
 
-    parameters["MODULE_NAME"] = get(toml_dict, "name", "MainEntry")
+    if haskey(toml_dict, "name") && isfile(joinpath(dirname(project_toml), "src", toml_dict["name"] * ".jl"))
+        parameters["MODULE_NAME"] = toml_dict["name"]
+    end
 
     app_name = haskey(toml_dict, "APP_NAME") ? toml_dict["APP_NAME"] : haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
     parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))

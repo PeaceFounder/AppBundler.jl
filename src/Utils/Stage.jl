@@ -300,7 +300,6 @@ function get_module_name(source::String)
     
     if haskey(project_dict, "name")
         if isfile(joinpath(source, "src", project_dict["name"] * ".jl"))
-            #return Symbol(project_dict["name"])
             return project_dict["name"]
         end
     end
@@ -584,7 +583,7 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
     skip_packages = isdir(packages_dir) ? readdir(packages_dir) : []
     retrieve_packages(product.source, packages_dir; julia_cmd=product.target_instantiation ? "$destination/bin/julia" : nothing)
 
-    module_name = get_module_name(product.source)
+    @show module_name = get_module_name(product.source)
     if !isnothing(module_name)
         copy_app(product.source, joinpath(packages_dir, module_name))
     end

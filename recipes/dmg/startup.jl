@@ -20,8 +20,6 @@ empty!(LOAD_PATH)
 push!(LOAD_PATH, "@", "@stdlib")
 isempty("{{MODULE_NAME}}") || push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}")) # 
 
-#push!(LOAD_PATH, "@", joinpath(libdir, "share/julia/packages"), "@stdlib", joinpath(libdir, "share/julia/packages/{{MODULE_NAME}}"))
-
 # Modify DEPOT_PATH (equivalent to JULIA_DEPOT_PATH)
 empty!(DEPOT_PATH)
 push!(DEPOT_PATH, user_depot, joinpath(libdir, "share/julia"))
