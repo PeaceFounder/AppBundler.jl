@@ -25,8 +25,6 @@ src_dir = joinpath(dirname(@__DIR__), "examples/glapp")
 #src_dir = joinpath(dirname(@__DIR__), "examples/qmlapp")
 #src_dir = joinpath(dirname(@__DIR__), "examples/mousetrap")
 
-@show build_dir = mktempdir()
-
 if Sys.islinux()
     platform = Linux(Sys.ARCH)
 elseif Sys.isapple()
@@ -36,7 +34,7 @@ elseif Sys.iswindows()
 end
 
 product_spec = PkgImage(src_dir; precompile = true)
-stage(product_spec, platform, build_dir)
+stage(product_spec, platform, mktempdir())
 
 product_spec = PkgImage(src_dir; precompile = false, target_instantiation = true)
-stage(product_spec, platform, build_dir)
+stage(product_spec, platform, mktempdir())

@@ -18,7 +18,8 @@ function get_bundle_parameters(project_toml)
     app_name = haskey(toml_dict, "APP_NAME") ? toml_dict["APP_NAME"] : haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
     parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
     #parameters["APP_DIR_NAME"] = haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
-    parameters["APP_VERSION"] = haskey(toml_dict, "version") ? toml_dict["version"] : "0.0.1"
+    #parameters["APP_VERSION"] = haskey(toml_dict, "version") ? toml_dict["version"] : "0.0.1"
+    parameters["APP_VERSION"] = get(toml_dict, "version", "0.0.1")
 
     # Setting defaults
     parameters["APP_DISPLAY_NAME"] = app_name #parameters["APP_NAME"]
@@ -93,6 +94,7 @@ struct MSIX
     skip_symlinks::Bool
     skip_unicode_paths::Bool
     pfx_cert::Union{String, Nothing} 
+    windowed::Bool
     parameters::Dict
 end
 
@@ -107,10 +109,11 @@ function MSIX(;
               skip_symlinks = true,
               skip_unicode_paths = true,
               pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
-              parameters = Dict()
+              windowed = true,
+              parameters = Dict("WINDOWED" => windowed)
               )
     
-    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, pfx_cert, parameters)
+    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, pfx_cert, windowed, parameters)
 end
 
 """
@@ -137,14 +140,15 @@ msix = MSIX(app_dir)
 msix = MSIX(app_dir; skip_long_paths = true)
 ```
 """
-function MSIX(overlay; kwargs...)
+function MSIX(overlay; windowed = true, kwargs...)
     
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
 
     # ToDo: refactor setting of the defaults
     parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
+    parameters["WINDOWED"] = windowed
 
-    return MSIX(; prefix, parameters, kwargs...)
+    return MSIX(; prefix, parameters, windowed, kwargs...)
 end
 
 
@@ -189,6 +193,7 @@ struct Snap # by extensions files could have multiple modes that are set via sta
     snap_config::String
     desktop_launcher::String
     configure_hook::String # needs to be enabled when staging
+    windowed::Bool
     parameters::Dict
 end
 
@@ -198,10 +203,11 @@ function Snap(;
               snap_config = get_path(prefix, "snap/snap.yaml"),
               desktop_launcher = get_path(prefix, "snap/main.desktop"),
               configure_hook = get_path(prefix, "snap/configure.sh"),
-              parameters = Dict()
+              windowed = true,
+              parameters = Dict("WINDOWED" => windowed)
               )
 
-    return Snap(icon, snap_config, desktop_launcher, configure_hook, parameters)
+    return Snap(icon, snap_config, desktop_launcher, configure_hook, windowed, parameters)
 end
 
 """
@@ -228,13 +234,14 @@ snap = Snap(app_dir)
 snap = Snap(app_dir; icon = "custom_icon.png")
 ```
 """
-function Snap(overlay; kwargs...)
+function Snap(overlay; windowed = true, kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     
     parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
+    parameters["WINDOWED"] = windowed
 
-    return Snap(; prefix, parameters, kwargs...)
+    return Snap(; prefix, parameters, windowed, kwargs...)
 end
 
 """
@@ -281,6 +288,7 @@ struct DMG
     dsstore::String # if it's toml then use it as source for parsing
     pfx_cert::Union{String, Nothing}
     #notary::Nothing
+    windowed::Bool
     parameters::Dict
 end
 
@@ -292,10 +300,11 @@ function DMG(;
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
              dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
              pfx_cert = get_path(prefix, "dmg/certificate.pfx"),
-             parameters = Dict()
+             windowed = true,
+             parameters = Dict("WINDOWED" => windowed)
              )
 
-    return DMG(icon, info_config, entitlements, dsstore, pfx_cert, parameters)
+    return DMG(icon, info_config, entitlements, dsstore, pfx_cert, windowed, parameters)
 end
 
 """
@@ -322,13 +331,14 @@ dmg = DMG(app_dir)
 dmg = DMG(app_dir; icon = "custom_icon.icns")
 ```
 """
-function DMG(overlay; kwargs...)
+function DMG(overlay; windowed = true, kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     
     parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
+    parameters["WINDOWED"] = windowed
 
-    return DMG(; prefix, parameters, kwargs...)
+    return DMG(; prefix, parameters, windowed, kwargs...)
 end
 
 """
@@ -363,7 +373,6 @@ function stage(msix::MSIX, destination::String)
 
     if isdir(msix.icon)
         @info "Treating icon path as assets directory"
-        #install(msix.icon, joinpath(destination, "Assets"))
         cp(msix.icon, joinpath(destination, "Assets"))
     else
         MSIXIcons.generate_app_icons(msix.icon, joinpath(destination, "Assets")) 

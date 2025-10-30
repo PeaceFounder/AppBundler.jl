@@ -31,18 +31,12 @@ end
 
 Base.ACTIVE_PROJECT[] = ENV["USER_DATA"]
 
-@info "Active project is $(Base.ACTIVE_PROJECT[])"
-@info "LOAD_PATH = $LOAD_PATH"
-@info "DEPOT_PATH = $DEPOT_PATH"
-@info "USER_DATA = $(ENV["USER_DATA"])"
-
 function __precompile__()
-    popfirst!(DEPOT_PATH)
-    @eval import {{MODULE_NAME}}
+    if !isempty("{{PRECOMPILED_MODULES}}")
+        popfirst!(DEPOT_PATH)
+        popfirst!(LOAD_PATH)
+        @eval import {{PRECOMPILED_MODULES}}
+    end
 end
 
-if isinteractive() && !isempty("{{MODULE_NAME}}") && isempty(ARGS)
-    julia = relpath(joinpath(Sys.BINDIR, "julia"), pwd())
-    println("No arguments provided. To display help, use:")
-    println("  $julia --eval \"using {{MODULE_NAME}}\" --help")
-end
+include("common.jl")

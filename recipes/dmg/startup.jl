@@ -18,7 +18,7 @@ libdir = dirname(dirname(@__DIR__))
 
 empty!(LOAD_PATH)
 push!(LOAD_PATH, "@", "@stdlib")
-isempty("{{MODULE_NAME}}") || push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}")) # 
+isempty("{{MODULE_NAME}}") || push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}"))
 
 # Modify DEPOT_PATH (equivalent to JULIA_DEPOT_PATH)
 empty!(DEPOT_PATH)
@@ -26,13 +26,4 @@ push!(DEPOT_PATH, user_depot, joinpath(libdir, "share/julia"))
 
 Base.ACTIVE_PROJECT[] = ENV["USER_DATA"]
 
-@info "Active project is $(Base.ACTIVE_PROJECT[])"
-@info "LOAD_PATH = $LOAD_PATH"
-@info "DEPOT_PATH = $DEPOT_PATH"
-@info "USER_DATA = $(ENV["USER_DATA"])"
-
-if isinteractive() && !isempty("{{MODULE_NAME}}") && isempty(ARGS)
-    julia = relpath(joinpath(Sys.BINDIR, "julia"), pwd())
-    println("No arguments provided. To display help, use:")
-    println("  $julia --eval \"using {{MODULE_NAME}}\" --help")
-end
+include("common.jl")

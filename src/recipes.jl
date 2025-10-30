@@ -11,6 +11,9 @@ function bundle(product::PkgImage, dmg::DMG, destination::String; compress::Bool
         startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/startup.jl")
         install(startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters = dmg.parameters, force = true)
 
+        common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
+        install(common_file, joinpath(app_stage, "Contents/Libraries/etc/julia/common.jl"); parameters = dmg.parameters)
+
         # main redirect
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
         install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true)
@@ -21,6 +24,8 @@ function bundle(product::PkgImage, dmg::DMG, destination::String; compress::Bool
 end
 
 function bundle(product::PkgImage, snap::Snap, destination::String; compress::Bool = isext(dest, ".snap"), force = false, arch = :x86_64)
+
+    snap.parameters["PRECOMPILED_MODULES"] = join(product.precompiled_modules, ", ")
     
     bundle(snap, destination; compress, force, install_configure = true) do app_stage
         
@@ -28,7 +33,9 @@ function bundle(product::PkgImage, snap::Snap, destination::String; compress::Bo
 
         startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/startup.jl")
         install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = snap.parameters, force = true)
-        
+
+        common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
+        install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = snap.parameters)
         
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/main.sh")
         app_name = snap.parameters["APP_NAME_LOWERCASE"]
@@ -48,7 +55,7 @@ function normalize_executable(path::String)
     return
 end
 
-function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bool = isext(dest, ".msix"), force = false, arch = :x86_64, windowed = true)
+function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bool = isext(dest, ".msix"), force = false, arch = :x86_64)
 
     bundle(msix, destination; compress, force) do app_stage
         
@@ -58,14 +65,17 @@ function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bo
         # Executables extracted from tar archives carry Unix-style metadata that causes 
         # Windows AppX validation to fail with "The parameter is incorrect" when launched 
         # from the Start Menu.
-        normalize_executable("$app_stage/bin/julia.exe")
-   
+        Sys.iswindows() && normalize_executable("$app_stage/bin/julia.exe")
+        
         touch("$app_stage/bin/julia.exe") # updating timestamp to avoid Invalid Parameter error
 
         startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "msix/startup.jl")
         install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
+
+        common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
+        install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = msix.parameters)
         
-        if windowed
+        if msix.windowed
             WinSubsystem.change_subsystem_inplace("$app_stage/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
             WinSubsystem.change_subsystem_inplace("$app_stage/bin/lld.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
         end
@@ -111,12 +121,13 @@ The `source` directory is expected to have the following structure:
 - `Manifest.toml`: Dependency lock file
 - `src/`: Directory containing application source code with a `main` entry point
 - `meta/` (optional): Directory containing customizations
+  - `common.jl` (optional): Platform common startup.jl
   - `msix/` (optional): Platform-specific customizations
     - `certificate.pfx` (optional): Code signing certificate
     - `AppxManifest.xml` (optional): Custom MSIX manifest template
     - `resources.pri` (optional): Custom package resource index
     - `MSIXAppInstallerData.xml` (optional): Custom installer configuration
-    - `startup.jl` (optional): Custom application launcher script
+    - `startup.jl` (optional): Platform specific startup.jl
 
 # Examples
 ```julia
@@ -136,14 +147,14 @@ build_app(Windows(:x86_64), source, "MyApp.msix"; precompile = false)
 function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false)
 
     if adhoc_signing
-        msix = MSIX(source; pfx_cert=nothing)
+        msix = MSIX(source; windowed, pfx_cert=nothing)
     else
-        msix = MSIX(source)
+        msix = MSIX(source; windowed)
     end
 
     product = PkgImage(source; precompile, incremental)
     
-    return bundle(product, msix, destination; compress, force, windowed, arch = arch(platform))
+    return bundle(product, msix, destination; compress, force, arch = arch(platform))
 end
 
 
@@ -178,12 +189,13 @@ The `source` directory is expected to have the following structure:
 - `Manifest.toml`: Dependency lock file
 - `src/`: Directory containing application source code with a `main` entry point
 - `meta/` (optional): Directory containing customizations
+  - `common.jl` (optional): Platform common startup.jl
   - `snap/` (optional): Platform-specific customizations
     - `icon.png` (optional): Custom application icon
     - `snap.yaml` (optional): Custom Snap metadata template
     - `main.desktop` (optional): Custom desktop entry template
     - `configure.sh` (optional): Custom configuration hook script
-    - `startup.jl` (optional): Custom application launcher script
+    - `startup.jl` (optional): Platform specific startup.jl
 
 # Examples
 ```julia
@@ -200,11 +212,11 @@ build_app(Linux(:aarch64), source, "MyApp.snap")
 build_app(Linux(:x86_64), source, "MyApp.snap"; precompile = false)
 ```
 """
-function build_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"), precompile = true, incremental = true, force = false)
+function build_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"), precompile = true, incremental = true, force = false, windowed = true)
 
-    snap = Snap(source)
+    snap = Snap(source; windowed)
     product = PkgImage(source; precompile, incremental)
-    
+
     return bundle(product, snap, destination; compress, force, arch = arch(platform))
 end
 
@@ -242,13 +254,14 @@ The `source` directory is expected to have the following structure:
 - `Manifest.toml`: Dependency lock file
 - `src/`: Directory containing application source code with a `main` entry point
 - `meta/` (optional): Directory containing customizations
+  - `common.jl` (optional): Platform common startup.jl
   - `dmg/` (optional): Platform-specific customizations
     - `certificate.pfx` (optional): Code signing certificate
     - `Entitlements.plist` (optional): Custom entitlements file
     - `Info.plist` (optional): Custom app metadata template
     - `DS_Store` or `DS_Store.toml` (optional): DMG appearance configuration
     - `icon.icns` or `icon.png` (optional): Custom application icon
-    - `startup.jl` (optional): Custom application launcher script
+    - `startup.jl` (optional): Platform specific startup.jl
 
 # Examples
 ```julia
@@ -262,16 +275,15 @@ build_app(MacOS(:aarch64), source, "MyApp.dmg")
 build_app(MacOS(:aarch64), source, "MyApp.dmg"; precompile = false)
 ```
 """
-function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, adhoc_signing = false)
+function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false)
 
     if adhoc_signing
-        dmg = DMG(source; pfx_cert=nothing)
+        dmg = DMG(source; windowed, pfx_cert=nothing)
     else
-        dmg = DMG(source)
+        dmg = DMG(source; windowed)
     end
 
     product = PkgImage(source; precompile, incremental)
     
     return bundle(product, dmg, destination; compress, force, arch = arch(platform))
 end
-

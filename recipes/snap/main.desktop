@@ -4,6 +4,6 @@ Exec={{APP_NAME_LOWERCASE}}
 Icon=${SNAP}/meta/icon.png
 Version={{APP_VERSION}}
 Comment={{APP_SUMMARY}}
-Terminal=false
+Terminal={{#WINDOWED}}false{{/WINDOWED}}{{^WINDOWED}}true{{/WINDOWED}}
 Type=Application
 Categories=Utility;

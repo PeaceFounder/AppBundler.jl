@@ -52,14 +52,4 @@ push!(DEPOT_PATH, user_depot, joinpath(libdir, "share/julia"))
 
 Base.ACTIVE_PROJECT[] = ENV["USER_DATA"]
 
-@info "Active project is $(Base.ACTIVE_PROJECT[])"
-@info "LOAD_PATH = $LOAD_PATH"
-@info "DEPOT_PATH = $DEPOT_PATH"
-@info "USER_DATA = $(ENV["USER_DATA"])"
-
-if isinteractive() && !isempty("{{MODULE_NAME}}") && isempty(ARGS)
-    println("No arguments provided. To display help, use:")
-    println("  {{APP_NAME}}.exe --eval \"using {{MODULE_NAME}}\" --help")
-end
-
-
+include("common.jl")

@@ -137,7 +137,7 @@ function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_d
 
     if !haskey(platform, "julia_version")
         platform = deepcopy(platform)
-        platform["julia_version"] = join([VERSION.major, VERSION.minor, VERSION.patch], ".")
+        platform["julia_version"] = string(VERSION)
     end
 
     mkdir(artifacts_dir)
