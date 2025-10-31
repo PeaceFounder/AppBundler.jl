@@ -1,7 +1,8 @@
 using Pkg
 using Conda
 
-Conda.pip_interop(true)
+#Conda.pip_interop(true)
+Conda.pip_interop(true, env=Conda.ROOTENV)
 Conda.pip("install", "ds_store")
 
 # Force Julia to use the Conda Python
