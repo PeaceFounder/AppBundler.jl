@@ -68,6 +68,53 @@ end
 # Base methods
 Base.show(io::IO, img::HFSImage) = print(io, "HFSImage(\"$(img.path)\")")
 
+"""
+    parse_ls_line(line::String) -> Vector{String}
+
+Parse an HFS+ ls output line correctly, handling padded dates.
+Format: permissions user group size date time filename
+Example: "040755 501  20            1 10/ 1/2025 20:31 gtkapp.app"
+
+Returns a vector where:
+- parts[1] = permissions
+- parts[2] = user
+- parts[3] = group  
+- parts[4] = size
+- parts[5] = date (e.g., "10/1/2025")
+- parts[6] = time
+- parts[7:end] = filename
+"""
+function parse_ls_line(line::AbstractString)
+    tokens = split(line)
+    
+    if length(tokens) < 7
+        return tokens
+    end
+    
+    # First 4 parts: permissions, user, group, size
+    parts = tokens[1:4]
+    
+    # Find date components (tokens with '/') and concatenate them
+    idx = 5
+    date_str = ""
+    while idx <= length(tokens) && occursin('/', tokens[idx])
+        date_str *= tokens[idx]
+        idx += 1
+    end
+    push!(parts, date_str)
+    
+    # Next is time (contains ':')
+    if idx <= length(tokens) && occursin(':', tokens[idx])
+        push!(parts, tokens[idx])
+        idx += 1
+    end
+    
+    # Remaining tokens are the filename
+    append!(parts, tokens[idx:end])
+
+    return parts
+end
+
 # Core function to list directory contents
 function _list_directory(img::HFSImage, dir_path::String)::Vector{String}
     entries = String[]
@@ -75,7 +122,7 @@ function _list_directory(img::HFSImage, dir_path::String)::Vector{String}
     try
         # Redirect stderr to suppress verbose hfsplus output
         listing_output = read(pipeline(`$(hfsplus()) $(img.path) ls $dir_path`, stderr=devnull), String)
-        
+
         for line in split(listing_output, '\n')
             line = strip(line)
             
@@ -85,7 +132,7 @@ function _list_directory(img::HFSImage, dir_path::String)::Vector{String}
             end
             
             # Parse ls output: permissions user group size date time filename
-            parts = split(line)
+            parts = parse_ls_line(line)
             if length(parts) >= 7
                 filename = join(parts[7:end], " ")
                 
@@ -112,7 +159,7 @@ function _list_directory(img::HFSImage, dir_path::String)::Vector{String}
     catch e
         @warn "Error listing directory $dir_path: $e"
     end
-
+    
     return entries
 end
 
@@ -168,7 +215,7 @@ function query(img::HFSImage, path::String)
                 continue
             end
             
-            parts = split(line)
+            parts = parse_ls_line(line)
             if length(parts) >= 7
                 permissions = parts[1]
                 size_str = parts[4]
