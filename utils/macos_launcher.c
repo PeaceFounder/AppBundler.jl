@@ -8,7 +8,7 @@
 
 const int PATH_MAX = 1024;
 
-int main(void) {
+int main(int argc, char *argv[]) {
   // Hardcoded relative path to the executable
   //char *relativeExecutablePath = "main";  
   char *relativeExecutablePath = "../Libraries/main";  
@@ -29,13 +29,8 @@ int main(void) {
   char executablePath[PATH_MAX];
   snprintf(executablePath, sizeof(executablePath), "%s/%s", launcherDir, relativeExecutablePath);
 
-  // Prepare the arguments array for the new process
-  // The first argument should be the name of the executable
-  // The rest of the arguments are passed to the new process
-  char *argv[] = {
-    executablePath,
-    NULL
-  };
+  // Replace the first argument with the executable path
+  argv[0] = executablePath;
 
   // Replace the current process with the new process
   execvp(executablePath, argv);
