@@ -4,6 +4,7 @@ import squashfs_tools_jll: mksquashfs, unsquashfs
 
 function pack(source, destination)
 
+    chmod(source, 0o755)
     run(`$(mksquashfs()) $source $destination -noappend -comp xz`)
 
     return

@@ -40,7 +40,7 @@ function parse_args(raw_args)
             if i > length(args)
                 error("--build-dir requires a value")
             end
-            build_dir = args[i]
+            build_dir = expanduser(args[i])
             if build_dir == "@temp"
                 config[:build_dir] = mktempdir()
             else

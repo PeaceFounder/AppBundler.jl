@@ -3,4 +3,4 @@
 SCRIPT_DIR=$(dirname "$0")
 
 JULIA="$SCRIPT_DIR/julia"
-$JULIA --eval="using {{MODULE_NAME}}"
+$JULIA {{#MODULE_NAME}}--eval="using {{MODULE_NAME}}" -- {{/MODULE_NAME}} $@

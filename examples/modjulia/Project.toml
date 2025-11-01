@@ -1,0 +1,5 @@
+name = "modjulia"
+version = "25.11.27"
+
+[deps]
+Mods = "7475f97c-0381-53b1-977b-4c60186c8d62"

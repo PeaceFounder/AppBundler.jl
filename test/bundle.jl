@@ -83,7 +83,7 @@ end
     @test hash_stage() do dest
         stage(msix, dest)
         AppBundler.MSIXPack.update_publisher_in_manifest(joinpath(dest, "AppxManifest.xml"), "AppBundler")
-    end == "98d3bb9f120f6f85e7a16169c3dcb36b81c38626674f5c1cfe9ad03f00edfd66" 
+    end == "1fcfcd7a0c13a465b0f4c530770291db6a0e9424853cde28727668c3f643eeeb"
 
     @test hash_stage() do stage_dir
 
@@ -104,7 +104,7 @@ end
         # @test hash_file(joinpath(stage_dir, "AppxBlockMap.xml")) == "70ff6695ec913326f645c1cd30e48f75f57545ee4ae546db5843bf0779e6ee7e"
         rm(joinpath(stage_dir, "AppxBlockMap.xml")) # AppxBlockMap.xml has a slight nondeterminism
 
-    end == "98d3bb9f120f6f85e7a16169c3dcb36b81c38626674f5c1cfe9ad03f00edfd66" 
+    end == "1fcfcd7a0c13a465b0f4c530770291db6a0e9424853cde28727668c3f643eeeb"
 end
 
 if Sys.isunix()

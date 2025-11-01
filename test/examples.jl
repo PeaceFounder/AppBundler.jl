@@ -55,3 +55,15 @@ end
     AppBundler.install_github_workflow(; root = app_dir, force = true)
     @eval include("../examples/electronapp/meta/build.jl")
 end 
+
+@testset "CmdApp" begin
+    app_dir = joinpath(dirname(@__DIR__), "examples/cmdapp")
+    AppBundler.install_github_workflow(; root = app_dir, force = true)
+    @eval include("../examples/cmdapp/meta/build.jl")
+end 
+
+@testset "ModJulia" begin
+    app_dir = joinpath(dirname(@__DIR__), "examples/modjulia")
+    AppBundler.install_github_workflow(; root = app_dir, force = true)
+    @eval include("../examples/modjulia/meta/build.jl")
+end 
