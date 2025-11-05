@@ -1,5 +1,5 @@
 **/.DS_Store
 **/build
-/Manifest.toml
+Manifest.toml
 /deps/build.log
 /examples/glapp/.github
