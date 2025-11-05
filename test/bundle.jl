@@ -119,7 +119,7 @@ if Sys.isunix()
             stage(dmg, joinpath(dest, "gtkapp.app"); dsstore=true, main_redirect=true)
             AppBundler.DMGPack.replace_binary_with_hash(joinpath(dest, "gtkapp.app/Contents/MacOS/gtkapp"))
             rm("$dest/Applications")
-        end == "e26f0ac440d5a1f4aef3d2833f3c658bce705fc60ce6710f1d4e06956f05076b"
+        end == "475c21a0947fe2e7a217581982ea574854da395ae78e06e341d646565fca501a"
 
         @test hash_stage() do stage_dir
 
@@ -139,7 +139,7 @@ if Sys.isunix()
             @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "gtkapp.app/Contents/MacOS/gtkapp"))
             rm("$stage_dir/gtkapp.app/Contents/_CodeSignature"; recursive=true)
 
-        end == "e26f0ac440d5a1f4aef3d2833f3c658bce705fc60ce6710f1d4e06956f05076b"
+        end == "475c21a0947fe2e7a217581982ea574854da395ae78e06e341d646565fca501a"
     end
 
     # # -------------------- SNAP -----------------
