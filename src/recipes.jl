@@ -275,12 +275,12 @@ build_app(MacOS(:aarch64), source, "MyApp.dmg")
 build_app(MacOS(:aarch64), source, "MyApp.dmg"; precompile = false)
 ```
 """
-function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false)
+function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false, hfsplus = false)
 
     if adhoc_signing
-        dmg = DMG(source; windowed, pfx_cert=nothing)
+        dmg = DMG(source; windowed, hfsplus, pfx_cert=nothing)
     else
-        dmg = DMG(source; windowed)
+        dmg = DMG(source; windowed, hfsplus)
     end
 
     product = PkgImage(source; precompile, incremental)

@@ -33,7 +33,7 @@ The function assumes that `app_stage` points to a properly structured macOS appl
 - `compression::Union{Symbol, Nothing} = :lzma`: Compression algorithm to use for the DMG. Options are `:lzma`, `:bzip2`, `:zlib`, `:lzfse`, or `nothing` for no compression
 - `installer_title::String = "Installer"`: Volume name for the DMG
 """
-function pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer")
+function pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer", hardened_runtime = true, shallow_signing = true, hfsplus = false)
 
     isfile(entitlements) || error("Entitlements at $entitlements not found")
     isnothing(compression) || compression in [:lzma, :bzip2, :zlib, :lzfse] || error("Compression can only be `compression=[:lzma|:bzip|:zlib|:lzfse]`")
@@ -46,17 +46,24 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
     end
 
     @info "Codesigning application bundle at $app_stage with certificate at $pfx_path"
-    
-    run(`$(rcodesign()) sign --shallow --p12-file "$pfx_path" --p12-password "$password" --entitlements-xml-path "$entitlements" "$app_stage"`) # perhaps this command affects the DS_Store? 
-    
+    shallow_flag = shallow_signing ? `--shallow` : ``
+    runtime_flag = hardened_runtime ? `--code-signature-flags runtime` : ``
+    run(`$(rcodesign()) sign $shallow_flag --p12-file "$pfx_path" --p12-password "$password" $runtime_flag --entitlements-xml-path "$entitlements" "$app_stage"`)
+
     if !isnothing(compression)
 
         @info "Setting up packing stage at $(dirname(app_stage))"
+        run(`find $(dirname(app_stage)) -name '._*' -delete`)
+        #run(`find $(dirname(app_stage)) -name '.DS_Store' -delete`)
+        run(`xattr -cr $(dirname(app_stage))`)
 
-        iso_stage = tempname()
+        @info "Setting up packing stage at $(dirname(app_stage))"
+
+        iso_stage = tempname() 
 
         @info "Forming iso archive with xorriso at $iso_stage"
-        run(`$(xorriso()) -as mkisofs -V "$installer_title" -hfsplus -hfsplus-file-creator-type APPL APPL $(basename(app_stage)) -hfs-bless-by x / -relaxed-filenames -no-pad -o $iso_stage $(dirname(app_stage))`)
+        hfsplus_flag = hfsplus ? `-hfsplus` : ``
+        run(`$(xorriso()) -as mkisofs -V "$installer_title" $hfsplus_flag -relaxed-filenames -D -R -no-pad -o $iso_stage $(dirname(app_stage))`)
 
         @info "Compressing iso to dmg with $compression algorithm at $destination"
         run(`$(dmg()) dmg $iso_stage $destination --compression=$compression`)
@@ -73,7 +80,6 @@ function unpack(source, destination)
     raw_image = tempname()
     run(`$(dmg()) extract $source $raw_image`)
     HFS.extract_hfs_filesystem(raw_image, destination)
-
     HFS.explore_hfs_image(raw_image)
 
     return

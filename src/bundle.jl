@@ -244,6 +244,8 @@ function Snap(overlay; windowed = true, kwargs...)
     return Snap(; prefix, parameters, windowed, kwargs...)
 end
 
+# TODO: mention that application needs to be notarized by Apple. That can be done outside the build process by stapling already signed DMG archive. 
+
 """
     DMG(; prefix, icon, info_config, entitlements, dsstore, pfx_cert, parameters)
 
@@ -287,7 +289,9 @@ struct DMG
     entitlements::String
     dsstore::String # if it's toml then use it as source for parsing
     pfx_cert::Union{String, Nothing}
-    #notary::Nothing
+    shallow_signing::Bool
+    hardened_runtime::Bool
+    hfsplus::Bool
     windowed::Bool
     parameters::Dict
 end
@@ -300,11 +304,14 @@ function DMG(;
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
              dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
              pfx_cert = get_path(prefix, "dmg/certificate.pfx"),
+             shallow_signing = true,
+             hardened_runtime = true,
+             hfsplus = false,
              windowed = true,
              parameters = Dict("WINDOWED" => windowed)
              )
 
-    return DMG(icon, info_config, entitlements, dsstore, pfx_cert, windowed, parameters)
+    return DMG(icon, info_config, entitlements, dsstore, pfx_cert, shallow_signing, hardened_runtime, hfsplus, windowed, parameters)
 end
 
 """
@@ -625,7 +632,7 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     # These ._* files typically appear alongside executable .jl or .sh files in the Julia stdlib.
     run(`find $app_stage -name "._*" -delete`)
     
-    DMGPack.pack(app_stage, destination, dmg.entitlements; pfx_path = dmg.pfx_cert, password, compression = compress ? compression : nothing, installer_title)
+    DMGPack.pack(app_stage, destination, dmg.entitlements; pfx_path = dmg.pfx_cert, password, compression = compress ? compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, hfsplus = dmg.hfsplus)
 
     return
 end
