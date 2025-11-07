@@ -52,13 +52,6 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
 
     if !isnothing(compression)
 
-        @info "Setting up packing stage at $(dirname(app_stage))"
-        run(`find $(dirname(app_stage)) -name '._*' -delete`)
-        #run(`find $(dirname(app_stage)) -name '.DS_Store' -delete`)
-        run(`xattr -cr $(dirname(app_stage))`)
-
-        @info "Setting up packing stage at $(dirname(app_stage))"
-
         iso_stage = tempname() 
 
         @info "Forming iso archive with xorriso at $iso_stage"
