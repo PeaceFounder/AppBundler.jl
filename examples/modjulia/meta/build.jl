@@ -26,7 +26,5 @@ if :windows in target_platforms
 end
 
 if :macos in target_platforms
-    rm("$build_dir/$target_name.app", force=true, recursive=true)
-    AppBundler.build_app(MacOS(target_arch), APP_DIR, "$build_dir/$target_name"; precompile, incremental, adhoc_signing, windowed)
-    mv("$build_dir/$target_name", "$build_dir/$target_name.app")
+    AppBundler.build_app(MacOS(target_arch), APP_DIR, "$build_dir/$target_name.dmg"; precompile, incremental, adhoc_signing, windowed)
 end
