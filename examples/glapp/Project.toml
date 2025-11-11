@@ -3,7 +3,11 @@ uuid = "f2327db0-a815-49ae-b1d5-b75d60dca6ce"
 version = "0.0.1"
 
 [deps]
+Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 GLAbstraction = "ca6e7d0a-b0c9-59ca-8aba-aebf11497e1c"
 GLFW = "f7f18e0c-5ee9-5ccd-a5bf-e8befd85ed98"
 ModernGL = "66fc600b-dfda-50eb-8b99-91cfa97b1301"
 SignedDistanceFields = "73760f76-fbc4-59ce-8f25-708e95d2df96"
+
+[compat]
+Compat = "4.18.1"

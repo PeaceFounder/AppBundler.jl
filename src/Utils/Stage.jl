@@ -133,7 +133,7 @@ end
 
 # If one wishes he can specify artifacts_cache directory to be that in DEPOT_PATH 
 # That way one could avoid downloading twice when it is deployed as a build script
-function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_dir; artifacts_cache_dir = artifacts_cache(), skip_packages = [])
+function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_dir; artifacts_cache_dir = artifacts_cache())
 
     if !haskey(platform, "julia_version")
         platform = deepcopy(platform)
@@ -147,10 +147,6 @@ function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_d
         Artifacts.ARTIFACTS_DIR_OVERRIDE[] = artifacts_cache_dir
 
         for dir in readdir(modules_dir)
-
-            if dir in skip_packages
-                continue
-            end
 
             artifacts_toml = joinpath(modules_dir, dir, "Artifacts.toml")
 
@@ -586,13 +582,15 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
     module_name = get_module_name(product.source)
     if !isnothing(module_name)
         copy_app(product.source, joinpath(packages_dir, module_name))
+    else
+        copy_app(product.source, joinpath(packages_dir, "MainEnv"))
     end
 
     override_startup_file(product.source, "$destination/etc/julia/startup.jl"; module_name) 
     apply_patches(joinpath(product.source, "meta/patches"), packages_dir; overwrite=true)
     
     @info "Retrieving artifacts"
-    retrieve_artifacts(platform, packages_dir, "$destination/share/julia/artifacts"; skip_packages)
+    retrieve_artifacts(platform, packages_dir, "$destination/share/julia/artifacts")
 
     if product.precompile
         @info "Precompiling"

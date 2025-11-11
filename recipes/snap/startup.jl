@@ -4,7 +4,7 @@ libdir = dirname(dirname(@__DIR__))
 
 empty!(LOAD_PATH)
 push!(LOAD_PATH, "@", "@stdlib")
-isempty("{{MODULE_NAME}}") || push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}"))
+isempty("{{MODULE_NAME}}") ? push!(LOAD_PATH, joinpath(Sys.STDLIB, "MainEnv")) : push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}"))
 
 empty!(DEPOT_PATH)
 push!(DEPOT_PATH, joinpath(libdir, "share/julia"))

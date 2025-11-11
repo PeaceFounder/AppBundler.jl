@@ -8,7 +8,7 @@ libdir = dirname(dirname(@__DIR__))
 # - If removed after precompilation, it invalidates the package image 
 empty!(LOAD_PATH)
 push!(LOAD_PATH, "@", "@stdlib")
-isempty("{{MODULE_NAME}}") || push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}"))
+isempty("{{MODULE_NAME}}") ? push!(LOAD_PATH, joinpath(Sys.STDLIB, "MainEnv")) : push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}"))
 
 user_depot = get(ENV, "USER_DATA", mktempdir())
 

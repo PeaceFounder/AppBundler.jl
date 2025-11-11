@@ -146,11 +146,8 @@ build_app(Windows(:x86_64), source, "MyApp.msix"; precompile = false)
 """
 function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false)
 
-    if adhoc_signing
-        msix = MSIX(source; windowed, pfx_cert=nothing)
-    else
-        msix = MSIX(source; windowed)
-    end
+    msix = MSIX(source; windowed,
+                (adhoc_signing ? (; pfx_cert=nothing) : (;))...)
 
     product = PkgImage(source; precompile, incremental)
     
@@ -277,11 +274,8 @@ build_app(MacOS(:aarch64), source, "MyApp.dmg"; precompile = false)
 """
 function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false, hfsplus = false)
 
-    if adhoc_signing
-        dmg = DMG(source; windowed, hfsplus, pfx_cert=nothing)
-    else
-        dmg = DMG(source; windowed, hfsplus)
-    end
+    dmg = DMG(source; windowed, hfsplus, 
+              (adhoc_signing ? (; pfx_cert=nothing) : (;))...)
 
     product = PkgImage(source; precompile, incremental)
     
