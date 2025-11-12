@@ -12,4 +12,4 @@ fi
 {{/WINDOWED}}
 
 # Arguments provided: Execute in current shell
-"$JULIA" {{#MODULE_NAME}}--eval="using {{MODULE_NAME}}" -- {{/MODULE_NAME}} $@
+"$JULIA"{{#MODULE_NAME}} --eval="using {{MODULE_NAME}}" -- {{/MODULE_NAME}} $@

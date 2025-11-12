@@ -483,6 +483,22 @@ function apply_patches(source::String, destination::String; overwrite::Bool=fals
     end
 end
 
+# Needed because special status can cause anoying recompilations
+# const FORMER_STDLIBS = ["DelimitedFiles", "Statistics"]
+function apply_former_stdlib_patch(destination::String)
+
+    pkgdir = joinpath(destination, "Pkg")
+    target = joinpath(pkgdir, "src/Types.jl")
+
+    text = read(target, String)
+    new_text = replace(text, r"const FORMER_STDLIBS = \[.*?\]" => "const FORMER_STDLIBS = []")
+    
+    write(target, new_text)
+
+    return
+end
+
+
 function copy_app(source, destination)
 
     mkdir(destination)
@@ -588,6 +604,7 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 
     override_startup_file(product.source, "$destination/etc/julia/startup.jl"; module_name) 
     apply_patches(joinpath(product.source, "meta/patches"), packages_dir; overwrite=true)
+    apply_former_stdlib_patch(packages_dir)
     
     @info "Retrieving artifacts"
     retrieve_artifacts(platform, packages_dir, "$destination/share/julia/artifacts")
