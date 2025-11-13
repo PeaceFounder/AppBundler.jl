@@ -14,32 +14,16 @@ else
     ENV["USER_DATA"] = joinpath(homedir(), "Library", "Application Support", "Local")
 end
 
-#libdir = dirname(dirname(dirname(@__DIR__)))
 libdir = dirname(dirname(@__DIR__))
 
-#Base.ACTIVE_PROJECT[] = joinpath(libdir, "{{MODULE_NAME}}")
-
 empty!(LOAD_PATH)
-push!(LOAD_PATH, "@", joinpath(libdir, "share/julia/packages"), joinpath(libdir, "share/julia/packages/{{MODULE_NAME}}"), "@stdlib")
+push!(LOAD_PATH, "@", "@stdlib")
+isempty("{{MODULE_NAME}}") ? push!(LOAD_PATH, joinpath(Sys.STDLIB, "MainEnv")) : push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}"))
 
 # Modify DEPOT_PATH (equivalent to JULIA_DEPOT_PATH)
 empty!(DEPOT_PATH)
 push!(DEPOT_PATH, user_depot, joinpath(libdir, "share/julia"))
 
-#push!(DEPOT_PATH, cache_dir, libdir, joinpath(libdir, "julia/share/julia"))
+Base.ACTIVE_PROJECT[] = ENV["USER_DATA"]
 
-@info "Active project is $(Base.ACTIVE_PROJECT[])"
-@info "LOAD_PATH = $LOAD_PATH"
-@info "DEPOT_PATH = $DEPOT_PATH"
-@info "USER_DATA = $(ENV["USER_DATA"])"
-
-
-
-# function __precompile__()
-#     popfirst!(DEPOT_PATH)
-#     @eval using {{MODULE_NAME}}
-# end
-
-# function __main__()
-#     @eval include(joinpath(Base.ACTIVE_PROJECT[], "main.jl"))
-# end
+include("common.jl")

@@ -34,6 +34,7 @@ module HFS
 
 using libdmg_hfsplus_jll: hfsplus
 
+
 # Simple HFS+ image type
 struct HFSImage
     path::String

@@ -1,7 +1,7 @@
 name = "AppBundler"
 uuid = "40eb83ae-c93a-480c-8f39-f018b568f472"
 authors = ["Janis Erdmanis <janiserdmanis@protonmail.ch>"]
-version = "0.4.8"
+version = "0.5.0"
 
 [deps]
 AppBundlerUtils_jll = "20612f45-4fe6-500a-af5c-19078bfe0d65"
@@ -31,7 +31,7 @@ rcodesign_jll = "81561df1-22b2-57e5-9f67-03318e1fa9d9"
 squashfs_tools_jll = "eed32e3e-a7c5-5bf9-9121-5cf3ab653887"
 
 [compat]
-AppBundlerUtils_jll = "0.1.5"
+AppBundlerUtils_jll = "=0.4.0"
 Base64 = "1.11.0"
 CodecZlib = "0.7.8"
 Conda = "1.10.2"

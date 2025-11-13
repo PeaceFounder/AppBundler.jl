@@ -1,15 +1,13 @@
 # Need to set up environment variables just like done on macos and windows
 
-#libdir = dirname(dirname(dirname(@__DIR__)))
 libdir = dirname(dirname(@__DIR__))
 
 empty!(LOAD_PATH)
-push!(LOAD_PATH, "@", joinpath(libdir, "share/julia/packages"), joinpath(libdir, "share/julia/packages/{{MODULE_NAME}}"), "@stdlib")
-#push!(LOAD_PATH, joinpath(libdir, "packages"), "@stdlib", "@")
+push!(LOAD_PATH, "@", "@stdlib")
+isempty("{{MODULE_NAME}}") ? push!(LOAD_PATH, joinpath(Sys.STDLIB, "MainEnv")) : push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}"))
 
 empty!(DEPOT_PATH)
 push!(DEPOT_PATH, joinpath(libdir, "share/julia"))
-#push!(DEPOT_PATH, libdir, joinpath(libdir, "julia/share/julia"))
 
 if haskey(ENV, "SNAP")
     @info "Application running as SNAP"
@@ -31,18 +29,14 @@ else
 
 end
 
-#Base.ACTIVE_PROJECT[] = joinpath(libdir, "{{MODULE_NAME}}")
-
-@info "Active project is $(Base.ACTIVE_PROJECT[])"
-@info "LOAD_PATH = $LOAD_PATH"
-@info "DEPOT_PATH = $DEPOT_PATH"
-@info "USER_DATA = $(ENV["USER_DATA"])"
+Base.ACTIVE_PROJECT[] = ENV["USER_DATA"]
 
 function __precompile__()
-    popfirst!(DEPOT_PATH)
-    @eval import {{MODULE_NAME}}
+    if !isempty("{{PRECOMPILED_MODULES}}")
+        popfirst!(DEPOT_PATH)
+        popfirst!(LOAD_PATH)
+        @eval import {{PRECOMPILED_MODULES}}
+    end
 end
 
-# function __main__()
-#     @eval include(joinpath(Base.ACTIVE_PROJECT[], "main.jl"))
-# end
+include("common.jl")

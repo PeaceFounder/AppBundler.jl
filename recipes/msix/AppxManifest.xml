@@ -3,6 +3,8 @@
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
          xmlns:uap11="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+         xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+         xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
 
   <Identity Name="{{BUNDLE_IDENTIFIER}}" 
@@ -30,10 +32,10 @@
 		 Executable="bin\julia.exe" 
 		 Id="{{APP_NAME}}" 
 		 uap10:RuntimeBehavior="packagedClassicApp" 
-		 uap10:Subsystem="windows" 
+		 uap10:Subsystem="{{#WINDOWED}}windows{{/WINDOWED}}{{^WINDOWED}}console{{/WINDOWED}}" 
 		 uap10:SupportsMultipleInstances="true" 
 		 uap10:TrustLevel="mediumIL"
-		 uap11:Parameters="{{FLAGS}}--eval=&quot;__main__()&quot;"> <!-- use -i for returning into console -->
+                 {{#MODULE_NAME}}uap11:Parameters="--eval=&quot;using {{MODULE_NAME}}&quot;"{{/MODULE_NAME}}>
 
       <uap:VisualElements BackgroundColor="transparent" Description="{{APP_DESCRIPTION}}" DisplayName="{{APP_DISPLAY_NAME}}" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:SplashScreen BackgroundColor="gray" Image="Assets\SplashScreen.png"/>
@@ -45,14 +47,15 @@
         <uap:LockScreen BadgeLogo="Assets\BadgeLogo.png" Notification="badge"/>
       </uap:VisualElements>
 
-     <!-- <Extensions /> -->
-     <!-- <Extensions> -->
-     <!--   <uap3:Extension Category="windows.appExecutionAlias" EntryPoint="Windows.FullTrustApplication" Executable="julia\bin\julia.exe"> -->
-     <!--     <uap3:AppExecutionAlias> -->
-     <!--       <desktop:ExecutionAlias Alias="julia-{{APP_NAME}}.exe" /> -->
-     <!--     </uap3:AppExecutionAlias> -->
-     <!--   </uap3:Extension> -->
-     <!-- </Extensions> -->
+      <Extensions>
+        <uap3:Extension Category="windows.appExecutionAlias" 
+                        EntryPoint="Windows.FullTrustApplication" 
+                        Executable="bin\julia.exe">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="{{APP_NAME}}.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
+      </Extensions>
     </Application>
   </Applications>
 

@@ -3,9 +3,12 @@
 
 libdir = dirname(dirname(@__DIR__))
 
-# Set up LOAD_PATH
+# Add paths to LOAD_PATH for proper package precompilation:
+# - Without the app directory in LOAD_PATH, extensions fail to precompile
+# - If removed after precompilation, it invalidates the package image 
 empty!(LOAD_PATH)
-push!(LOAD_PATH, "@", joinpath(libdir, "share/julia/packages"), joinpath(libdir, "share/julia/packages/{{MODULE_NAME}}"), "@stdlib")
+push!(LOAD_PATH, "@", "@stdlib")
+isempty("{{MODULE_NAME}}") ? push!(LOAD_PATH, joinpath(Sys.STDLIB, "MainEnv")) : push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}"))
 
 user_depot = get(ENV, "USER_DATA", mktempdir())
 
