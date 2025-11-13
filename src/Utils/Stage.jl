@@ -340,6 +340,7 @@ pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
     target_instantiation::Bool = VERSION.minor != julia_version.minor
     use_stdlib_dir::Bool = true
     precompiled_modules::Vector{Symbol} = precompile ? get_project_deps(source) : []
+    parallel_precompilation::Bool = (incremental || :Pkg in precompiled_modules) && !haskey(ENV, "CI")
 end
 
 PkgImage(source; kwargs...) = PkgImage(; source, kwargs...)
@@ -616,7 +617,7 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
         withenv("JULIA_PROJECT" => product.source, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => get_cpu_target(platform)) do
             julia = "$destination/bin/julia"
 
-            if product.incremental || :Pkg in product.precompiled_modules 
+            if product.parallel_precompilation
                 run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import Pkg; Pkg.precompile( $(repr(string.(product.precompiled_modules))) ) "`)
             else
                 run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import $(join(product.precompiled_modules, ','))"`)
