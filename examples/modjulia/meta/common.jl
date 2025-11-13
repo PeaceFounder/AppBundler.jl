@@ -9,4 +9,19 @@
 # The diagnostic output below shows the active project, load paths, and depot paths
 # to help verify your environment configuration.
 
-using Revise
+if isinteractive()
+    @async begin
+        @eval using Revise
+
+        @eval import Pkg
+        Base.invokelatest() do
+            if isdefined(Pkg.Types, :FORMER_STDLIBS)
+                empty!(Pkg.Types.FORMER_STDLIBS)
+            elseif isdefined(Pkg.Types, :UPGRADABLE_STDLIBS)
+                empty!(Pkg.Types.UPGRADABLE_STDLIBS)
+            else
+                @warn "Failed to clear upgradable stdlib list: neither FORMER_STDLIBS nor UPGRADABLE_STDLIBS found in Pkg.Types (Julia $VERSION)"
+            end
+        end
+    end
+end

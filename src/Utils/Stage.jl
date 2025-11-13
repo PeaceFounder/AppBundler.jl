@@ -103,14 +103,12 @@ function retrieve_packages(app_dir, packages_dir; julia_cmd=nothing)
         try
             ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
 
-            #Pkg.activate(app_dir)
             Base.ACTIVE_PROJECT[] = app_dir
             Pkg.instantiate()
             
             retrieve_packages(packages_dir)
 
         finally
-            #Pkg.activate(OLD_PROJECT)
             Base.ACTIVE_PROJECT[] = OLD_PROJECT
             ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 1
         end
@@ -483,21 +481,19 @@ function apply_patches(source::String, destination::String; overwrite::Bool=fals
     end
 end
 
-# Needed because special status can cause anoying recompilations
-# const FORMER_STDLIBS = ["DelimitedFiles", "Statistics"]
-function apply_former_stdlib_patch(destination::String)
+# function apply_upgradable_stdlib_patch(destination::String)
 
-    pkgdir = joinpath(destination, "Pkg")
-    target = joinpath(pkgdir, "src/Types.jl")
+#     pkgdir = joinpath(destination, "Pkg")
+#     target = joinpath(pkgdir, "src/Types.jl")
 
-    text = read(target, String)
-    new_text = replace(text, r"const FORMER_STDLIBS = \[.*?\]" => "const FORMER_STDLIBS = []")
+#     text = read(target, String)
+#     text = replace(text, r"const FORMER_STDLIBS = \[.*?\]" => "const FORMER_STDLIBS = []")
+#     text = replace(text, r"const UPGRADABLE_STDLIBS = \[.*?\]" => "const UPGRADABLE_STDLIBS = []")
     
-    write(target, new_text)
+#     write(target, text)
 
-    return
-end
-
+#     return
+# end
 
 function copy_app(source, destination)
 
@@ -592,24 +588,25 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
         "$destination/share/julia/packages" # may be useful when libs can be upgraded
     end
 
-    skip_packages = isdir(packages_dir) ? readdir(packages_dir) : []
     retrieve_packages(product.source, packages_dir; julia_cmd=product.target_instantiation ? "$destination/bin/julia" : nothing)
 
     module_name = get_module_name(product.source)
     if !isnothing(module_name)
         copy_app(product.source, joinpath(packages_dir, module_name))
     else
-        copy_app(product.source, joinpath(packages_dir, "MainEnv"))
+        envdir = joinpath(packages_dir, "MainEnv")
+        mkdir(envdir)
+        cp(joinpath(product.source, "Project.toml"), joinpath(envdir, "Project.toml"))
+        cp(joinpath(product.source, "Manifest.toml"), joinpath(envdir, "Manifest.toml"))
     end
 
     override_startup_file(product.source, "$destination/etc/julia/startup.jl"; module_name) 
     apply_patches(joinpath(product.source, "meta/patches"), packages_dir; overwrite=true)
-    apply_former_stdlib_patch(packages_dir)
     
     @info "Retrieving artifacts"
     retrieve_artifacts(platform, packages_dir, "$destination/share/julia/artifacts")
 
-    if product.precompile
+    if product.precompile && !isempty(product.precompiled_modules)
         @info "Precompiling"
 
         if !product.incremental
@@ -618,7 +615,12 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 
         withenv("JULIA_PROJECT" => product.source, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => get_cpu_target(platform)) do
             julia = "$destination/bin/julia"
-            run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import $(join(product.precompiled_modules, ','))"`)
+
+            if product.incremental || :Pkg in product.precompiled_modules 
+                run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import Pkg; Pkg.precompile( $(repr(string.(product.precompiled_modules))) ) "`)
+            else
+                run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import $(join(product.precompiled_modules, ','))"`)
+            end
         end
 
     else
