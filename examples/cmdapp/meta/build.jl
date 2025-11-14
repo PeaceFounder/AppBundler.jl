@@ -26,5 +26,5 @@ if :windows in target_platforms
 end
 
 if :macos in target_platforms
-    AppBundler.build_app(MacOS(target_arch), APP_DIR, "$build_dir/$target_name.app"; precompile, incremental, adhoc_signing, windowed)
+    AppBundler.build_app(MacOS(target_arch), APP_DIR, "$build_dir/$target_name.dmg"; precompile, incremental, adhoc_signing, windowed)
 end

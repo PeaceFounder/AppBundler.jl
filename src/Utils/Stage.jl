@@ -131,7 +131,7 @@ end
 
 # If one wishes he can specify artifacts_cache directory to be that in DEPOT_PATH 
 # That way one could avoid downloading twice when it is deployed as a build script
-function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_dir; artifacts_cache_dir = artifacts_cache())
+function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_dir; artifacts_cache_dir = artifacts_cache(), include_lazy=true)
 
     if !haskey(platform, "julia_version")
         platform = deepcopy(platform)
@@ -149,7 +149,7 @@ function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_d
             artifacts_toml = joinpath(modules_dir, dir, "Artifacts.toml")
 
             if isfile(artifacts_toml)
-                artifacts = Artifacts.select_downloadable_artifacts(artifacts_toml; platform)
+                artifacts = Artifacts.select_downloadable_artifacts(artifacts_toml; platform, include_lazy)
                 
                 for name in keys(artifacts)
                     hash = artifacts[name]["git-tree-sha1"]
@@ -340,6 +340,7 @@ pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
     target_instantiation::Bool = VERSION.minor != julia_version.minor
     use_stdlib_dir::Bool = true
     precompiled_modules::Vector{Symbol} = precompile ? get_project_deps(source) : []
+    include_lazy_artifacts::Bool = true
     parallel_precompilation::Bool = (incremental || :Pkg in precompiled_modules) && !haskey(ENV, "CI")
 end
 
@@ -605,7 +606,7 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
     apply_patches(joinpath(product.source, "meta/patches"), packages_dir; overwrite=true)
     
     @info "Retrieving artifacts"
-    retrieve_artifacts(platform, packages_dir, "$destination/share/julia/artifacts")
+    retrieve_artifacts(platform, packages_dir, "$destination/share/julia/artifacts"; include_lazy = product.include_lazy_artifacts)
 
     if product.precompile && !isempty(product.precompiled_modules)
         @info "Precompiling"
