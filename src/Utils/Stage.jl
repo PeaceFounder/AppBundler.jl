@@ -92,37 +92,88 @@ function merge_directories(source::String, destination::String; overwrite::Bool=
     end
 end
 
-include("packages.jl")
 
-function retrieve_packages(app_dir, packages_dir; julia_cmd=nothing)
+function create_pkg_context(project)
+
+    project_toml_path = Pkg.Types.projectfile_path(project; strict=true)
+    if project_toml_path === nothing
+        error("could not find project at $(repr(project))")
+    end
+    ctx = Pkg.Types.Context(env=Pkg.Types.EnvCache(project_toml_path))
+
+    return ctx
+end
+
+function install_project_toml(uuid, pkgentry, destination)
+    # Extract information from pkginfo
+    project_dict = Dict(
+        "name" => pkgentry.name,
+        "uuid" => string(uuid),  # or use the package UUID if you have it
+        "version" => string(pkgentry.version),
+        "deps" => collect(keys(pkgentry.deps))
+    )
+
+    # Convert UUIDs to strings for TOML
+    exclude = ["Test"]
+    deps_dict = Dict(name => string(uuid) for (name, uuid) in pkgentry.deps if name ∉ exclude)
+    project_dict["deps"] = deps_dict
+
+    # Write to Project.toml
+    open(destination, "w") do io
+        TOML.print(io, project_dict)
+    end
+
+    return
+end
+
+function retrieve_packages(project, packages_dir)
+
+    ctx = create_pkg_context(project)
+
+    # Perhaps I need to do it at a seperate depot
+    Pkg.Operations.download_source(ctx)
+
+    for (uuid, pkgentry) in ctx.env.manifest
+        
+        source_path = Pkg.Operations.source_path(first(DEPOT_PATH), pkgentry)
+
+        if isnothing(source_path)
+            @warn "Skipping $(pkgentry.name)"
+        else
+            pkg_dir = joinpath(packages_dir, pkgentry.name)
+
+            if !isdir(pkg_dir)
+
+                cp(source_path, pkg_dir)
+
+                if !isfile(joinpath(pkg_dir, "Project.toml"))
+                    # We need to make a Project.toml from pkginfo
+                    @warn "$(pkgentry.name) uses the legacy REQUIRE format. As a courtesy to AppBundler developers, please update it to use Project.toml."
+                    install_project_toml(uuid, pkgentry, joinpath(pkg_dir, "Project.toml"))
+                end
+            else
+                @debug "$(pkgentry.name) already exists in $packages_dir"
+            end
+        end
+    end
+end
+
+function instantiate_manifest(app_dir; julia_cmd=nothing)
 
     if isnothing(julia_cmd)
 
         OLD_PROJECT = Base.active_project()
-
-        try
+        try 
             ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 0
-
             Base.ACTIVE_PROJECT[] = app_dir
             Pkg.instantiate()
-            
-            retrieve_packages(packages_dir)
-
         finally
             Base.ACTIVE_PROJECT[] = OLD_PROJECT
             ENV["JULIA_PKG_PRECOMPILE_AUTO"] = 1
-        end
-
+        end    
     else
-        packages_src = joinpath(pkgdir(parentmodule(@__MODULE__)), "src/Utils/packages.jl")
-
         withenv("JULIA_PROJECT" => app_dir, "JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-            run(`$julia_cmd --startup-file=no --eval $("""
-                import Pkg
-                Pkg.instantiate()
-                include(raw"$packages_src")
-                retrieve_packages(raw"$packages_dir")
-            """)`)
+            run(`$julia_cmd --startup-file=no --eval "import Pkg; Pkg.instantiate()"`)
         end
     end
 
@@ -354,9 +405,7 @@ function override_startup_file(source, destination; module_name="")
     else
         startup_file = joinpath(dirname(dirname(@__DIR__)), "recipes/startup.jl")
     end
-    #cp(startup_file, destination, force=true)
     install(startup_file, destination; force=true, parameters = Dict("MODULE_NAME"=>module_name))
-    #install(startup_file, destination; force=true, parameters)
 
     return
 end
@@ -590,7 +639,13 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
         "$destination/share/julia/packages" # may be useful when libs can be upgraded
     end
 
-    retrieve_packages(product.source, packages_dir; julia_cmd=product.target_instantiation ? "$destination/bin/julia" : nothing)
+    #if !isfile(joinpath(product.source, "Manifest.toml"))
+    @info "Instantiating project with $(product.julia_version)"
+    instantiate_manifest(product.source; julia_cmd=product.target_instantiation ? "$destination/bin/julia" : nothing)
+    #end
+
+    @info "Retrieving Manifest.toml dependencies"
+    retrieve_packages(product.source, packages_dir)
 
     module_name = get_module_name(product.source)
     if !isnothing(module_name)
