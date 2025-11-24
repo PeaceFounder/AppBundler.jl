@@ -1,6 +1,7 @@
 module Stage
 
 using ..AppBundler: julia_tarballs, artifacts_cache
+using ..SysImgTools
 
 import Downloads
 import Artifacts
@@ -8,6 +9,7 @@ import Artifacts
 import Pkg
 import Base.BinaryPlatforms: AbstractPlatform, Platform, os, arch, wordsize
 import Pkg.BinaryPlatforms: MacOS, Linux, Windows
+import Libdl
 
 using UUIDs
 using TOML
@@ -92,7 +94,6 @@ function merge_directories(source::String, destination::String; overwrite::Bool=
     end
 end
 
-
 function create_pkg_context(project)
 
     project_toml_path = Pkg.Types.projectfile_path(project; strict=true)
@@ -102,6 +103,45 @@ function create_pkg_context(project)
     ctx = Pkg.Types.Context(env=Pkg.Types.EnvCache(project_toml_path))
 
     return ctx
+end
+
+function get_transitive_dependencies(ctx, packages)
+
+    packages_sysimg = Set{Base.PkgId}()
+
+    frontier = Set{Base.PkgId}()
+    deps = ctx.env.project.deps
+    for pkg in packages
+        # Add all dependencies of the package
+        if ctx.env.pkg !== nothing && pkg == ctx.env.pkg.name
+            push!(frontier, Base.PkgId(ctx.env.pkg.uuid, pkg))
+        else
+            uuid = ctx.env.project.deps[pkg]
+            push!(frontier, Base.PkgId(uuid, pkg))
+        end
+    end
+    copy!(packages_sysimg, frontier)
+    new_frontier = Set{Base.PkgId}()
+    while !(isempty(frontier))
+        for pkgid in frontier
+            deps = if ctx.env.pkg !== nothing && pkgid.uuid == ctx.env.pkg.uuid
+                ctx.env.project.deps
+            else
+                ctx.env.manifest[pkgid.uuid].deps
+            end
+            pkgid_deps = [Base.PkgId(uuid, name) for (name, uuid) in deps]
+            for pkgid_dep in pkgid_deps
+                if !(pkgid_dep in packages_sysimg) #
+                    push!(packages_sysimg, pkgid_dep)
+                    push!(new_frontier, pkgid_dep)
+                end
+            end
+        end
+        copy!(frontier, new_frontier)
+        empty!(new_frontier)
+    end
+
+    return packages_sysimg
 end
 
 function install_project_toml(uuid, pkgentry, destination)
@@ -385,13 +425,17 @@ pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
 """
 @kwdef struct PkgImage
     source::String
-    precompile::Bool = true
-    incremental::Bool = true
     julia_version::VersionNumber = get_julia_version(source)
     target_instantiation::Bool = VERSION.minor != julia_version.minor
     use_stdlib_dir::Bool = true
-    precompiled_modules::Vector{Symbol} = precompile ? get_project_deps(source) : []
     include_lazy_artifacts::Bool = true
+
+    sysimg_packages::Vector{String} = []
+    sysimg_args::Cmd = ``
+
+    precompile::Bool = true
+    precompiled_modules::Vector{Symbol} = precompile ? get_project_deps(source) : []
+    incremental::Bool = isempty(sysimg_packages) #true
     parallel_precompilation::Bool = (incremental || :Pkg in precompiled_modules) && !haskey(ENV, "CI")
 end
 
@@ -465,6 +509,14 @@ function validate_cross_compilation(platform::AbstractPlatform)
     throw(ArgumentError("Unsupported target platform: $(typeof(platform))"))
 end
 
+# function default_app_cpu_target()
+#     Sys.ARCH === :i686        ?  "pentium4;sandybridge,-xsaveopt,clone_all"                        :
+#     Sys.ARCH === :x86_64      ?  "generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)"  :
+#     Sys.ARCH === :arm         ?  "armv7-a;armv7-a,neon;armv7-a,neon,vfp4"                          :
+#     Sys.ARCH === :aarch64     ?  "generic"   #= is this really the best here? =#                   :
+#     Sys.ARCH === :powerpc64le ?  "pwr8"                                                            :
+#         "generic"
+# end
 
 """
     get_cpu_target(platform::AbstractPlatform) -> String
@@ -530,6 +582,27 @@ function apply_patches(source::String, destination::String; overwrite::Bool=fals
             cp(src_path, dest_path; force=overwrite)
         end
     end
+end
+
+
+function sysimg_compilation_script(project, packages; 
+                                   ctx = create_pkg_context(project))
+    
+    packages_sysimg = get_transitive_dependencies(ctx, packages)
+
+    julia_code_buffer = IOBuffer()
+
+    for pkg in packages_sysimg
+        print(julia_code_buffer, """
+                println("\nCompiling $(pkg.name)")
+                Base.require(Base.PkgId(Base.UUID("$(string(pkg.uuid))"), $(repr(pkg.name))))
+                """)
+        #println(julia_code_buffer, "import $(pkg.name)")
+    end
+
+    println(julia_code_buffer, """println("\nCompilation of mudules finished")""")
+
+    return String(take!(julia_code_buffer))
 end
 
 # function apply_upgradable_stdlib_patch(destination::String)
@@ -604,7 +677,7 @@ stage(pkg, Linux(:x86_64), "build/linux_staging")
 
 ```
 """
-function stage(product::PkgImage, platform::AbstractPlatform, destination::String)
+function stage(product::PkgImage, platform::AbstractPlatform, destination::String; cpu_target = get_cpu_target(platform))
 
     if product.precompile
         validate_cross_compilation(platform)
@@ -663,14 +736,27 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
     @info "Retrieving artifacts"
     retrieve_artifacts(platform, packages_dir, "$destination/share/julia/artifacts"; include_lazy = product.include_lazy_artifacts)
 
+    if !isempty(product.sysimg_packages)
+
+        @info "Compiling sysimage for $(product.sysimg_packages)..."
+
+        julia_cmd = "$destination/bin/julia"
+        base_sysimg = "$destination/lib/julia/sys" * ".$(Libdl.dlext)"
+        tmp_sysimg = tempname() * ".$(Libdl.dlext)"
+
+        compilation_script = sysimg_compilation_script(product.source, product.sysimg_packages)
+        SysImgTools.compile_sysimage(compilation_script, tmp_sysimg; base_sysimg, julia_cmd, cpu_target, sysimg_args = product.sysimg_args, project = product.source)
+        mv(tmp_sysimg, base_sysimg; force=true)
+
+    end
+
+    if !product.incremental
+        rm("$destination/share/julia/compiled", recursive=true)
+    end
+
     if product.precompile && !isempty(product.precompiled_modules)
-        @info "Precompiling"
-
-        if !product.incremental
-            rm("$destination/share/julia/compiled", recursive=true)
-        end
-
-        withenv("JULIA_PROJECT" => product.source, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => get_cpu_target(platform)) do
+        @info "Precompiling..."
+        withenv("JULIA_PROJECT" => product.source, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => cpu_target) do
             julia = "$destination/bin/julia"
 
             if product.parallel_precompilation
@@ -686,7 +772,11 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 
     @info "App staging completed successfully"
     @info "Staged app available at: $destination"
-    @info "Launch it with bin/julia -e \"using $module_name\""
+    if !isnothing(module_name)
+        @info "Launch it with bin/julia -e \"using $module_name\""
+    else
+        @info "Launch it with bin/julia"
+    end
 
     return
 end

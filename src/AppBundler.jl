@@ -15,8 +15,15 @@ include("Utils/SnapPack.jl")
 include("Utils/MSIXPack.jl")
 include("Utils/MSIXIcons.jl")
 include("Utils/WinSubsystem.jl")
+
+include("Utils/TerminalSpinners.jl")
+include("Utils/SysImgTools.jl")
+
 include("Utils/Stage.jl")
 include("Utils/ArgParser.jl")
+
+
+
 
 import .ArgParser: parse_args
 import .Stage: stage # 
