@@ -72,8 +72,8 @@ function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bo
         startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "msix/startup.jl")
         install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
 
-        common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl", force = true)
-        install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = msix.parameters)
+        common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
+        install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = msix.parameters, force = true)
         
         if msix.windowed
             WinSubsystem.change_subsystem_inplace("$app_stage/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
