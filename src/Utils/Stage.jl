@@ -392,6 +392,17 @@ function get_module_name(source::String)
     return nothing
 end
 
+function get_template(source, target)
+    if isfile(joinpath(source, "meta", target))
+        return joinpath(source, "meta", target)
+    else
+        path = joinpath(dirname(dirname(@__DIR__)), "recipes", target)
+        isfile(path) || error("$target is not defined in recipes")
+        return path
+    end
+end
+
+
 """
     PkgImage(source; precompile = true, incremental = true, julia_version = get_julia_version(source))
 
@@ -429,6 +440,9 @@ pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
     target_instantiation::Bool = VERSION.minor != julia_version.minor
     use_stdlib_dir::Bool = true
     include_lazy_artifacts::Bool = true
+
+    startup_file::String = get_template(source, "startup.jl")
+    startup_common::String = get_template(source, "common.jl")
 
     sysimg_packages::Vector{String} = []
     sysimg_args::Cmd = ``
@@ -588,21 +602,33 @@ end
 function sysimg_compilation_script(project, packages; 
                                    ctx = create_pkg_context(project))
     
-    packages_sysimg = get_transitive_dependencies(ctx, packages)
+    # packages_sysimg = get_transitive_dependencies(ctx, packages)
 
-    julia_code_buffer = IOBuffer()
+    # julia_code_buffer = IOBuffer()
 
-    for pkg in packages_sysimg
-        print(julia_code_buffer, """
-                println("\nCompiling $(pkg.name)")
-                Base.require(Base.PkgId(Base.UUID("$(string(pkg.uuid))"), $(repr(pkg.name))))
-                """)
-        #println(julia_code_buffer, "import $(pkg.name)")
+    # for pkg in packages_sysimg
+    #     print(julia_code_buffer, """
+    #             println("\nCompiling $(pkg.name)")
+    #             Base.require(Base.PkgId(Base.UUID("$(string(pkg.uuid))"), $(repr(pkg.name))))
+    #             """)
+    #     #println(julia_code_buffer, "import $(pkg.name)")
+    # end
+
+    # println(julia_code_buffer, """println("\nCompilation of mudules finished")""")
+
+    # return String(take!(julia_code_buffer))
+
+    if isempty(packages)
+        return ""
+    else
+        return """
+            @eval Module() begin
+                println("Executing precompilation with modules: $(join(packages, ", "))...")
+                import $(join(packages, ','))
+                println("Precompilation executed successfully.")
+            end
+        """
     end
-
-    println(julia_code_buffer, """println("\nCompilation of mudules finished")""")
-
-    return String(take!(julia_code_buffer))
 end
 
 # function apply_upgradable_stdlib_patch(destination::String)
@@ -730,7 +756,9 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
         cp(joinpath(product.source, "Manifest.toml"), joinpath(envdir, "Manifest.toml"))
     end
 
-    override_startup_file(product.source, "$destination/etc/julia/startup.jl"; module_name) 
+    install(product.startup_file, "$destination/etc/julia/startup.jl"; force=true, parameters = Dict("MODULE_NAME"=>module_name))
+    install(product.startup_common, "$destination/etc/julia/common.jl"; force=true, parameters = Dict("MODULE_NAME"=>module_name))
+        
     apply_patches(joinpath(product.source, "meta/patches"), packages_dir; overwrite=true)
     
     @info "Retrieving artifacts"
@@ -741,6 +769,14 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
         @info "Compiling sysimage for $(product.sysimg_packages)..."
 
         julia_cmd = "$destination/bin/julia"
+
+        # Precompile packages before sysimage creation to avoid segfaults. The sysimage builder's
+        # aggressive AOT compilation can trigger LLVM codegen bugs on certain constant expressions
+        # (e.g., matrix inversions in Colors.jl) that don't occur during regular precompilation.
+        run(`$julia_cmd --startup-file=no --pkgimages=no --project=$(product.source) --eval "import Pkg; Pkg.precompile( $(repr(string.(product.sysimg_packages))) )"`)
+
+        #ensurecompiled(product.source, product.sysimg_packages; julia_cmd)
+
         base_sysimg = "$destination/lib/julia/sys" * ".$(Libdl.dlext)"
         tmp_sysimg = tempname() * ".$(Libdl.dlext)"
 

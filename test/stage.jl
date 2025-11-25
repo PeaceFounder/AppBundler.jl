@@ -1,6 +1,6 @@
 import Pkg.BinaryPlatforms: MacOS, Linux, Windows
 import AppBundler: stage, PkgImage
-
+import AppBundler
 
 import AppBundler.Stage: julia_download_url
 import Pkg.BinaryPlatforms: Linux, Windows, MacOS
@@ -20,7 +20,7 @@ end
 
 #src_dir = dirname(@__DIR__) # AppBundler itself
 
-src_dir = joinpath(dirname(@__DIR__), "examples/glapp")
+src_dir = joinpath(pkgdir(AppBundler), "examples/glapp")
 #src_dir = joinpath(dirname(@__DIR__), "examples/gtkapp")
 #src_dir = joinpath(dirname(@__DIR__), "examples/qmlapp")
 #src_dir = joinpath(dirname(@__DIR__), "examples/mousetrap")
@@ -38,3 +38,6 @@ stage(product_spec, platform, mktempdir())
 
 product_spec = PkgImage(src_dir; precompile = false, target_instantiation = true)
 stage(product_spec, platform, mktempdir())
+
+product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["GLApp"])
+stage(product_spec, platform, mktempdir(); cpu_target="native")

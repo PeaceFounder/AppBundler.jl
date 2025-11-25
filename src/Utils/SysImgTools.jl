@@ -51,8 +51,12 @@ function create_sysimg_object_file(script::String,
             @eval Sys BINDIR = ccall(:jl_get_julia_bindir, Any, ())::String
             @eval Sys STDLIB = abspath(Sys.BINDIR, "../share/julia/stdlib", string('v', VERSION.major, '.', VERSION.minor))
 
-            push!(LOAD_PATH, "@", Sys.STDLIB)
-            push!(DEPOT_PATH, joinpath(Sys.BINDIR, "../share/julia"))
+            # push!(LOAD_PATH, "@", Sys.STDLIB)
+            # push!(DEPOT_PATH, joinpath(Sys.BINDIR, "../share/julia"))
+
+            copy!(LOAD_PATH, [$(repr(project))]) # Only allow loading packages from current project
+            
+            Base.init_depot_path()
 
             # Load path lacks extension fix
             # perhaps here I can simply relly on adding project to the load path itself without any drawbacks
@@ -76,7 +80,8 @@ function create_sysimg_object_file(script::String,
     @debug "running $cmd"
 
     spinner = TerminalSpinners.Spinner(msg = "Compiling system image")
-    @monitor_oom TerminalSpinners.@spin spinner run(cmd)
+    #@monitor_oom TerminalSpinners.@spin spinner run(cmd)
+    TerminalSpinners.@spin spinner run(cmd)
     return
 end
 
@@ -87,7 +92,6 @@ function compile_sysimage(script::String, sysimage_path::String;
                          cpu_target::String="native",
                          julia_cmd = get_julia_cmd()
                          )
-
 
     # Create the sysimage
     object_file = tempname() * "-o.a"

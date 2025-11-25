@@ -12,7 +12,7 @@ function bundle(product::PkgImage, dmg::DMG, destination::String; compress::Bool
         install(startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters = dmg.parameters, force = true)
 
         common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
-        install(common_file, joinpath(app_stage, "Contents/Libraries/etc/julia/common.jl"); parameters = dmg.parameters)
+        install(common_file, joinpath(app_stage, "Contents/Libraries/etc/julia/common.jl"); parameters = dmg.parameters, force = true)
 
         # main redirect
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
@@ -35,7 +35,7 @@ function bundle(product::PkgImage, snap::Snap, destination::String; compress::Bo
         install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = snap.parameters, force = true)
 
         common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
-        install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = snap.parameters)
+        install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = snap.parameters, force = true)
         
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/main.sh")
         app_name = snap.parameters["APP_NAME_LOWERCASE"]
@@ -72,7 +72,7 @@ function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bo
         startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "msix/startup.jl")
         install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
 
-        common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
+        common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl", force = true)
         install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = msix.parameters)
         
         if msix.windowed
@@ -144,12 +144,17 @@ build_app(Windows(:x86_64), source, "MyApp.msix"; windowed = false)
 build_app(Windows(:x86_64), source, "MyApp.msix"; precompile = false)
 ```
 """
-function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false)
+function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false, sysimg_packages = [])
 
     msix = MSIX(source; windowed,
                 (adhoc_signing ? (; pfx_cert=nothing) : (;))...)
 
-    product = PkgImage(source; precompile, incremental)
+    if !isempty(sysimg_packages) && incremental
+        @warn "All pkgimage cache needs to be rebuilt when new sysimage is built. To remove this warning set incremental=false"
+        incremental = false
+    end
+
+    product = PkgImage(source; precompile, incremental, sysimg_packages)
     
     return bundle(product, msix, destination; compress, force, arch = arch(platform))
 end
@@ -209,10 +214,16 @@ build_app(Linux(:aarch64), source, "MyApp.snap")
 build_app(Linux(:x86_64), source, "MyApp.snap"; precompile = false)
 ```
 """
-function build_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"), precompile = true, incremental = true, force = false, windowed = true)
+function build_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"), precompile = true, incremental = true, force = false, windowed = true, sysimg_packages = [])
 
     snap = Snap(source; windowed)
-    product = PkgImage(source; precompile, incremental)
+
+    if !isempty(sysimg_packages) && incremental
+        @warn "All pkgimage cache needs to be rebuilt when new sysimage is built. To remove this warning set incremental=false"
+        incremental = false
+    end
+
+    product = PkgImage(source; precompile, incremental, sysimg_packages)
 
     return bundle(product, snap, destination; compress, force, arch = arch(platform))
 end
@@ -272,12 +283,17 @@ build_app(MacOS(:aarch64), source, "MyApp.dmg")
 build_app(MacOS(:aarch64), source, "MyApp.dmg"; precompile = false)
 ```
 """
-function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false, hfsplus = false)
+function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false, hfsplus = false, sysimg_packages = [])
 
     dmg = DMG(source; windowed, hfsplus, 
               (adhoc_signing ? (; pfx_cert=nothing) : (;))...)
 
-    product = PkgImage(source; precompile, incremental)
+    if !isempty(sysimg_packages) && incremental
+        @warn "All pkgimage cache needs to be rebuilt when new sysimage is built. To remove this warning set incremental=false"
+        incremental = false
+    end
+
+    product = PkgImage(source; precompile, incremental, sysimg_packages)
     
     return bundle(product, dmg, destination; compress, force, arch = arch(platform))
 end

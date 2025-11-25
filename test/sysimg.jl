@@ -35,11 +35,16 @@ import Pkg.BinaryPlatforms: Linux, Windows, MacOS
 
 #src_dir = dirname(@__DIR__) # AppBundler itself
 
-src_dir = joinpath(dirname(@__DIR__), "examples/modjulia")
+#src_dir = joinpath(dirname(@__DIR__), "examples/modjulia")
+
+
+#rm(joinpath(DEPOT_PATH[1], "compiled/v1.11/Colors"), recursive=true, force=true)
+
+#src_dir = joinpath(dirname(@__DIR__), "examples/sysimg")
 
 #src_dir = joinpath(dirname(@__DIR__), "examples/glapp")
 #src_dir = joinpath(dirname(@__DIR__), "examples/gtkapp")
-#src_dir = joinpath(dirname(@__DIR__), "examples/qmlapp")
+src_dir = joinpath(dirname(@__DIR__), "examples/qmlapp")
 #src_dir = joinpath(dirname(@__DIR__), "examples/mousetrap")
 
 if Sys.islinux()
@@ -50,5 +55,10 @@ elseif Sys.iswindows()
     platform = Windows(Sys.ARCH)
 end
 
-product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["Mods"])
-stage(product_spec, platform, mktempdir())
+
+#product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["sysimg"])
+
+#product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["GtkApp"])
+product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["QMLApp"])
+#product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["Mods"])
+stage(product_spec, platform, mktempdir(); cpu_target="native")
