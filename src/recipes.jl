@@ -8,11 +8,11 @@ function bundle(product::PkgImage, dmg::DMG, destination::String; compress::Bool
         # app_stage always points to app directory
         stage(product, MacOS(arch), joinpath(app_stage, "Contents/Libraries"))
 
-        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/startup.jl")
-        install(startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters = dmg.parameters, force = true)
+        #startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/startup.jl")
+        install(product.startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters = dmg.parameters, force = true)
 
-        common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
-        install(common_file, joinpath(app_stage, "Contents/Libraries/etc/julia/common.jl"); parameters = dmg.parameters, force = true)
+        #common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
+        #install(common_file, joinpath(app_stage, "Contents/Libraries/etc/julia/common.jl"); parameters = dmg.parameters, force = true)
 
         # main redirect
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
@@ -31,11 +31,11 @@ function bundle(product::PkgImage, snap::Snap, destination::String; compress::Bo
         
         stage(product, Linux(arch), app_stage)
 
-        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/startup.jl")
-        install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = snap.parameters, force = true)
-
-        common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
-        install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = snap.parameters, force = true)
+        #startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/startup.jl")
+        install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = snap.parameters, force = true)
+        
+        #common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
+        #install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = snap.parameters, force = true)
         
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/main.sh")
         app_name = snap.parameters["APP_NAME_LOWERCASE"]
@@ -69,11 +69,11 @@ function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bo
         
         touch("$app_stage/bin/julia.exe") # updating timestamp to avoid Invalid Parameter error
 
-        startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "msix/startup.jl")
-        install(startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
+        #startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "msix/startup.jl")
+        install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
 
-        common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
-        install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = msix.parameters, force = true)
+        #common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
+        #install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = msix.parameters, force = true)
         
         if msix.windowed
             WinSubsystem.change_subsystem_inplace("$app_stage/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)

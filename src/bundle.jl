@@ -30,6 +30,7 @@ function get_bundle_parameters(project_toml)
     parameters["PUBLISHER"] = "CN=AppBundler"
     parameters["PUBLISHER_DISPLAY_NAME"] = "AppBundler"
     parameters["BUILD_NUMBER"] = 0
+    parameters["RUNTIME_MODE"] = "SANDBOX"
     
     if haskey(toml_dict, "bundle")
         for (key, value) in toml_dict["bundle"]

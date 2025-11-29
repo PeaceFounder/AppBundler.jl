@@ -5,6 +5,7 @@ version = "0.5.0"
 
 [deps]
 AppBundlerUtils_jll = "20612f45-4fe6-500a-af5c-19078bfe0d65"
+AppEnv = "9f11263e-cf0d-4932-bae6-807953dbea74"
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
@@ -31,6 +32,9 @@ libdmg_hfsplus_jll = "a9dd9d48-4682-593d-95c5-5ff28a9e156e"
 osslsigncode_jll = "5a7615ae-274c-51d1-b5a8-ff30401c2c7e"
 rcodesign_jll = "81561df1-22b2-57e5-9f67-03318e1fa9d9"
 squashfs_tools_jll = "eed32e3e-a7c5-5bf9-9121-5cf3ab653887"
+
+[sources]
+AppEnv = {path = "AppEnv"}
 
 [compat]
 AppBundlerUtils_jll = "=0.4.0"
@@ -68,3 +72,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test", "SafeTestsets", "SHA"]
+

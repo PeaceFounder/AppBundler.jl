@@ -80,8 +80,7 @@ function create_sysimg_object_file(script::String,
     @debug "running $cmd"
 
     spinner = TerminalSpinners.Spinner(msg = "Compiling system image")
-    #@monitor_oom TerminalSpinners.@spin spinner run(cmd)
-    TerminalSpinners.@spin spinner run(cmd)
+    @monitor_oom TerminalSpinners.@spin spinner run(cmd)
     return
 end
 

@@ -19,6 +19,8 @@ using CodecZlib
 
 import Mustache
 
+import AppEnv
+
 function install(source, destination; parameters = Dict(), force = false, executable = false)
 
     if isfile(destination) 
@@ -175,7 +177,8 @@ function retrieve_packages(project, packages_dir)
 
     for (uuid, pkgentry) in ctx.env.manifest
         
-        source_path = Pkg.Operations.source_path(first(DEPOT_PATH), pkgentry)
+        #source_path = Pkg.Operations.source_path(first(DEPOT_PATH), pkgentry)
+        source_path = Pkg.Operations.source_path(joinpath(project, "Manifest.toml"), pkgentry)
 
         if isnothing(source_path)
             @warn "Skipping $(pkgentry.name)"
@@ -463,7 +466,7 @@ function override_startup_file(source, destination; module_name="")
     else
         startup_file = joinpath(dirname(dirname(@__DIR__)), "recipes/startup.jl")
     end
-    install(startup_file, destination; force=true, parameters = Dict("MODULE_NAME"=>module_name))
+    install(startup_file, destination; force=true, parameters = Dict("MODULE_NAME"=>module_name, "RUNTIME_MODE"=>"MIN"))
 
     return
 end
@@ -623,6 +626,9 @@ function sysimg_compilation_script(project, packages;
     else
         return """
             @eval Module() begin
+                push!(LOAD_PATH, $(repr(pkgdir(AppEnv))))
+                import AppEnv
+
                 println("Executing precompilation with modules: $(join(packages, ", "))...")
                 import $(join(packages, ','))
                 println("Precompilation executed successfully.")
@@ -756,8 +762,10 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
         cp(joinpath(product.source, "Manifest.toml"), joinpath(envdir, "Manifest.toml"))
     end
 
-    install(product.startup_file, "$destination/etc/julia/startup.jl"; force=true, parameters = Dict("MODULE_NAME"=>module_name))
-    install(product.startup_common, "$destination/etc/julia/common.jl"; force=true, parameters = Dict("MODULE_NAME"=>module_name))
+    install(product.startup_file, "$destination/etc/julia/startup.jl"; force=true, parameters = Dict("MODULE_NAME"=>module_name, "RUNTIME_MODE"=>"MIN"))
+    #install(product.startup_common, "$destination/etc/julia/common.jl"; force=true, parameters = Dict("MODULE_NAME"=>module_name))
+
+    cp(pkgdir(AppEnv), joinpath(packages_dir, "AppEnv"); force=true)
         
     apply_patches(joinpath(product.source, "meta/patches"), packages_dir; overwrite=true)
     
@@ -775,15 +783,16 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
         # (e.g., matrix inversions in Colors.jl) that don't occur during regular precompilation.
         run(`$julia_cmd --startup-file=no --pkgimages=no --project=$(product.source) --eval "import Pkg; Pkg.precompile( $(repr(string.(product.sysimg_packages))) )"`)
 
-        #ensurecompiled(product.source, product.sysimg_packages; julia_cmd)
-
         base_sysimg = "$destination/lib/julia/sys" * ".$(Libdl.dlext)"
         tmp_sysimg = tempname() * ".$(Libdl.dlext)"
 
         compilation_script = sysimg_compilation_script(product.source, product.sysimg_packages)
-        SysImgTools.compile_sysimage(compilation_script, tmp_sysimg; base_sysimg, julia_cmd, cpu_target, sysimg_args = product.sysimg_args, project = product.source)
-        mv(tmp_sysimg, base_sysimg; force=true)
 
+        withenv("DEFAULT_RUNTIME_MODE" => "MIN") do
+            SysImgTools.compile_sysimage(compilation_script, tmp_sysimg; base_sysimg, julia_cmd, cpu_target, sysimg_args = product.sysimg_args, project = product.source)
+        end
+
+        mv(tmp_sysimg, base_sysimg; force=true)
     end
 
     if !product.incremental
@@ -792,13 +801,15 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 
     if product.precompile && !isempty(product.precompiled_modules)
         @info "Precompiling..."
-        withenv("JULIA_PROJECT" => product.source, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => cpu_target) do
+        withenv("JULIA_PROJECT" => product.source, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => cpu_target, "DEFAULT_RUNTIME_MODE" => "MIN") do
             julia = "$destination/bin/julia"
 
             if product.parallel_precompilation
-                run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import Pkg; Pkg.precompile( $(repr(string.(product.precompiled_modules))) ) "`)
+                #run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import Pkg; Pkg.precompile( $(repr(string.(product.precompiled_modules))) ) "`)
+
+                run(`$julia --startup-file=no --eval "import AppEnv; AppEnv.init(runtime_mode = \"COMPILATION\", module_name=$(repr(module_name))); @show LOAD_PATH; @show DEPOT_PATH; import Pkg; Pkg.precompile( $(repr(string.(product.precompiled_modules))) ) "`)
             else
-                run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import $(join(product.precompiled_modules, ','))"`)
+                run(`$julia --startup-file=no --eval "import AppEnv; AppEnv.init(runtime_mode = \"COMPILATION\", module_name=$(repr(module_name))); import $(join(product.precompiled_modules, ','))"`)
             end
         end
 
