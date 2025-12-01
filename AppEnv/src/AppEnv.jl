@@ -1,5 +1,7 @@
 module AppEnv
 
+import Base: PkgId, PkgOrigin, UUID
+
 const RUNTIME_MODE_OPTIONS = ["MIN", "INTERACTIVE", "COMPILATION", "SANDBOX"]
 
 # Compilation can be done in one mode
@@ -22,9 +24,65 @@ global USER_DATA::String # This is set by the startup macro itself
 
 # Theese constants must be present at compilation time as otherwise it does not make sense
 
-# ToDo: update this script
-function fill_stdlib_pkgorigins!()
-    stdlib_dir = Sys.STDLIB
+function save_pkgorigins(path, pkgorigins::Dict{PkgId, PkgOrigin}; stdlib_dir = Sys.STDLIB)
+
+    file = open(path, "w")
+
+    try
+        for (pkgid, pkgorigin) in pkgorigins
+
+            (; name, uuid) = pkgid
+            (; path, version) = pkgorigin
+            
+            rpath = relpath(path, stdlib_dir)
+
+            println(file, "$uuid\t$name\t$version\t$rpath")
+            
+        end
+    finally
+        close(file)
+    end
+end
+
+function load_pkgorigins!(pkgorigins, path; stdlib_dir = Sys.STDLIB)
+    #pkgorigins = Dict{PkgId, PkgOrigin}()
+    
+    file = open(path, "r")
+    
+    try
+        for line in eachline(file)
+            # Parse tab-separated values
+            parts = split(line, '\t')
+            length(parts) == 4 || continue  # Skip malformed lines
+            
+            uuid_str, name, version_str, rpath = parts
+            
+            # Parse UUID
+            uuid = UUID(uuid_str)
+            
+            # Parse version (handle "nothing" case)
+            version = version_str == "nothing" ? nothing : VersionNumber(version_str)
+            
+            # Reconstruct absolute path
+            abspath = joinpath(stdlib_dir, rpath)
+            
+            # Create PkgId and PkgOrigin
+            pkg_id = PkgId(uuid, name)
+            pkg_origin = PkgOrigin(abspath, nothing, version)
+            
+            # Add to dictionary
+            pkgorigins[pkg_id] = pkg_origin
+        end
+    finally
+        close(file)
+    end
+    
+    return pkgorigins
+end
+
+#load_pkgorigins(path; stdlib_dir = Sys.STDLIB) = load_pkgorigins!(Dict{PkgId, PkgOrigin}(), path; stdlib_dir)
+
+function collect_pkgorigins!(pkgorigins::Dict{PkgId, PkgOrigin}; stdlib_dir = Sys.STDLIB)
     
     uuid_regex = r"^uuid\s*=\s*\"([a-f0-9\-]+)\""mi
     version_regex = r"^version\s*=\s*\"([^\"]+)\""mi
@@ -45,7 +103,7 @@ function fill_stdlib_pkgorigins!()
         # Extract uuid
         uuid_match = match(uuid_regex, content)
         uuid_match === nothing && continue
-        uuid = Base.UUID(uuid_match[1])
+        uuid = UUID(uuid_match[1])
         
         # Extract version (optional)
         version_match = match(version_regex, content)
@@ -59,15 +117,18 @@ function fill_stdlib_pkgorigins!()
         end
         
         # Create PkgId and PkgOrigin
-        pkg_id = Base.PkgId(uuid, name)
-        pkg_origin = Base.PkgOrigin(module_file, nothing, version)
+        pkg_id = PkgId(uuid, name)
+        pkg_origin = PkgOrigin(module_file, nothing, version)
         
         # Add to pkgorigins
-        Base.pkgorigins[pkg_id] = pkg_origin
+        pkgorigins[pkg_id] = pkg_origin
     end
     
-    return Base.pkgorigins
+    return pkgorigins
 end
+
+collect_pkgorigins(; stdlib_dir = Sys.STDLIB) = collect_pkgorigins!(Dict{PkgId, PkgOrigin}(); stdlib_dir)
+
 
 function set_load_path!(LOAD_PATH; module_name="")
 
@@ -221,10 +282,10 @@ end
 
 
 function init(; 
-              runtime_mode = get(ENV, "JULIA_RUNTIME_MODE", DEFAULT_RUNTIME_MODE),
-              module_name = get(ENV, "MODULE_NAME", DEFAULT_MODULE_NAME),
-              app_name = get(ENV, "APP_NAME", DEFAULT_APP_NAME),
-              bundle_identifier = get(ENV, "BUNDLE_IDENTIFIER", DEFAULT_BUNDLE_IDENTIFIER)
+              runtime_mode::String = get(ENV, "JULIA_RUNTIME_MODE", DEFAULT_RUNTIME_MODE),
+              module_name::String = get(ENV, "MODULE_NAME", DEFAULT_MODULE_NAME),
+              app_name::String = get(ENV, "APP_NAME", DEFAULT_APP_NAME),
+              bundle_identifier::String = get(ENV, "BUNDLE_IDENTIFIER", DEFAULT_BUNDLE_IDENTIFIER)
               )
 
 
@@ -234,8 +295,10 @@ function init(;
         return
     end
 
+    # This is a bit of a hack
     if isempty(module_name)
-        error("MODULE_NAME not set")
+        #error("MODULE_NAME not set")
+        module_name = get(ENV, "MODULE_NAME", DEFAULT_MODULE_NAME)
     end
 
     if runtime_mode == "SANDBOX"
@@ -255,7 +318,14 @@ function init(;
     if runtime_mode == "COMPILATION"
         popfirst!(Base.LOAD_PATH)
     else
-        fill_stdlib_pkgorigins!()
+
+        index_path = joinpath(Sys.STDLIB, "index")
+        if isfile(index_path)
+            load_pkgorigins!(Base.pkgorigins, index_path)
+        else
+            collect_pkgorigns!(Base.pkgorigins)
+        end
+
     end
 
     return

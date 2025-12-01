@@ -1,29 +1,43 @@
-# # This is a default startup file that is used for staging Julia which Platform-independent startup configuration
-# # It is superseeded with platform specific startup.jl file in order to support varios customizations, like precompilation and etc
+# Startup Configuration File 
+#
+# This file runs after platform-specific arguments are set, allowing you to apply
+# common startup options across all environments. Use this file to:
+#   - Load development tools (e.g., Revise.jl for hot-reloading, Infiltrator.jl for debugging)
+#   - Configure environment-specific settings
+#   - Display diagnostic information about the Julia environment
+#
+# The diagnostic output below shows the active project, load paths, and depot paths
+# to help verify your environment configuration.
 
-# libdir = dirname(dirname(@__DIR__))
+# We want to support AppEnv.inis() within the main function; Eventaully we shall transition using Preferences
+ENV["RUNTIME_MODE"] = "{{RUNTIME_MODE}}"
+ENV["MODULE_NAME"] = "{{MODULE_NAME}}"
+ENV["APP_NAME"] = "{{APP_NAME}}"
+ENV["BUNDLE_IDENTIFIER"] = "{{BUNDLE_IDENTIFIER}}"
 
-# # Add paths to LOAD_PATH for proper package precompilation:
-# # - Without the app directory in LOAD_PATH, extensions fail to precompile
-# # - If removed after precompilation, it invalidates the package image 
-# empty!(LOAD_PATH)
-# push!(LOAD_PATH, "@", "@stdlib")
-# isempty("{{MODULE_NAME}}") ? push!(LOAD_PATH, joinpath(Sys.STDLIB, "MainEnv")) : push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}"))
+if isdir(joinpath(last(DEPOT_PATH), "AppEnv")) || any(i -> i.name == "AppEnv", keys(Base.loaded_modules))
+    import AppEnv
+else
+    include(joinpath(last(DEPOT_PATH), "AppEnv/src/AppEnv.jl"))
+end
+AppEnv.init()
 
-# user_depot = get(ENV, "USER_DATA", mktempdir())
+# AppEnv.init(;
+#     runtime_mode = "{{RUNTIME_MODE}}", 
+#     module_name = "{{MODULE_NAME}}",
+#     (!isempty("{{APP_NAME}}") ? (app_name = "{{APP_NAME}}",) : ())...,
+#     (!isempty("{{BUNDLE_IDENTIFIER}}") ? (bundle_identifier = "{{BUNDLE_IDENTIFIER}}",) : ())...
+# )
 
-# empty!(DEPOT_PATH)
-# push!(DEPOT_PATH, user_depot, joinpath(libdir, "share/julia"))
+Base.ACTIVE_PROJECT[] = AppEnv.USER_DATA
 
-# include("common.jl")
+if isinteractive() && !isempty("{{MODULE_NAME}}") && isempty(ARGS)
+    println("No arguments provided. To display help, use:")
 
-#import AppEnv
-#AppEnv.init(runtime_mode = "MIN", module_name = "{{MODULE_NAME}}")
-
-import AppEnv
-AppEnv.init(;
-    runtime_mode = "{{RUNTIME_MODE}}", 
-    module_name = "{{MODULE_NAME}}",
-    (!isempty("{{APP_NAME}}") ? (app_name = "{{APP_NAME}}",) : ())...,
-    (!isempty("{{BUNDLE_IDENTIFIER}}") ? (bundle_identifier = "{{BUNDLE_IDENTIFIER}}",) : ())...
-)
+    if Sys.iswindows()
+        println("  {{APP_NAME}}.exe --eval \"using {{MODULE_NAME}}\" --help")
+    else
+        julia = relpath(joinpath(Sys.BINDIR, "julia"), pwd())
+        println("  $julia --eval \"using {{MODULE_NAME}}\" --help")
+    end
+end

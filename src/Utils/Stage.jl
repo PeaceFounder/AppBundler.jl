@@ -199,6 +199,14 @@ function retrieve_packages(project, packages_dir)
             end
         end
     end
+
+    module_name = get_module_name(project)
+    if !isnothing(module_name)
+        rm(joinpath(packages_dir, module_name); recursive=true, force=true)
+        copy_app(project, joinpath(packages_dir, module_name))
+    end
+
+    return
 end
 
 function instantiate_manifest(app_dir; julia_cmd=nothing)
@@ -441,14 +449,16 @@ pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
     source::String
     julia_version::VersionNumber = get_julia_version(source)
     target_instantiation::Bool = VERSION.minor != julia_version.minor
-    use_stdlib_dir::Bool = true
+    #use_stdlib_dir::Bool = true
     include_lazy_artifacts::Bool = true
+    stdlib_dir = "share/julia/stdlib/v$(julia_version.major).$(julia_version.minor)" # STDLIB directory relative to Sys.BINDIR
 
     startup_file::String = get_template(source, "startup.jl")
     startup_common::String = get_template(source, "common.jl")
 
     sysimg_packages::Vector{String} = []
     sysimg_args::Cmd = ``
+    remove_sources::Bool = false
 
     precompile::Bool = true
     precompiled_modules::Vector{Symbol} = precompile ? get_project_deps(source) : []
@@ -457,19 +467,6 @@ pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
 end
 
 PkgImage(source; kwargs...) = PkgImage(; source, kwargs...)
-
-function override_startup_file(source, destination; module_name="")
-
-    user_startup_file = joinpath(source, "meta/startup.jl")
-    if isfile(user_startup_file)
-        startup_file = user_startup_file
-    else
-        startup_file = joinpath(dirname(dirname(@__DIR__)), "recipes/startup.jl")
-    end
-    install(startup_file, destination; force=true, parameters = Dict("MODULE_NAME"=>module_name, "RUNTIME_MODE"=>"MIN"))
-
-    return
-end
 
 """
     validate_cross_compilation(product::PkgImage, platform::AbstractPlatform) -> Bool
@@ -604,23 +601,6 @@ end
 
 function sysimg_compilation_script(project, packages; 
                                    ctx = create_pkg_context(project))
-    
-    # packages_sysimg = get_transitive_dependencies(ctx, packages)
-
-    # julia_code_buffer = IOBuffer()
-
-    # for pkg in packages_sysimg
-    #     print(julia_code_buffer, """
-    #             println("\nCompiling $(pkg.name)")
-    #             Base.require(Base.PkgId(Base.UUID("$(string(pkg.uuid))"), $(repr(pkg.name))))
-    #             """)
-    #     #println(julia_code_buffer, "import $(pkg.name)")
-    # end
-
-    # println(julia_code_buffer, """println("\nCompilation of mudules finished")""")
-
-    # return String(take!(julia_code_buffer))
-
     if isempty(packages)
         return ""
     else
@@ -637,20 +617,6 @@ function sysimg_compilation_script(project, packages;
     end
 end
 
-# function apply_upgradable_stdlib_patch(destination::String)
-
-#     pkgdir = joinpath(destination, "Pkg")
-#     target = joinpath(pkgdir, "src/Types.jl")
-
-#     text = read(target, String)
-#     text = replace(text, r"const FORMER_STDLIBS = \[.*?\]" => "const FORMER_STDLIBS = []")
-#     text = replace(text, r"const UPGRADABLE_STDLIBS = \[.*?\]" => "const UPGRADABLE_STDLIBS = []")
-    
-#     write(target, text)
-
-#     return
-# end
-
 function copy_app(source, destination)
 
     mkdir(destination)
@@ -662,6 +628,25 @@ function copy_app(source, destination)
         cp(joinpath(source, i), joinpath(destination, i))
     end
 
+    return
+end
+
+function remove_jl_sources!(dir)
+    for (root, dirs, files) in walkdir(dir; topdown=false)
+        # Remove all .jl files
+        for file in files
+            if endswith(file, ".jl")
+                filepath = joinpath(root, file)
+                rm(filepath)
+            end
+        end
+        
+        # Remove directory if empty (skip the top-level dir)
+        if root != dir && isempty(readdir(root))
+            rm(root)
+        end
+    end
+    
     return
 end
 
@@ -736,13 +721,8 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 
     @info "Retrieving packages for Julia $(product.julia_version)"
 
-    packages_dir = if product.use_stdlib_dir
-        v = product.julia_version        
-        "$destination/share/julia/stdlib/v$(v.major).$(v.minor)/"
-    else
-        @warn "Override the meta/startup.jl and meta/dmg/startup.jl manually to set the LOAD_PATH"
-        "$destination/share/julia/packages" # may be useful when libs can be upgraded
-    end
+
+    packages_dir = joinpath(destination, product.stdlib_dir)
 
     #if !isfile(joinpath(product.source, "Manifest.toml"))
     @info "Instantiating project with $(product.julia_version)"
@@ -753,17 +733,17 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
     retrieve_packages(product.source, packages_dir)
 
     module_name = get_module_name(product.source)
-    if !isnothing(module_name)
-        copy_app(product.source, joinpath(packages_dir, module_name))
-    else
+
+    if isnothing(module_name)
         envdir = joinpath(packages_dir, "MainEnv")
         mkdir(envdir)
         cp(joinpath(product.source, "Project.toml"), joinpath(envdir, "Project.toml"))
         cp(joinpath(product.source, "Manifest.toml"), joinpath(envdir, "Manifest.toml"))
+
+        #module_name = "MainEnv"
     end
 
-    install(product.startup_file, "$destination/etc/julia/startup.jl"; force=true, parameters = Dict("MODULE_NAME"=>module_name, "RUNTIME_MODE"=>"MIN"))
-    #install(product.startup_common, "$destination/etc/julia/common.jl"; force=true, parameters = Dict("MODULE_NAME"=>module_name))
+    install(product.startup_file, "$destination/etc/julia/startup.jl"; force=true, parameters = Dict("MODULE_NAME"=>isnothing(module_name) ? "MainEnv" : module_name, "RUNTIME_MODE"=>"MIN"))
 
     cp(pkgdir(AppEnv), joinpath(packages_dir, "AppEnv"); force=true)
         
@@ -788,7 +768,7 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 
         compilation_script = sysimg_compilation_script(product.source, product.sysimg_packages)
 
-        withenv("DEFAULT_RUNTIME_MODE" => "MIN") do
+        withenv("DEFAULT_RUNTIME_MODE" => "MIN", "MODULE_NAME" => isnothing(module_name) ? "MainEnv" : module_name) do
             SysImgTools.compile_sysimage(compilation_script, tmp_sysimg; base_sysimg, julia_cmd, cpu_target, sysimg_args = product.sysimg_args, project = product.source)
         end
 
@@ -805,8 +785,6 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
             julia = "$destination/bin/julia"
 
             if product.parallel_precompilation
-                #run(`$julia --eval "@show LOAD_PATH; @show DEPOT_PATH; popfirst!(LOAD_PATH); popfirst!(DEPOT_PATH); import Pkg; Pkg.precompile( $(repr(string.(product.precompiled_modules))) ) "`)
-
                 run(`$julia --startup-file=no --eval "import AppEnv; AppEnv.init(runtime_mode = \"COMPILATION\", module_name=$(repr(module_name))); @show LOAD_PATH; @show DEPOT_PATH; import Pkg; Pkg.precompile( $(repr(string.(product.precompiled_modules))) ) "`)
             else
                 run(`$julia --startup-file=no --eval "import AppEnv; AppEnv.init(runtime_mode = \"COMPILATION\", module_name=$(repr(module_name))); import $(join(product.precompiled_modules, ','))"`)
@@ -815,6 +793,21 @@ function stage(product::PkgImage, platform::AbstractPlatform, destination::Strin
 
     else
         @info "Precompilation disabled. Precompilation will occur on target system at first launch."
+    end
+
+    @info "Installing pkgorigins index"
+
+    # Here it is also possible to filter out which orgins one wants to keep
+    pkgorigins = AppEnv.collect_pkgorigins(; stdlib_dir = packages_dir)
+    AppEnv.save_pkgorigins(joinpath(packages_dir, "index"), pkgorigins; stdlib_dir = packages_dir)    
+    
+    if product.remove_sources 
+        # A better way would be to retain only declared assets
+        @info "Removing sources from stdlib"
+        remove_jl_sources!(packages_dir)
+
+        # Needed for package loading
+        cp(joinpath(pkgdir(AppEnv), "Project.toml"), joinpath(packages_dir, "Project.toml"))
     end
 
     @info "App staging completed successfully"

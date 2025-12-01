@@ -1,4 +1,4 @@
-# Startup Configuration File (common startup.jl)
+# Startup Configuration File 
 #
 # This file runs after platform-specific arguments are set, allowing you to apply
 # common startup options across all environments. Use this file to:
@@ -16,6 +16,8 @@ AppEnv.init(;
     (!isempty("{{APP_NAME}}") ? (app_name = "{{APP_NAME}}",) : ())...,
     (!isempty("{{BUNDLE_IDENTIFIER}}") ? (bundle_identifier = "{{BUNDLE_IDENTIFIER}}",) : ())...
 )
+
+Base.ACTIVE_PROJECT[] = AppEnv.USER_DATA
 
 if isinteractive()
     @async begin

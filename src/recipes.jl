@@ -8,11 +8,7 @@ function bundle(product::PkgImage, dmg::DMG, destination::String; compress::Bool
         # app_stage always points to app directory
         stage(product, MacOS(arch), joinpath(app_stage, "Contents/Libraries"))
 
-        #startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/startup.jl")
         install(product.startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters = dmg.parameters, force = true)
-
-        #common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
-        #install(common_file, joinpath(app_stage, "Contents/Libraries/etc/julia/common.jl"); parameters = dmg.parameters, force = true)
 
         # main redirect
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
@@ -27,19 +23,17 @@ function bundle(product::PkgImage, snap::Snap, destination::String; compress::Bo
 
     snap.parameters["PRECOMPILED_MODULES"] = join(product.precompiled_modules, ", ")
     
-    bundle(snap, destination; compress, force, install_configure = true) do app_stage
+    bundle(snap, destination; compress, force) do app_stage
         
         stage(product, Linux(arch), app_stage)
 
-        #startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/startup.jl")
         install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = snap.parameters, force = true)
-        
-        #common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
-        #install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = snap.parameters, force = true)
         
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/main.sh")
         app_name = snap.parameters["APP_NAME_LOWERCASE"]
         install(main_file, joinpath(app_stage, "bin/$app_name"); parameters = snap.parameters, executable = true)
+
+        install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters = Dict("PRECOMPILED_MODULES" => join(product.precompiled_modules, ",")), executable = true)
 
     end
 
@@ -69,11 +63,8 @@ function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bo
         
         touch("$app_stage/bin/julia.exe") # updating timestamp to avoid Invalid Parameter error
 
-        #startup_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "msix/startup.jl")
         install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
 
-        #common_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "common.jl")
-        #install(common_file, joinpath(app_stage, "etc/julia/common.jl"); parameters = msix.parameters, force = true)
         
         if msix.windowed
             WinSubsystem.change_subsystem_inplace("$app_stage/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
@@ -144,7 +135,7 @@ build_app(Windows(:x86_64), source, "MyApp.msix"; windowed = false)
 build_app(Windows(:x86_64), source, "MyApp.msix"; precompile = false)
 ```
 """
-function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false, sysimg_packages = [])
+function build_app(platform::Windows, source, destination; compress::Bool = isext(destination, ".msix"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false, sysimg_packages = [], sysimg_args = ``, remove_sources=false)
 
     msix = MSIX(source; windowed,
                 (adhoc_signing ? (; pfx_cert=nothing) : (;))...)
@@ -154,7 +145,7 @@ function build_app(platform::Windows, source, destination; compress::Bool = isex
         incremental = false
     end
 
-    product = PkgImage(source; precompile, incremental, sysimg_packages)
+    product = PkgImage(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
     
     return bundle(product, msix, destination; compress, force, arch = arch(platform))
 end
@@ -214,7 +205,7 @@ build_app(Linux(:aarch64), source, "MyApp.snap")
 build_app(Linux(:x86_64), source, "MyApp.snap"; precompile = false)
 ```
 """
-function build_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"), precompile = true, incremental = true, force = false, windowed = true, sysimg_packages = [])
+function build_app(platform::Linux, source, destination; compress::Bool = isext(destination, ".snap"), precompile = true, incremental = true, force = false, windowed = true, sysimg_packages = [], sysimg_args = ``, remove_sources=false)
 
     snap = Snap(source; windowed)
 
@@ -223,7 +214,7 @@ function build_app(platform::Linux, source, destination; compress::Bool = isext(
         incremental = false
     end
 
-    product = PkgImage(source; precompile, incremental, sysimg_packages)
+    product = PkgImage(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
 
     return bundle(product, snap, destination; compress, force, arch = arch(platform))
 end
@@ -283,7 +274,7 @@ build_app(MacOS(:aarch64), source, "MyApp.dmg")
 build_app(MacOS(:aarch64), source, "MyApp.dmg"; precompile = false)
 ```
 """
-function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false, hfsplus = false, sysimg_packages = [])
+function build_app(platform::MacOS, source, destination; compress::Bool = isext(destination, ".dmg"), precompile = true, incremental = true, force = false, windowed = true, adhoc_signing = false, hfsplus = false, sysimg_packages = [], sysimg_args = ``, remove_sources=false)
 
     dmg = DMG(source; windowed, hfsplus, 
               (adhoc_signing ? (; pfx_cert=nothing) : (;))...)
@@ -293,7 +284,7 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
         incremental = false
     end
 
-    product = PkgImage(source; precompile, incremental, sysimg_packages)
+    product = PkgImage(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
     
     return bundle(product, dmg, destination; compress, force, arch = arch(platform))
 end

@@ -84,6 +84,16 @@ function create_sysimg_object_file(script::String,
     return
 end
 
+function link_image(object_files, sysimg_path; julia_cmd = nothing)
+    
+    if isnothing(julia_cmd)
+        Base.Linking.link_image(object_files, sysimg_path)
+    else
+        run(`$julia_cmd --startup-file=no --eval "Base.Linking.link_image($(repr(object_files)), $(repr(sysimg_path)))"`)
+    end
+
+end
+
 function compile_sysimage(script::String, sysimage_path::String;
                          base_sysimg::String = unsafe_string(Base.JLOptions().image_file), 
                          project::String=dirname(active_project()),
@@ -105,7 +115,8 @@ function compile_sysimage(script::String, sysimage_path::String;
 
     # There may be use for running this on the julia process itself to avoid arch mismatches
     object_files = [object_file]
-    Base.Linking.link_image(object_files, sysimage_path)
+    #Base.Linking.link_image(object_files, sysimage_path; julia_cmd)
+    link_image(object_files, sysimage_path; julia_cmd)
     
     rm(object_file; force=true)
 
