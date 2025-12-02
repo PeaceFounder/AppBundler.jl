@@ -34,6 +34,10 @@ end
 
 src_dir = joinpath(pkgdir(AppBundler), "examples/GLApp")
 
+@show isdir(src_dir)
+@show readdir(dirname(src_dir))
+@show readdir(src_dir)
+
 product_spec = PkgImage(src_dir; precompile = true)
 stage(product_spec, platform, mktempdir())
 
