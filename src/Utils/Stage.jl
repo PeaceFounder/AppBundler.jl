@@ -227,11 +227,18 @@ function compile_pkgimgs(destination, project;
     julia_cmd = `$destination/bin/julia --startup-file=no`
     module_name = get_module_name(project)
     
+    appenv_init_script = """
+        @eval Module() begin
+            Base.include(@__MODULE__, joinpath(Sys.STDLIB, "AppEnv/src/AppEnv.jl"))
+            AppEnv.init()
+        end
+    """
+
     withenv("JULIA_PROJECT" => project, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => cpu_target, "DEFAULT_RUNTIME_MODE" => "MIN", "RUNTIME_MODE" => "COMPILATION", "MODULE_NAME" => isnothing(module_name) ? "MainEnv" : module_name) do
         if use_pkg
-            run(`$julia_cmd --eval "import AppEnv; AppEnv.init(); import Pkg; Pkg.precompile( $(repr(string.(precompiled_modules))) ) "`)
+            run(`$julia_cmd --eval "$appenv_init_script; import AppEnv; import Pkg; Pkg.precompile( $(repr(string.(precompiled_modules))) ) "`)
         else
-            run(`$julia_cmd --eval "import AppEnv; AppEnv.init(); import $(join(precompiled_modules, ','))"`)
+            run(`$julia_cmd --eval "$appenv_init_script; import AppEnv; import $(join(precompiled_modules, ','))"`)
         end
     end
 

@@ -15,10 +15,10 @@ ENV["MODULE_NAME"] = "{{MODULE_NAME}}"
 ENV["APP_NAME"] = "{{APP_NAME}}"
 ENV["BUNDLE_IDENTIFIER"] = "{{BUNDLE_IDENTIFIER}}"
 
-if isdir(joinpath(last(DEPOT_PATH), "AppEnv")) || any(i -> i.name == "AppEnv", keys(Base.loaded_modules))
+if isdir(joinpath(last(DEPOT_PATH), "compiled/v$(VERSION.major).$(VERSION.minor)", "AppEnv")) || any(i -> i.name == "AppEnv", keys(Base.loaded_modules))
     import AppEnv
 else
-    include(joinpath(last(DEPOT_PATH), "AppEnv/src/AppEnv.jl"))
+    include(joinpath(Sys.STDLIB, "AppEnv/src/AppEnv.jl"))
 end
 AppEnv.init()
 

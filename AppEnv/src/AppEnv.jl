@@ -255,23 +255,24 @@ function set_depot_path_msix!(DEPOT_PATH; bundle_identifier)
 
     if haskey(ENV, "USER_DATA")
         @info "Using USER_DATA environment variable to run in custom location"
+        global USER_DATA = ENV["USER_DATA"]
     else 
         _basename = get_basename(bundle_identifier)
         if !isnothing(_basename)
             @info "Using USER_DATA asigned by sandbox environment"    
             base_dir = joinpath(ENV["LOCALAPPDATA"], "Packages", _basename)
-            ENV["USER_DATA"] = joinpath(base_dir, "LocalState")
+            global USER_DATA = joinpath(base_dir, "LocalState")
         else
             @info "Could not infer USER_DATA directory, presumably running out of sanbdox. Using temporary directory..."
             path = joinpath(tempdir(), "app_user_data")
             rm(path; recursive=true, force=true)
             mkpath(path)
-            ENV["USER_DATA"] = path        
+            global USER_DATA = path
         end
     end
 
-    @assert isdir(ENV["USER_DATA"]) "User data directory USER_DATA = $USER_DATA does not exist."
-    user_depot = joinpath(ENV["USER_DATA"], "depot")
+    @assert isdir(USER_DATA) "User data directory USER_DATA = $USER_DATA does not exist."
+    user_depot = joinpath(USER_DATA, "depot")
 
     # Modify DEPOT_PATH (equivalent to JULIA_DEPOT_PATH)
     empty!(DEPOT_PATH)

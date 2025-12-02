@@ -33,7 +33,7 @@ function bundle(product::PkgImage, snap::Snap, destination::String; compress::Bo
         app_name = snap.parameters["APP_NAME_LOWERCASE"]
         install(main_file, joinpath(app_stage, "bin/$app_name"); parameters = snap.parameters, executable = true)
 
-        install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters = Dict("PRECOMPILED_MODULES" => join(product.precompiled_modules, ",")), executable = true)
+        install(snap.configure_hook, joinpath(app_stage, "meta/hooks/configure"); parameters = Dict("PRECOMPILED_MODULES" => join(product.precompiled_modules, ",")), executable = true)
 
     end
 
