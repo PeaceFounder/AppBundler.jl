@@ -333,13 +333,11 @@ Extract the Julia version from Manifest.toml if it exists, otherwise return the 
 """
 function get_julia_version(source::String)
     manifest_file = joinpath(source, "Manifest.toml")
-    
+
     try
         manifest_dict = TOML.parsefile(manifest_file)
         return VersionNumber(manifest_dict["julia_version"])
     catch
-        #@info "Reading Julia from Manifest.toml failed. Using host Julia version $VERSION instead"
-        #return VERSION
         error("Failing to read Julia version from Manifest.toml")
     end
 end
@@ -411,14 +409,14 @@ function fetch(project, destination;
                stdlib_dir = nothing
                )
 
+    if !isfile(joinpath(project, "Manifest.toml"))
+        instantiate_manifest(project) # Happens with host Julia version
+    end
+
     julia_version = get_julia_version(project)
     
     if isnothing(stdlib_dir)
         stdlib_dir = "share/julia/stdlib/v$(julia_version.major).$(julia_version.minor)"
-    end
-
-    if !isfile(joinpath(project, "Manifest.toml"))
-        instantiate_manifest(project) # Happens with host Julia version
     end
 
     if !haskey(platform, "julia_version")
