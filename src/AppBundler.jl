@@ -16,15 +16,18 @@ include("Utils/MSIXPack.jl")
 include("Utils/MSIXIcons.jl")
 include("Utils/WinSubsystem.jl")
 
+include("Utils/Resources.jl")
 include("Utils/TerminalSpinners.jl")
 include("Utils/SysImgTools.jl")
-
 include("Utils/Stage.jl")
+
 include("Utils/ArgParser.jl")
 
 import .ArgParser: parse_args
 import .Stage: stage # 
-using .Stage: merge_directories, install
+#using .Stage: merge_directories, install
+using .Stage: install
+using .Resources: merge_directories#, install
 
 include("utils.jl")
 include("bundle.jl")

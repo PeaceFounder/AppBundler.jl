@@ -2,7 +2,8 @@ import Pkg.BinaryPlatforms: MacOS, Linux, Windows
 import AppBundler: stage, PkgImage
 import AppBundler
 
-import AppBundler.Stage: julia_download_url
+import AppBundler.Resources: julia_download_url
+#import AppBundler.Stage: julia_download_url
 import Pkg.BinaryPlatforms: Linux, Windows, MacOS
 
 using Test

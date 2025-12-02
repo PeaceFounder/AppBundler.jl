@@ -167,7 +167,7 @@ function set_depot_path!(DEPOT_PATH; bundle_identifier, app_name, runtime_mode)
         global USER_DATA = get(ENV, "USER_DATA", mktempdir())
 
     else
-        error("Sandbox mode JULIA_RUNTIME_MODE=$runtime_mode not supported")
+        error("Sandbox mode RUNTIME_MODE=$runtime_mode not supported")
     end
 end
 
@@ -282,7 +282,7 @@ end
 
 
 function init(; 
-              runtime_mode::String = get(ENV, "JULIA_RUNTIME_MODE", DEFAULT_RUNTIME_MODE),
+              runtime_mode::String = get(ENV, "RUNTIME_MODE", DEFAULT_RUNTIME_MODE),
               module_name::String = get(ENV, "MODULE_NAME", DEFAULT_MODULE_NAME),
               app_name::String = get(ENV, "APP_NAME", DEFAULT_APP_NAME),
               bundle_identifier::String = get(ENV, "BUNDLE_IDENTIFIER", DEFAULT_BUNDLE_IDENTIFIER)
