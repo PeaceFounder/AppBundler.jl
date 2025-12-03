@@ -8,6 +8,18 @@ DOWNLOAD_CACHE = ""
 julia_tarballs() = joinpath(DOWNLOAD_CACHE, "julia-tarballs")
 artifacts_cache() = joinpath(DOWNLOAD_CACHE, "artifacts")
 
+"""
+    BuildSpec
+
+Abstract specification for building and packaging applications.
+
+Concrete subtypes:
+- [`JuliaAppBundle`](@ref): Julia application with full runtime
+- [`JuliacBundle`](@ref): Standalone executable compiled with JuliaC
+"""
+abstract type BuildSpec end
+
+
 include("Utils/DSStore.jl")
 include("Utils/HFS.jl")
 include("Utils/DMGPack.jl")

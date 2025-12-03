@@ -423,13 +423,13 @@ function fetch(project, destination;
         platform = deepcopy(platform)
         platform["julia_version"] = string(julia_version) # previously "$(v.major).$(v.minor).$(v.patch)" 
 
-    elseif platform["julia_version"] != julia_version
+    elseif VersionNumber(platform["julia_version"]) != julia_version
         
         error("""
-            Different `julia_version` specified in both the platform and PkgImage product.
-            
-            The Julia version is already set in the PkgImage product (version $(product.version)).
-            Remove `julia_version` from the platform specification to resolve this conflict.
+            Different julia_version specified: platform has "$(platform["julia_version"])" 
+            but Manifest.toml requires $(julia_version).
+
+            Remove julia_version from the platform specification.
             
             Context: When building products, the platform represents the build system configuration.
             For artifact retrieval, Julia itself is considered part of the target system, where

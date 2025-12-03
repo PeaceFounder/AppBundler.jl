@@ -1,6 +1,6 @@
 module Stage
 
-using ..AppBundler: julia_tarballs, artifacts_cache
+using ..AppBundler: julia_tarballs, artifacts_cache, BuildSpec
 using ..SysImgTools
 using ..Resources
 using ..Resources: get_module_name
@@ -19,13 +19,12 @@ using TOML
 import Mustache
 import AppEnv
 
-
 """
-    PkgImage(source; precompile = true, incremental = true, julia_version = get_julia_version(source))
+    JuliaAppBundle(source; precompile = true, incremental = true, julia_version = get_julia_version(source))
 
 Create a package image configuration for Julia application compilation.
 
-This constructor initializes a PkgImage configuration that controls how a Julia application
+This constructor initializes a JuliaAppBundle configuration that controls how a Julia application
 is compiled and packaged, including precompilation settings and target Julia version.
 
 # Arguments
@@ -42,16 +41,16 @@ is compiled and packaged, including precompilation settings and target Julia ver
 # Examples
 ```julia
 # Create package image with default settings
-pkg = PkgImage(app_dir)
+pkg = JuliaAppBundle(app_dir)
 
 # Create without precompilation (compile on target system)
-pkg = PkgImage(app_dir; precompile = false)
+pkg = JuliaAppBundle(app_dir; precompile = false)
 
 # Create with specific Julia version and clean compilation
-pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
+pkg = JuliaAppBundle(app_dir; julia_version = v"1.10.0", incremental = false)
 ```
 """
-@kwdef struct PkgImage
+@kwdef struct JuliaAppBundle <: BuildSpec
     source::String
     julia_version::VersionNumber = get_julia_version(source)
     target_instantiation::Bool = VERSION.minor != julia_version.minor
@@ -72,7 +71,7 @@ pkg = PkgImage(app_dir; julia_version = v"1.10.0", incremental = false)
     parallel_precompilation::Bool = (incremental || :Pkg in precompiled_modules) && !haskey(ENV, "CI")
 end
 
-PkgImage(source; kwargs...) = PkgImage(; source, kwargs...)
+JuliaAppBundle(source; kwargs...) = JuliaAppBundle(; source, kwargs...)
 
 
 
@@ -167,8 +166,8 @@ function configure(destination, spec)
     if isnothing(module_name)
         envdir = joinpath(packages_dir, "MainEnv")
         mkdir(envdir)
-        cp(joinpath(product.source, "Project.toml"), joinpath(envdir, "Project.toml"))
-        cp(joinpath(product.source, "Manifest.toml"), joinpath(envdir, "Manifest.toml"))
+        cp(joinpath(spec.source, "Project.toml"), joinpath(envdir, "Project.toml"))
+        cp(joinpath(spec.source, "Manifest.toml"), joinpath(envdir, "Manifest.toml"))
 
         #module_name = "MainEnv"
     end
@@ -246,13 +245,13 @@ function compile_pkgimgs(destination, project;
 end
 
 """
-    validate_cross_compilation(product::PkgImage, platform::AbstractPlatform) -> Bool
+    validate_cross_compilation(product::JuliaAppBundle, platform::AbstractPlatform) -> Bool
 
 Validate whether cross-compilation is supported for the given platform combination.
 Throws descriptive errors for unsupported combinations.
 
 # Arguments
-- `product::PkgImage`: The package configuration
+- `product::JuliaAppBundle`: The package configuration
 - `platform::AbstractPlatform`: Target platform
 
 # Returns
@@ -374,7 +373,7 @@ end
 
 
 """
-    stage(product::PkgImage, platform::AbstractPlatform, destination::String)
+    stage(product::JuliaAppBundle, platform::AbstractPlatform, destination::String)
 
 Stage a Julia application by downloading Julia runtime, copying packages, and optionally precompiling.
 
@@ -384,7 +383,7 @@ copying application dependencies, retrieving artifacts, configuring startup file
 precompiling the application.
 
 # Arguments
-- `product::PkgImage`: Package image configuration specifying source, precompilation settings, and Julia version
+- `product::JuliaAppBundle`: Package image configuration specifying source, precompilation settings, and Julia version
 - `platform::AbstractPlatform`: Target platform (e.g., `MacOS(:arm64)`, `Windows(:x86_64)`, `Linux(:x86_64)`)
 - `destination::String`: Target directory where the staged application will be created
 
@@ -408,16 +407,16 @@ The function performs the following steps in order:
 # Examples
 ```julia
 # Stage application for macOS arm64
-pkg = PkgImage("src/")
+pkg = JuliaAppBundle("src/")
 stage(pkg, MacOS(:arm64), "build/MyApp.app/Contents/Resources/julia")
 
 # Stage without precompilation for faster builds
-pkg = PkgImage(app_dir; precompile = false)
+pkg = JuliaAppBundle(app_dir; precompile = false)
 stage(pkg, Linux(:x86_64), "build/linux_staging")
 
 ```
 """
-function stage(product::PkgImage, platform::AbstractPlatform, destination::String; cpu_target = get_cpu_target(platform))
+function stage(product::JuliaAppBundle, platform::AbstractPlatform, destination::String; cpu_target = get_cpu_target(platform))
 
     if product.precompile
         validate_cross_compilation(platform)

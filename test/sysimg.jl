@@ -26,7 +26,7 @@
 
 
 import Pkg.BinaryPlatforms: MacOS, Linux, Windows
-import AppBundler: stage, PkgImage
+import AppBundler: stage, JuliaAppBundle
 
 
 import AppBundler.Stage: julia_download_url
@@ -56,9 +56,9 @@ elseif Sys.iswindows()
 end
 
 
-#product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["sysimg"])
+#product_spec = JuliaAppBundle(src_dir; precompile = true, sysimg_packages = ["sysimg"])
 
-#product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["GtkApp"])
-product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["QMLApp"])
-#product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["Mods"])
+#product_spec = JuliaAppBundle(src_dir; precompile = true, sysimg_packages = ["GtkApp"])
+product_spec = JuliaAppBundle(src_dir; precompile = true, sysimg_packages = ["QMLApp"])
+#product_spec = JuliaAppBundle(src_dir; precompile = true, sysimg_packages = ["Mods"])
 stage(product_spec, platform, mktempdir(); cpu_target="native")

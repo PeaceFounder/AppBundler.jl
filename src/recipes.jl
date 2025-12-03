@@ -1,8 +1,8 @@
 using Base.BinaryPlatforms: arch
 using Pkg.BinaryPlatforms: Linux, Windows, MacOS
-using .Stage: stage, PkgImage
+using .Stage: stage, JuliaAppBundle
 
-function bundle(product::PkgImage, dmg::DMG, destination::String; compress::Bool = isext(dest, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), arch = :x86_64)
+function bundle(product::JuliaAppBundle, dmg::DMG, destination::String; compress::Bool = isext(dest, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), arch = :x86_64)
     
     bundle(dmg, destination; compress, compression, force, password, main_redirect = true, arch) do app_stage
         # app_stage always points to app directory
@@ -19,7 +19,7 @@ function bundle(product::PkgImage, dmg::DMG, destination::String; compress::Bool
     return
 end
 
-function bundle(product::PkgImage, snap::Snap, destination::String; compress::Bool = isext(dest, ".snap"), force = false, arch = :x86_64)
+function bundle(product::JuliaAppBundle, snap::Snap, destination::String; compress::Bool = isext(dest, ".snap"), force = false, arch = :x86_64)
 
     snap.parameters["PRECOMPILED_MODULES"] = join(product.precompiled_modules, ", ")
     
@@ -49,7 +49,7 @@ function normalize_executable(path::String)
     return
 end
 
-function bundle(product::PkgImage, msix::MSIX, destination::String; compress::Bool = isext(dest, ".msix"), force = false, arch = :x86_64)
+function bundle(product::JuliaAppBundle, msix::MSIX, destination::String; compress::Bool = isext(dest, ".msix"), force = false, arch = :x86_64)
 
     bundle(msix, destination; compress, force) do app_stage
         
@@ -145,7 +145,7 @@ function build_app(platform::Windows, source, destination; compress::Bool = isex
         incremental = false
     end
 
-    product = PkgImage(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
+    product = JuliaAppBundle(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
     
     return bundle(product, msix, destination; compress, force, arch = arch(platform))
 end
@@ -214,7 +214,7 @@ function build_app(platform::Linux, source, destination; compress::Bool = isext(
         incremental = false
     end
 
-    product = PkgImage(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
+    product = JuliaAppBundle(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
 
     return bundle(product, snap, destination; compress, force, arch = arch(platform))
 end
@@ -284,7 +284,7 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
         incremental = false
     end
 
-    product = PkgImage(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
+    product = JuliaAppBundle(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
     
     return bundle(product, dmg, destination; compress, force, arch = arch(platform))
 end

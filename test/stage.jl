@@ -1,5 +1,5 @@
 import Pkg.BinaryPlatforms: MacOS, Linux, Windows
-import AppBundler: stage, PkgImage
+import AppBundler: stage, JuliaAppBundle
 import AppBundler
 
 import AppBundler.Resources: julia_download_url
@@ -34,16 +34,16 @@ end
 
 src_dir = joinpath(pkgdir(AppBundler), "examples/GLApp")
 
-product_spec = PkgImage(src_dir; precompile = true)
+product_spec = JuliaAppBundle(src_dir; precompile = true)
 stage(product_spec, platform, mktempdir())
 
-product_spec = PkgImage(src_dir; precompile = false, target_instantiation = true)
+product_spec = JuliaAppBundle(src_dir; precompile = false, target_instantiation = true)
 stage(product_spec, platform, mktempdir())
 
-product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["GLApp"], remove_sources=true)
+product_spec = JuliaAppBundle(src_dir; precompile = true, sysimg_packages = ["GLApp"], remove_sources=true)
 stage(product_spec, platform, mktempdir(); cpu_target="native")
 
 # Tests sysimg generation with Julia 1.12
 src_dir = joinpath(pkgdir(AppBundler), "examples/CmdApp")
-product_spec = PkgImage(src_dir; precompile = true, sysimg_packages = ["CmdApp"], remove_sources=true)
+product_spec = JuliaAppBundle(src_dir; precompile = true, sysimg_packages = ["CmdApp"], remove_sources=true)
 stage(product_spec, platform, mktempdir(); cpu_target="native")
