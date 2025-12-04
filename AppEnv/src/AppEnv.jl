@@ -340,6 +340,7 @@ function init(;
     @assert runtime_mode in RUNTIME_MODE_OPTIONS "runtime_mode=$runtime_mode not recognized. Available options are $(join(RUNTIME_MODE_OPTIONS, '|'))"
 
     if runtime_mode == "INTERACTIVE"
+        global USER_DATA = get(ENV, "USER_DATA", mktempdir())
         return
     end
 
