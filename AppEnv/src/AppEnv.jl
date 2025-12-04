@@ -181,7 +181,6 @@ function set_load_path!(LOAD_PATH; module_name="")
 
     empty!(LOAD_PATH)
     push!(LOAD_PATH, "@", "@stdlib")
-    #isempty(module_name) ? push!(LOAD_PATH, joinpath(Sys.STDLIB, "MainEnv")) : push!(LOAD_PATH, joinpath(Sys.STDLIB, module_name))
     push!(LOAD_PATH, joinpath(Sys.STDLIB, module_name))
 
 end
@@ -242,7 +241,6 @@ function set_depot_path_macos!(DEPOT_PATH::Vector{String}; app_name)
         global USER_DATA = joinpath(homedir(), ".config", app_name)
     end
 
-    # Modify DEPOT_PATH (equivalent to JULIA_DEPOT_PATH)
     empty!(DEPOT_PATH)
     push!(DEPOT_PATH, user_depot, joinpath(dirname(Sys.BINDIR), "share/julia"))
 
@@ -252,17 +250,15 @@ end
 function set_depot_path_snap!(DEPOT_PATH::Vector{String})
 
     empty!(DEPOT_PATH)
-    push!(DEPOT_PATH, dirname(dirname(Sys.STDLIB)))
 
     if haskey(ENV, "SNAP")
         @info "Application running as SNAP"
 
         global USER_DATA = ENV["SNAP_USER_DATA"]
 
-        # correct
-        pushfirst!(DEPOT_PATH, ENV["SNAP_DATA"])
-        pushfirst!(DEPOT_PATH, ENV["SNAP_USER_COMMON"])
-        
+        push!(DEPOT_PATH, ENV["SNAP_USER_COMMON"])
+        push!(DEPOT_PATH, ENV["SNAP_DATA"])
+
     else
         @info "Application running in bare host environment."
 
@@ -272,9 +268,11 @@ function set_depot_path_snap!(DEPOT_PATH::Vector{String})
             global USER_DATA = mktempdir() 
         end
         
-        pushfirst!(DEPOT_PATH, joinpath(USER_DATA, "cache"))
+        push!(DEPOT_PATH, joinpath(USER_DATA, "cache"))
 
     end
+
+    push!(DEPOT_PATH, dirname(dirname(Sys.STDLIB)))
 
     return
 end
@@ -382,8 +380,8 @@ function init(;
     return
 end
 
-function reset_cache()
 
+function reset_cache()
 
     pkg = Base.PkgId(Base.UUID("9f11263e-cf0d-4932-bae6-807953dbea74"), "AppEnv")
     cache_dir = Base.compilecache_path(pkg)
@@ -395,8 +393,5 @@ function reset_cache()
     
 end
 
-function __init__()
-    #reset_cache()
-end
 
 end # module AppEnv
