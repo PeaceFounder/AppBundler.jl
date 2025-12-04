@@ -12,7 +12,7 @@ try
     build_dir = mktempdir()
     push!(ARGS, "--compiled-modules=no")
     push!(ARGS, "--build-dir=$build_dir")
-    @eval include("../examples/glapp/meta/build.jl")
+    @eval include("../examples/GLApp/meta/build.jl")
 
     if Sys.isapple()
 

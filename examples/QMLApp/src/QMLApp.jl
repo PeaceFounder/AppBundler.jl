@@ -1,13 +1,13 @@
 module QMLApp
 
 using QML
-#import AppEnv
+import AppEnv
 
 global _PROPERTIES::JuliaPropertyMap
 
 function julia_main()::Cint
 
-    #AppEnv.init()
+    AppEnv.init()
 
     global _PROPERTIES = JuliaPropertyMap(
         "text" => "Hello World Again!",
