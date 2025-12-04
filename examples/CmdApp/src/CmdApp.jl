@@ -1,15 +1,20 @@
 module CmdApp
 
+import AppEnv
+
 function (@main)(ARGS::Vector{String})
     # Check if file argument provided
 
+    AppEnv.init()
+
+    println(Core.stdout, join(LOAD_PATH, ", "))
+    println(Core.stdout, join(DEPOT_PATH, ", "))
     println(Core.stdout, "Sys.STDLIB = $(Sys.STDLIB)")
     println(Core.stdout, "Sys.BINDIR = $(Sys.BINDIR)")
-    println(Core.stdout, "LOAD_PATH = $(LOAD_PATH[1])")
-    println(Core.stdout, "LOAD_PATH = $(LOAD_PATH[2])")
-    println(Core.stdout, "LOAD_PATH = $(LOAD_PATH[3])")
 
     println(Core.stdout, "pkgdir = $(pkgdir(@__MODULE__))") # This works!!!
+
+    println(Core.stdout, "pkgdir2 = $(pkgdir(AppEnv))") 
 
     if isempty(ARGS)
         println(Core.stdout, "Usage: julia script.jl <filename>")

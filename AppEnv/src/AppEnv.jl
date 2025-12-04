@@ -13,6 +13,8 @@ const DEFAULT_MODULE_NAME = get(ENV, "MODULE_NAME", "MainEnv")
 const DEFAULT_APP_NAME = get(ENV, "APP_NAME", "")
 const DEFAULT_BUNDLE_IDENTIFIER = get(ENV, "BUNDLE_IDENTIFIER", "")
 
+const DEFAULT_STDLIB = get(ENV, "STDLIB", relpath(Sys.STDLIB, dirname(Sys.BINDIR)))
+
 println("Compilation is about to happen with the following parameters:")
 println("\tDEFAULT_RUNTIME_MODE=" * DEFAULT_RUNTIME_MODE)
 println("\tDEFAULT_MODULE_NAME=" * DEFAULT_MODULE_NAME)
@@ -44,6 +46,30 @@ function save_pkgorigins(path, pkgorigins::Dict{PkgId, PkgOrigin}; stdlib_dir = 
     end
 end
 
+# Helper function to manually parse version string to avoid VersionNumber(::String) type instability
+# This avoids the problematic split_idents function in Base.version
+function parse_version(version_str::AbstractString)
+    # Handle basic version format: major.minor.patch[-prerelease][+build]
+    # Split by '-' to separate version from prerelease
+    parts = split(version_str, '-', limit=2)
+    version_part = parts[1]
+    
+    # Split by '+' to separate from build metadata
+    version_part = split(version_part, '+')[1]
+    
+    # Split by '.' to get major.minor.patch
+    components = split(version_part, '.')
+    
+    # Parse major, minor, patch
+    major = length(components) >= 1 ? parse(Int, components[1]) : 0
+    minor = length(components) >= 2 ? parse(Int, components[2]) : 0
+    patch = length(components) >= 3 ? parse(Int, components[3]) : 0
+    
+    # For now, ignore prerelease and build info to keep it simple
+    # This is sufficient for most stdlib packages
+    return VersionNumber(major, minor, patch)
+end
+
 function load_pkgorigins!(pkgorigins, path; stdlib_dir = Sys.STDLIB)
     #pkgorigins = Dict{PkgId, PkgOrigin}()
     
@@ -61,7 +87,16 @@ function load_pkgorigins!(pkgorigins, path; stdlib_dir = Sys.STDLIB)
             uuid = UUID(uuid_str)
             
             # Parse version (handle "nothing" case)
-            version = version_str == "nothing" ? nothing : VersionNumber(version_str)
+            if version_str == "nothing"
+                version = nothing
+            else
+                try
+                    version = parse_version(version_str)
+                catch e
+                    @warn "Failed to parse version '$version_str' for package $name: $e"
+                    continue
+                end
+            end
             
             # Reconstruct absolute path
             abspath = joinpath(stdlib_dir, rpath)
@@ -80,13 +115,16 @@ function load_pkgorigins!(pkgorigins, path; stdlib_dir = Sys.STDLIB)
     return pkgorigins
 end
 
-#load_pkgorigins(path; stdlib_dir = Sys.STDLIB) = load_pkgorigins!(Dict{PkgId, PkgOrigin}(), path; stdlib_dir)
 
 function collect_pkgorigins!(pkgorigins::Dict{PkgId, PkgOrigin}; stdlib_dir = Sys.STDLIB)
     
     uuid_regex = r"^uuid\s*=\s*\"([a-f0-9\-]+)\""mi
     version_regex = r"^version\s*=\s*\"([^\"]+)\""mi
     
+    if !isdir(stdlib_dir)
+        return pkgorigins
+    end
+
     for name in readdir(stdlib_dir)
         pkg_path = joinpath(stdlib_dir, name)
         
@@ -105,11 +143,20 @@ function collect_pkgorigins!(pkgorigins::Dict{PkgId, PkgOrigin}; stdlib_dir = Sy
         uuid_match === nothing && continue
         uuid = UUID(uuid_match[1])
         
-        # Extract version (optional)
+        # Extract version (optional) and parse manually
         version_match = match(version_regex, content)
-        version = version_match === nothing ? nothing : VersionNumber(version_match[1])
+        if version_match === nothing
+            version = nothing
+        else
+            try
+                version = parse_version(version_match[1])
+            catch e
+                @warn "Failed to parse version '$(version_match[1])' for package $name: $e"
+                version = nothing
+            end
+        end
         
-        # Find the module file path (typically src/<name>.jl)
+        # Find the module file path (typically src/<n>.jl)
         module_file = joinpath(pkg_path, "src", "$name.jl")
         if !isfile(module_file)
             # Skip if module file doesn't exist
@@ -175,7 +222,7 @@ function set_depot_path_min!(DEPOT_PATH)
 
     global USER_DATA = get(ENV, "USER_DATA", mktempdir())
     empty!(DEPOT_PATH)
-    push!(DEPOT_PATH, USER_DATA, dirname(dirname(Sys.STDLIB)))
+    push!(DEPOT_PATH, USER_DATA, joinpath(dirname(Sys.BINDIR), "share/julia"))
 
 end
 
@@ -197,7 +244,7 @@ function set_depot_path_macos!(DEPOT_PATH::Vector{String}; app_name)
 
     # Modify DEPOT_PATH (equivalent to JULIA_DEPOT_PATH)
     empty!(DEPOT_PATH)
-    push!(DEPOT_PATH, user_depot, dirname(dirname(Sys.STDLIB)))
+    push!(DEPOT_PATH, user_depot, joinpath(dirname(Sys.BINDIR), "share/julia"))
 
     return
 end
@@ -276,7 +323,7 @@ function set_depot_path_msix!(DEPOT_PATH; bundle_identifier)
 
     # Modify DEPOT_PATH (equivalent to JULIA_DEPOT_PATH)
     empty!(DEPOT_PATH)
-    push!(DEPOT_PATH, user_depot, dirname(dirname(Sys.STDLIB))) # may be better to set with respect to Sys.BINDIR
+    push!(DEPOT_PATH, user_depot, joinpath(dirname(Sys.BINDIR), "share/julia") ) # may be better to set with respect to Sys.BINDIR
 
     return
 end
@@ -295,6 +342,8 @@ function init(;
     if runtime_mode == "INTERACTIVE"
         return
     end
+
+    Sys.STDLIB = joinpath(dirname(Sys.BINDIR), DEFAULT_STDLIB)
 
     # This is a bit of a hack
     if isempty(module_name)
@@ -324,7 +373,7 @@ function init(;
         if isfile(index_path)
             load_pkgorigins!(Base.pkgorigins, index_path)
         else
-            collect_pkgorigns!(Base.pkgorigins)
+            collect_pkgorigins!(Base.pkgorigins)
         end
 
     end
@@ -333,6 +382,7 @@ function init(;
 end
 
 function reset_cache()
+
 
     pkg = Base.PkgId(Base.UUID("9f11263e-cf0d-4932-bae6-807953dbea74"), "AppEnv")
     cache_dir = Base.compilecache_path(pkg)
@@ -347,6 +397,5 @@ end
 function __init__()
     #reset_cache()
 end
-
 
 end # module AppEnv

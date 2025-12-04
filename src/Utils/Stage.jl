@@ -59,7 +59,7 @@ pkg = JuliaAppBundle(app_dir; julia_version = v"1.10.0", incremental = false)
     stdlib_dir = "share/julia/stdlib/v$(julia_version.major).$(julia_version.minor)" # STDLIB directory relative to Sys.BINDIR
 
     startup_file::String = get_template(source, "startup.jl")
-    startup_common::String = get_template(source, "common.jl")
+    #startup_common::String = get_template(source, "common.jl")
 
     sysimg_packages::Vector{String} = []
     sysimg_args::Cmd = ``
@@ -225,13 +225,22 @@ function compile_pkgimgs(destination, project;
 
     julia_cmd = `$destination/bin/julia --startup-file=no`
     module_name = get_module_name(project)
+
+    @show is_appenv_loaded = parse(Bool, read(`$julia_cmd --eval "print(any(i -> i.name == \"AppEnv\", keys(Base.loaded_modules)))"`, String))
     
-    appenv_init_script = """
-        @eval Module() begin
-            Base.include(@__MODULE__, joinpath(Sys.STDLIB, "AppEnv/src/AppEnv.jl"))
+    if is_appenv_loaded
+        appenv_init_script = """
+            import AppEnv
             AppEnv.init()
-        end
-    """
+        """
+    else
+        appenv_init_script = """
+            @eval Module() begin
+                Base.include(@__MODULE__, joinpath(Sys.STDLIB, "AppEnv/src/AppEnv.jl"))
+                AppEnv.init()
+            end
+        """
+    end
 
     withenv("JULIA_PROJECT" => project, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => cpu_target, "DEFAULT_RUNTIME_MODE" => "MIN", "RUNTIME_MODE" => "COMPILATION", "MODULE_NAME" => isnothing(module_name) ? "MainEnv" : module_name) do
         if use_pkg

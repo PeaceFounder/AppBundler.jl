@@ -37,7 +37,7 @@ end
 
 @time @testset "MSIX bundling tests" begin
 
-    msix = MSIX(joinpath(@__DIR__, "../examples/gtkapp"))
+    msix = MSIX(joinpath(@__DIR__, "../examples/GtkApp"))
 
     @test hash_stage() do dest
         stage(msix, dest)
@@ -71,7 +71,7 @@ if Sys.isunix()
 
     @time @testset "DMG bundling tests" begin
 
-        dmg = DMG(joinpath(@__DIR__, "../examples/gtkapp"); hfsplus = true)
+        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true)
 
         @test hash_stage() do dest
             stage(dmg, joinpath(dest, "gtkapp.app"); dsstore=true, main_redirect=true)
@@ -116,7 +116,7 @@ if Sys.isunix()
         if Sys.isapple()
             @test hash_stage() do stage_dir
 
-                dmg = DMG(joinpath(@__DIR__, "../examples/gtkapp"); hfsplus = false)
+                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false)
                 dest = joinpath(mktempdir(), "gtkapp.dmg")
                 bundle(dmg, dest; main_redirect=true) do app_stage
                     @info "The DMG app stage is $app_stage"
@@ -155,7 +155,7 @@ if Sys.isunix()
 
     @time @testset "Snap bundling tests" begin
 
-        snap = Snap(joinpath(@__DIR__, "../examples/gtkapp"))
+        snap = Snap(joinpath(@__DIR__, "../examples/GtkApp"))
 
         @test hash_stage() do dest
             stage(snap, dest; install_configure=false)

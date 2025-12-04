@@ -33,6 +33,8 @@ include("Utils/TerminalSpinners.jl")
 include("Utils/SysImgTools.jl")
 include("Utils/Stage.jl")
 
+include("Utils/JuliaC.jl")
+
 include("Utils/ArgParser.jl")
 
 import .ArgParser: parse_args

@@ -2,3 +2,9 @@ name = "CmdApp"
 uuid = "3b1a2df2-51d6-4b9e-9f60-f732a3f3bbcb"
 authors = ["Janis Erdmanis <janiserdmanis@protonmail.ch>"]
 version = "0.1.0"
+
+[deps]
+AppEnv = "9f11263e-cf0d-4932-bae6-807953dbea74"
+
+[sources]
+AppEnv = {path = "../../AppEnv"}

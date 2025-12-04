@@ -1,7 +1,7 @@
 using AppBundler
 using Test
 
-app_dir = joinpath(dirname(@__DIR__), "examples/glapp")
+app_dir = joinpath(dirname(@__DIR__), "examples/GLApp")
 
 include("utils.jl")
 
