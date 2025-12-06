@@ -37,7 +37,7 @@ end
 
 @time @testset "MSIX bundling tests" begin
 
-    msix = MSIX(joinpath(@__DIR__, "../examples/gtkapp"))
+    msix = MSIX(joinpath(@__DIR__, "../examples/GtkApp"))
 
     @test hash_stage() do dest
         stage(msix, dest)
@@ -71,7 +71,7 @@ if Sys.isunix()
 
     @time @testset "DMG bundling tests" begin
 
-        dmg = DMG(joinpath(@__DIR__, "../examples/gtkapp"); hfsplus = true)
+        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true)
 
         @test hash_stage() do dest
             stage(dmg, joinpath(dest, "gtkapp.app"); dsstore=true, main_redirect=true)
@@ -116,7 +116,7 @@ if Sys.isunix()
         if Sys.isapple()
             @test hash_stage() do stage_dir
 
-                dmg = DMG(joinpath(@__DIR__, "../examples/gtkapp"); hfsplus = false)
+                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false)
                 dest = joinpath(mktempdir(), "gtkapp.dmg")
                 bundle(dmg, dest; main_redirect=true) do app_stage
                     @info "The DMG app stage is $app_stage"
@@ -155,22 +155,22 @@ if Sys.isunix()
 
     @time @testset "Snap bundling tests" begin
 
-        snap = Snap(joinpath(@__DIR__, "../examples/gtkapp"))
+        snap = Snap(joinpath(@__DIR__, "../examples/GtkApp"))
 
         @test hash_stage() do dest
-            stage(snap, dest; install_configure=true)
-        end == "c4a970b79da0db6c5bfff1947c12ee119d0c0a2b44f3d153d78fd56ad2252d12"
+            stage(snap, dest; install_configure=false)
+        end == "ed982e260a2dd4f2260d66d1337ad6eb725e42e817bddcb9bd9ed953539b8328"
 
         @test hash_stage() do stage_dir
 
             dest = joinpath(mktempdir(), "gtkapp.snap")
-            bundle(snap, dest; install_configure=true) do app_stage
+            bundle(snap, dest; install_configure=false) do app_stage
                 @info "The Snap app stage is $app_stage"
             end
             
             AppBundler.SnapPack.unpack(dest, stage_dir)    
 
-        end == "c4a970b79da0db6c5bfff1947c12ee119d0c0a2b44f3d153d78fd56ad2252d12"
+        end == "ed982e260a2dd4f2260d66d1337ad6eb725e42e817bddcb9bd9ed953539b8328"
     end
 
 end

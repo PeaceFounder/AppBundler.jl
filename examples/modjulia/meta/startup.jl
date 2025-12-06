@@ -1,4 +1,4 @@
-# Startup Configuration File (common startup.jl)
+# Startup Configuration File 
 #
 # This file runs after platform-specific arguments are set, allowing you to apply
 # common startup options across all environments. Use this file to:
@@ -8,6 +8,16 @@
 #
 # The diagnostic output below shows the active project, load paths, and depot paths
 # to help verify your environment configuration.
+
+import AppEnv
+AppEnv.init(;
+    runtime_mode = "{{RUNTIME_MODE}}", 
+    module_name = "{{MODULE_NAME}}",
+    (!isempty("{{APP_NAME}}") ? (app_name = "{{APP_NAME}}",) : ())...,
+    (!isempty("{{BUNDLE_IDENTIFIER}}") ? (bundle_identifier = "{{BUNDLE_IDENTIFIER}}",) : ())...
+)
+
+Base.ACTIVE_PROJECT[] = AppEnv.USER_DATA
 
 if isinteractive()
     @async begin

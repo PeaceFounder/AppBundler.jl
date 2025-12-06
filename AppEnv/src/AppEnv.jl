@@ -194,7 +194,7 @@ function set_depot_path!(DEPOT_PATH; bundle_identifier, app_name, runtime_mode)
         elseif Sys.isapple()
             set_depot_path_macos!(DEPOT_PATH; app_name)
         elseif Sys.islinux()
-            set_depot_path_snap!(DEPOT_PATH; app_name)
+            set_depot_path_snap!(DEPOT_PATH)
         else
             error("Sandbox runtime mode is only supported for windows, macos and linux")
         end
@@ -247,7 +247,7 @@ function set_depot_path_macos!(DEPOT_PATH::Vector{String}; app_name)
     return
 end
 
-function set_depot_path_snap!(DEPOT_PATH::Vector{String})
+function set_depot_path_snap!(DEPOT_PATH)
 
     empty!(DEPOT_PATH)
 
@@ -272,7 +272,7 @@ function set_depot_path_snap!(DEPOT_PATH::Vector{String})
 
     end
 
-    push!(DEPOT_PATH, dirname(dirname(Sys.STDLIB)))
+    push!(DEPOT_PATH, joinpath(dirname(Sys.BINDIR), "share/julia"))
 
     return
 end
@@ -334,6 +334,10 @@ function init(;
               bundle_identifier::String = get(ENV, "BUNDLE_IDENTIFIER", DEFAULT_BUNDLE_IDENTIFIER)
               )
 
+    # Prevents reinitialization
+    if isdefined(@__MODULE__, :USER_DATA)
+        return
+    end
 
     @assert runtime_mode in RUNTIME_MODE_OPTIONS "runtime_mode=$runtime_mode not recognized. Available options are $(join(RUNTIME_MODE_OPTIONS, '|'))"
 
@@ -372,7 +376,8 @@ function init(;
         if isfile(index_path)
             load_pkgorigins!(Base.pkgorigins, index_path)
         else
-            collect_pkgorigins!(Base.pkgorigins)
+            @warn "Can't find pkgorigin index at $index_path"
+            #collect_pkgorigins!(Base.pkgorigins)
         end
 
     end

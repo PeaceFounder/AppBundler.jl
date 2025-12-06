@@ -7,6 +7,8 @@ export WAYLAND_DISPLAY=wayland-0
 
 echo "$(date): Precompilation started" >> $SNAP_DATA/configure.log
 
-$JULIA --eval="__precompile__()" # This may work
+#$JULIA --eval="__precompile__()" # This may work
+
+$JULIA --eval="popfirst!(DEPOT_PATH); popfirst!(LOAD_PATH); import {{PRECOMPILED_MODULES}}" # This may work
 
 echo "$(date): Precompilation finished" >> $SNAP_DATA/configure.log

@@ -19,6 +19,8 @@ apps:
       - x11
       - network
 
+{{#JULIA_APP_BUNDLE}}
+
 hooks:
   configure:
     plugs:
@@ -26,3 +28,4 @@ hooks:
       - opengl
       - wayland
 
+{{/JULIA_APP_BUNDLE}}

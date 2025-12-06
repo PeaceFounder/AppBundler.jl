@@ -100,12 +100,12 @@ The function automatically detects whether to create an installer based on the d
 
 **Lower-Level API:** For more control, use the lower level API:
 ```julia
-product = PkgImage(source; precompile = true, incremental = false)
+product = JuliaAppBundle(source; precompile = true, incremental = false)
 snap = Snap(source)
 bundle(product, snap, destination)
 ```
 
-Currently, only `PkgImage` compilation is supported. In the future, one will be able to specify the product to be `SysImage` (or another better name) to compile the application with `PackageCompiler` instead and perform corresponding bundling. There are also plans to experiment with JuliaC integration.
+Currently, only `JuliaAppBundle` compilation is supported. In the future, one will be able to specify the product to be `SysImage` (or another better name) to compile the application with `PackageCompiler` instead and perform corresponding bundling. There are also plans to experiment with JuliaC integration.
 
 On the other end, we have the destination in which the product needs to be bundled. Here again, we have a variety to choose from if one were to add Deb, RPM, or Flatpak bundling formats. The `Snap` constructor takes the role of finding configuration files from the user directory and from the default AppBundler recipes folder that one can inspect. Similarly, `MSIX` and `DMG` constructors can be called (see docstrings).
 
@@ -121,10 +121,10 @@ In the future, AppBundler may add support for bundling Python and Rust projects 
 
 ## Staging
 
-AppBundler offers a staging API for staging products. Currently, only `PkgImage` staging is supported:
+AppBundler offers a staging API for staging products. Currently, only `JuliaAppBundle` staging is supported:
 
 ```julia
-pkg = PkgImage(app_dir; precompile = false)
+pkg = JuliaAppBundle(app_dir; precompile = false)
 stage(pkg, Linux(:x86_64), "build/linux_staging")
 ```
 
