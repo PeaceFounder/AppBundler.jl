@@ -19,6 +19,8 @@ Concrete subtypes:
 """
 abstract type BuildSpec end
 
+function stage end
+
 
 include("Utils/DSStore.jl")
 include("Utils/HFS.jl")
@@ -38,7 +40,7 @@ include("Utils/JuliaC.jl")
 include("Utils/ArgParser.jl")
 
 import .ArgParser: parse_args
-import .Stage: stage # 
+#import .Stage: stage # 
 #using .Stage: merge_directories, install
 using .Stage: install
 using .Resources: merge_directories#, install

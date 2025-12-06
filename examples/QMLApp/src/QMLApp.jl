@@ -1,7 +1,7 @@
 module QMLApp
 
 using QML
-import AppEnv
+using AppEnv
 
 global _PROPERTIES::JuliaPropertyMap
 
@@ -25,6 +25,5 @@ function (@main)(ARGS)
 end
 
 export main
-
 
 end # module QMLApp

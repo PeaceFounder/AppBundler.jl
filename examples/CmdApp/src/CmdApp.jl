@@ -12,8 +12,8 @@ function (@main)(ARGS::Vector{String})
     println(Core.stdout, "Sys.STDLIB = $(Sys.STDLIB)")
     println(Core.stdout, "Sys.BINDIR = $(Sys.BINDIR)")
 
+    println(Core.stdout, "USER_DATE = $(AppEnv.USER_DATA)") # This works!!!
     println(Core.stdout, "pkgdir = $(pkgdir(@__MODULE__))") # This works!!!
-
     println(Core.stdout, "pkgdir2 = $(pkgdir(AppEnv))") 
 
     if isempty(ARGS)

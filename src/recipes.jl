@@ -1,6 +1,7 @@
 using Base.BinaryPlatforms: arch
 using Pkg.BinaryPlatforms: Linux, Windows, MacOS
-using .Stage: stage, JuliaAppBundle
+using .Stage: JuliaAppBundle
+using .JuliaC: JuliaCBundle 
 
 function bundle(product::JuliaAppBundle, dmg::DMG, destination::String; compress::Bool = isext(dest, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), arch = :x86_64)
     
@@ -10,9 +11,10 @@ function bundle(product::JuliaAppBundle, dmg::DMG, destination::String; compress
 
         install(product.startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters = dmg.parameters, force = true)
 
-        # main redirect
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
-        install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true)
+        install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = :JULIA_APP_BUNDLE)
+
+        println(read(joinpath(app_stage, "Contents/Libraries/main"), String))
         
     end
 
@@ -21,8 +23,6 @@ end
 
 function bundle(product::JuliaAppBundle, snap::Snap, destination::String; compress::Bool = isext(dest, ".snap"), force = false, arch = :x86_64)
 
-    snap.parameters["PRECOMPILED_MODULES"] = join(product.precompiled_modules, ", ")
-    
     bundle(snap, destination; compress, force) do app_stage
         
         stage(product, Linux(arch), app_stage)
@@ -51,7 +51,7 @@ end
 
 function bundle(product::JuliaAppBundle, msix::MSIX, destination::String; compress::Bool = isext(dest, ".msix"), force = false, arch = :x86_64)
 
-    bundle(msix, destination; compress, force) do app_stage
+    bundle(msix, destination; compress, force, predicate = :JULIA_APP_BUNDLE) do app_stage
         
         stage(product, Windows(arch), app_stage)
         mv("$app_stage/libexec/julia/lld.exe", "$app_stage/bin/lld.exe") # julia.exe can't find shared libraries in UWP
@@ -64,7 +64,6 @@ function bundle(product::JuliaAppBundle, msix::MSIX, destination::String; compre
         touch("$app_stage/bin/julia.exe") # updating timestamp to avoid Invalid Parameter error
 
         install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
-
         
         if msix.windowed
             WinSubsystem.change_subsystem_inplace("$app_stage/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
@@ -74,6 +73,85 @@ function bundle(product::JuliaAppBundle, msix::MSIX, destination::String; compre
 
     return
 end
+
+
+function bundle(product::JuliaCBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""))
+
+    if !Sys.isapple()
+        @warn "The build for the DMG will not work as it is not built on macos"
+    end
+
+    if dmg.sandboxed_runtime && !dmg.windowed
+        @warn "In hardened runtime mode it is a known bug that GUI terminal won't launch"
+    end
+    
+    bundle(dmg, destination; compress, compression, force, password, main_redirect = true, arch = :aarch64) do app_stage
+        # app_stage always points to app directory
+        app_name = dmg.parameters["APP_NAME"]
+        bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
+
+        stage(product, joinpath(app_stage, "Contents/Libraries"); runtime_mode = "SANDBOX", app_name, bundle_identifier)
+
+        # main redirect
+        # fixing it may be sufficient here to get the application
+        main_file = get_path([joinpath(product.project, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
+        install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = :JULIAC_BUNDLE)
+        
+    end
+
+    return
+end
+
+function bundle(product::JuliaCBundle, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false)
+
+    if !Sys.islinux()
+        @warn "The build for the snap will not work as it is not built on linux"
+    end
+
+    bundle(snap, destination; compress, force, install_configure=true, predicate = :JULIAC_BUNDLE) do app_stage
+
+        @show snap.configure_hook
+
+        app_name = snap.parameters["APP_NAME"]
+        bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
+
+        stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)
+
+        # May actually not be necessary here as I simply already have binary in the bin directory
+
+        # main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/main.sh")
+        # app_name = snap.parameters["APP_NAME_LOWERCASE"]
+        # install(main_file, joinpath(app_stage, "bin/$app_name"); parameters = snap.parameters, executable = true)
+
+    end
+
+    return
+end
+
+function bundle(product::JuliaCBundle, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false)
+
+    if !Sys.iswindows()
+        @warn "The build for MSIX will not work as it is not built on Windows"
+    end
+    # I need to pass down the arguments here somehow for the template
+    bundle(msix, destination; compress, force, predicate = :JULIAC_BUNDLE) do app_stage
+
+        app_name = msix.parameters["APP_NAME"]
+        bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
+
+        stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)        
+
+        # May need to look into this
+        # if msix.windowed
+        #     WinSubsystem.change_subsystem_inplace("$app_stage/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
+        #     WinSubsystem.change_subsystem_inplace("$app_stage/bin/lld.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
+        # end
+    end
+
+    return
+end
+
+
 
 
 """

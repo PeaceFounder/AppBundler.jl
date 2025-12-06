@@ -1,6 +1,8 @@
 module Stage
 
 using ..AppBundler: julia_tarballs, artifacts_cache, BuildSpec
+import ..AppBundler: stage
+
 using ..SysImgTools
 using ..Resources
 using ..Resources: get_module_name
@@ -128,7 +130,7 @@ function get_template(source, target)
 end
 
 
-function install(source, destination; parameters = Dict(), force = false, executable = false)
+function install(source, destination; parameters = Dict(), force = false, executable = false, predicate::Union{Symbol, Nothing} = nothing)
 
     if isfile(destination) 
         if force
@@ -140,11 +142,16 @@ function install(source, destination; parameters = Dict(), force = false, execut
         mkpath(dirname(destination))
     end
 
-    if !isempty(parameters)
-        template = Mustache.load(source)
+    total_parameters = copy(parameters)
 
+    if !isnothing(predicate)
+        total_parameters[string(predicate)] = true
+    end
+
+    if !isempty(total_parameters)
+        template = Mustache.load(source)
         open(destination, "w") do file
-            Mustache.render(file, template, parameters)
+            Mustache.render(file, template, total_parameters)
         end
     else
         cp(source, destination)
@@ -237,7 +244,9 @@ function compile_pkgimgs(destination, project;
         appenv_init_script = """
             @eval Module() begin
                 Base.include(@__MODULE__, joinpath(Sys.STDLIB, "AppEnv/src/AppEnv.jl"))
-                AppEnv.init()
+                Base.invokelatest() do
+                    AppEnv.init()
+                end
             end
         """
     end

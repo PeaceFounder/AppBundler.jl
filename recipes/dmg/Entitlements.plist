@@ -3,10 +3,15 @@
   <dict>
 
     <key>com.apple.security.app-sandbox</key>
-    <false/>
+    <{{SANDBOXED_RUNTIME}}/>
 
     <key>com.apple.security.automation.apple-events</key>
     <true/>
+
+    <key>com.apple.security.temporary-exception.apple-events</key>
+    <array>
+      <string>com.apple.Terminal</string>
+    </array>
 
     <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>
@@ -36,6 +41,18 @@
     <array>
       <string>com.apple.coreservices.launchservicesd</string>
     </array>
+
+    <!-- Generic File Access Permissions -->
+    <key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
+    <array>
+      <string>/</string>
+    </array>
+
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <key>com.apple.security.network.server</key>
+    <true/>
 
   </dict>
 </plist>
