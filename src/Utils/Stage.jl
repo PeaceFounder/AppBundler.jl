@@ -482,6 +482,8 @@ function stage(product::JuliaAppBundle, platform::AbstractPlatform, destination:
     if product.remove_sources 
         @info "Removing sources from stdlib"
         rm(packages_dir; recursive = true)
+        mkdir(packages_dir)
+        cp(joinpath(pkgdir(AppEnv), "Project.toml"), joinpath(packages_dir, "Project.toml"))
     end
 
     @info "App staging completed successfully"

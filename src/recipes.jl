@@ -45,8 +45,8 @@ function bundle(product::JuliaAppBundle, snap::Snap, destination::String; compre
 
     bundle(snap, destination; compress, force, predicate) do app_stage
 
-        app_name = dmg.parameters["APP_NAME"]
-        bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
+        app_name = snap.parameters["APP_NAME"]
+        bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
         
         stage(product, Linux(target_arch), app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)
 
@@ -79,8 +79,8 @@ function bundle(product::JuliaAppBundle, msix::MSIX, destination::String; compre
 
     bundle(msix, destination; compress, force, predicate) do app_stage
         
-        app_name = dmg.parameters["APP_NAME"]
-        bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
+        app_name = msix.parameters["APP_NAME"]
+        bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
 
         stage(product, Windows(target_arch), app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)
         mv("$app_stage/libexec/julia/lld.exe", "$app_stage/bin/lld.exe") # julia.exe can't find shared libraries in UWP

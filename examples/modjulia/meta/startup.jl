@@ -9,13 +9,12 @@
 # The diagnostic output below shows the active project, load paths, and depot paths
 # to help verify your environment configuration.
 
-import AppEnv
-AppEnv.init(;
-    runtime_mode = "{{RUNTIME_MODE}}", 
-    module_name = "{{MODULE_NAME}}",
-    (!isempty("{{APP_NAME}}") ? (app_name = "{{APP_NAME}}",) : ())...,
-    (!isempty("{{BUNDLE_IDENTIFIER}}") ? (bundle_identifier = "{{BUNDLE_IDENTIFIER}}",) : ())...
-)
+if isdir(joinpath(last(DEPOT_PATH), "compiled/v$(VERSION.major).$(VERSION.minor)", "AppEnv")) || any(i -> i.name == "AppEnv", keys(Base.loaded_modules))
+    import AppEnv
+else
+    include(joinpath(Sys.STDLIB, "AppEnv/src/AppEnv.jl"))
+end
+AppEnv.init()
 
 Base.ACTIVE_PROJECT[] = AppEnv.USER_DATA
 
