@@ -1,5 +1,15 @@
 module Stage
 
+# NOTE: AppEnv coupling required for cache validity
+#
+# This module is tightly coupled to AppEnv due to LOAD_PATH synchronization between
+# compilation and runtime. Packages with extensions require their project directory
+# in LOAD_PATH during precompilation. If runtime LOAD_PATH differs from compile-time,
+# Julia invalidates the cache and triggers recompilation on first use.
+#
+# Until extension loading can be decoupled from LOAD_PATH, AppEnv must remain
+# integrated to ensure consistent LOAD_PATH across compilation and runtime.
+
 using ..AppBundler: julia_tarballs, artifacts_cache, BuildSpec
 import ..AppBundler: stage
 
@@ -7,10 +17,6 @@ using ..SysImgTools
 using ..Resources
 using ..Resources: get_module_name
 
-#import Downloads
-#import Artifacts
-
-#import Pkg
 import Base.BinaryPlatforms: AbstractPlatform, os, arch#, wordsize
 import Pkg.BinaryPlatforms: MacOS, Linux, Windows
 import Libdl
@@ -20,6 +26,11 @@ using TOML
 
 import Mustache
 import AppEnv
+
+function stdlib_default_dir(project)
+    julia_version = get_julia_version(project)
+    return "share/julia/stdlib/v$(julia_version.major).$(julia_version.minor)"
+end
 
 """
     JuliaAppBundle(source; precompile = true, incremental = true, julia_version = get_julia_version(source))
@@ -54,18 +65,16 @@ pkg = JuliaAppBundle(app_dir; julia_version = v"1.10.0", incremental = false)
 """
 @kwdef struct JuliaAppBundle <: BuildSpec
     source::String
-    julia_version::VersionNumber = get_julia_version(source)
-    target_instantiation::Bool = VERSION.minor != julia_version.minor
-    #use_stdlib_dir::Bool = true
     include_lazy_artifacts::Bool = true
-    stdlib_dir = "share/julia/stdlib/v$(julia_version.major).$(julia_version.minor)" # STDLIB directory relative to Sys.BINDIR
+    stdlib_dir = stdlib_default_dir(source) # STDLIB directory relative to Sys.BINDIR
 
     startup_file::String = get_template(source, "startup.jl")
-    #startup_common::String = get_template(source, "common.jl")
 
     sysimg_packages::Vector{String} = []
     sysimg_args::Cmd = ``
     remove_sources::Bool = false
+    asset_rpath::Union{String, Nothing} = nothing
+    asset_spec::Dict{Symbol, Vector{String}} = Dict{Symbol, Vector{String}}()
 
     precompile::Bool = true
     precompiled_modules::Vector{Symbol} = precompile ? get_project_deps(source) : []
@@ -73,9 +82,17 @@ pkg = JuliaAppBundle(app_dir; julia_version = v"1.10.0", incremental = false)
     parallel_precompilation::Bool = (incremental || :Pkg in precompiled_modules) && !haskey(ENV, "CI")
 end
 
-JuliaAppBundle(source; kwargs...) = JuliaAppBundle(; source, kwargs...)
+function JuliaAppBundle(source; sysimg_packages = [], incremental = isempty(sysimg_packages), kwargs...) 
 
+    if !isempty(sysimg_packages) && incremental
+        @warn "All pkgimage cache needs to be rebuilt when new sysimage is built. To remove this warning set incremental=false"
+        incremental = false
+    end
 
+   return JuliaAppBundle(; source, sysimg_packages, incremental, kwargs...)
+end
+
+get_julia_version(spec::JuliaAppBundle) = get_julia_version(spec.source)
 
 """
     get_julia_version(source::String) -> VersionNumber
@@ -164,10 +181,10 @@ function install(source, destination; parameters = Dict(), force = false, execut
     return
 end
 
+function configure(destination, spec; runtime_mode = "MIN", app_name = "", bundle_identifier = "")
 
-function configure(destination, spec)
-    
     module_name = get_module_name(spec.source)
+    stdlib_project_name = isnothing(module_name) ? "MainEnv" : module_name
     packages_dir = joinpath(destination, spec.stdlib_dir)
 
     if isnothing(module_name)
@@ -182,11 +199,18 @@ function configure(destination, spec)
     # This is a part of configure because it is essential module in compilation and startup
     cp(pkgdir(AppEnv), joinpath(packages_dir, "AppEnv"); force=true)
 
-    install(spec.startup_file, "$destination/etc/julia/startup.jl"; force=true, parameters = Dict("MODULE_NAME"=>isnothing(module_name) ? "MainEnv" : module_name, "RUNTIME_MODE"=>"MIN"))
+    AppEnv.save_config(joinpath(destination, "config"); runtime_mode, stdlib_project_name, app_name, bundle_identifier)
+
+    install(spec.startup_file, "$destination/etc/julia/startup.jl"; force=true)
+
+    # # Here it is also possible to filter out which orgins one wants to keep
+    # (; stdlib_dir) = spec
+    # packages_dir = joinpath(destination, stdlib_dir)
+    # pkgorigins = AppEnv.collect_pkgorigins(; root_dir = packages_dir)
+    # AppEnv.save_pkgorigins(joinpath(packages_dir, "index"), pkgorigins)    
 
     return
 end
-
 
 function compile_sysimg(destination, project; 
                         sysimg_packages = [], 
@@ -194,7 +218,7 @@ function compile_sysimg(destination, project;
                         cpu_target = get_cpu_target(Base.BinaryPlatforms.HostPlatform()))
 
     julia_cmd = "$destination/bin/julia"
-    module_name = get_module_name(project)
+    #module_name = get_module_name(project)
 
     # Precompile packages before sysimage creation to avoid segfaults. The sysimage builder's
     # aggressive AOT compilation can trigger LLVM codegen bugs on certain constant expressions
@@ -206,9 +230,9 @@ function compile_sysimg(destination, project;
 
     compilation_script = sysimg_compilation_script(project, sysimg_packages)
 
-    withenv("DEFAULT_RUNTIME_MODE" => "MIN", "MODULE_NAME" => isnothing(module_name) ? "MainEnv" : module_name) do
-        SysImgTools.compile_sysimage(compilation_script, tmp_sysimg; base_sysimg, julia_cmd, cpu_target, sysimg_args, project)
-    end
+    #withenv("DEFAULT_RUNTIME_MODE" => "MIN", "MODULE_NAME" => isnothing(module_name) ? "MainEnv" : module_name) do
+    SysImgTools.compile_sysimage(compilation_script, tmp_sysimg; base_sysimg, julia_cmd, cpu_target, sysimg_args, project)
+    #end
 
     mv(tmp_sysimg, base_sysimg; force=true)
 
@@ -217,7 +241,6 @@ function compile_sysimg(destination, project;
 
     return
 end
-
 
 function compile_pkgimgs(destination, project; 
                          precompiled_modules = [],
@@ -233,34 +256,27 @@ function compile_pkgimgs(destination, project;
     julia_cmd = `$destination/bin/julia --startup-file=no`
     module_name = get_module_name(project)
 
-    @show is_appenv_loaded = parse(Bool, read(`$julia_cmd --eval "print(any(i -> i.name == \"AppEnv\", keys(Base.loaded_modules)))"`, String))
-    
-    if is_appenv_loaded
-        appenv_init_script = """
-            import AppEnv
-            AppEnv.init()
-        """
-    else
-        appenv_init_script = """
-            @eval Module() begin
-                Base.include(@__MODULE__, joinpath(Sys.STDLIB, "AppEnv/src/AppEnv.jl"))
-                Base.invokelatest() do
-                    AppEnv.init()
-                end
-            end
-        """
-    end
+    stdlib_project_name = isnothing(module_name) ? "MainEnv" : module_name
 
-    withenv("JULIA_PROJECT" => project, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => cpu_target, "DEFAULT_RUNTIME_MODE" => "MIN", "RUNTIME_MODE" => "COMPILATION", "MODULE_NAME" => isnothing(module_name) ? "MainEnv" : module_name) do
+    init_script = """
+        empty!(LOAD_PATH)
+        empty!(DEPOT_PATH)
+        push!(LOAD_PATH, "@stdlib", joinpath(Sys.STDLIB, $(repr(stdlib_project_name))))
+        push!(DEPOT_PATH, joinpath(dirname(Sys.BINDIR), "share/julia"))
+        @show DEPOT_PATH
+        @show LOAD_PATH
+    """
+    withenv("JULIA_PROJECT" => project, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => cpu_target) do
         if use_pkg
-            run(`$julia_cmd --eval "$appenv_init_script; import AppEnv; import Pkg; Pkg.precompile( $(repr(string.(precompiled_modules))) ) "`)
+            run(`$julia_cmd --eval "$init_script; import AppEnv; import Pkg; Pkg.precompile( $(repr(string.(precompiled_modules))) ) "`)
         else
-            run(`$julia_cmd --eval "$appenv_init_script; import AppEnv; import $(join(precompiled_modules, ','))"`)
+            run(`$julia_cmd --eval "$init_script; import AppEnv; import $(join(precompiled_modules, ','))"`)
         end
     end
 
     return
 end
+
 
 """
     validate_cross_compilation(product::JuliaAppBundle, platform::AbstractPlatform) -> Bool
@@ -317,14 +333,6 @@ function validate_cross_compilation(platform::AbstractPlatform)
     throw(ArgumentError("Unsupported target platform: $(typeof(platform))"))
 end
 
-# function default_app_cpu_target()
-#     Sys.ARCH === :i686        ?  "pentium4;sandybridge,-xsaveopt,clone_all"                        :
-#     Sys.ARCH === :x86_64      ?  "generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)"  :
-#     Sys.ARCH === :arm         ?  "armv7-a;armv7-a,neon;armv7-a,neon,vfp4"                          :
-#     Sys.ARCH === :aarch64     ?  "generic"   #= is this really the best here? =#                   :
-#     Sys.ARCH === :powerpc64le ?  "pwr8"                                                            :
-#         "generic"
-# end
 
 """
     get_cpu_target(platform::AbstractPlatform) -> String
@@ -337,18 +345,16 @@ Get the appropriate CPU target string for the given platform architecture.
 # Returns
 - `String`: CPU target specification for Julia compilation
 """
-function get_cpu_target(platform::AbstractPlatform)
-    target_arch = arch(platform)
-    
-    return if target_arch == :x86_64
-        "generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)"
-    elseif target_arch == :aarch64
-        "generic;neoverse-n1;cortex-a76;apple-m1"
-    else
-        @warn "Unknown architecture $target_arch, using generic CPU target"
-        "generic;"
-    end
+function get_cpu_target(arch)
+    arch === :i686        ?  "pentium4;sandybridge,-xsaveopt,clone_all"                        :
+    arch === :x86_64      ?  "generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)"  :
+    arch === :arm         ?  "armv7-a;armv7-a,neon;armv7-a,neon,vfp4"                          :
+    arch === :aarch64     ?  "generic"   #= is this really the best here? =#                   :
+    arch === :powerpc64le ?  "pwr8"                                                            :
+        "generic"
 end
+
+get_cpu_target(platform::AbstractPlatform) = get_cpu_target(arch(platform))
 
 function sysimg_compilation_script(project, packages)
     if isempty(packages)
@@ -434,7 +440,7 @@ stage(pkg, Linux(:x86_64), "build/linux_staging")
 
 ```
 """
-function stage(product::JuliaAppBundle, platform::AbstractPlatform, destination::String; cpu_target = get_cpu_target(platform))
+function stage(product::JuliaAppBundle, platform::AbstractPlatform, destination::String; cpu_target = get_cpu_target(platform), runtime_mode = "MIN", app_name = "", bundle_identifier = "")
 
     if product.precompile
         validate_cross_compilation(platform)
@@ -442,11 +448,18 @@ function stage(product::JuliaAppBundle, platform::AbstractPlatform, destination:
 
     (; stdlib_dir, include_lazy_artifacts, sysimg_packages, sysimg_args, precompiled_modules) = product
 
-    @info "Fetching sources for Julia $(product.julia_version) for $platform"
+    @info "Fetching sources for Julia $(get_julia_version(product)) for $platform"
     Resources.fetch(product.source, destination; platform, stdlib_dir, include_lazy_artifacts)
 
+    if isnothing(product.asset_rpath)
+        Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.stdlib_dir)
+    else
+        Resources.install_assets(product.source, joinpath(destination, product.asset_rpath), product.asset_spec)
+        Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.asset_rpath)
+    end
+    
     @info "Configuring stage"
-    configure(destination, product)
+    configure(destination, product; runtime_mode, app_name, bundle_identifier)
 
     if !isempty(product.sysimg_packages)
         @info "Compiling sysimage for $(product.sysimg_packages)..."
@@ -464,15 +477,11 @@ function stage(product::JuliaAppBundle, platform::AbstractPlatform, destination:
 
     @info "Installing pkgorigins index"
 
-    # Here it is also possible to filter out which orgins one wants to keep
-    packages_dir = joinpath(destination, stdlib_dir)
-    pkgorigins = AppEnv.collect_pkgorigins(; stdlib_dir = packages_dir)
-    AppEnv.save_pkgorigins(joinpath(packages_dir, "index"), pkgorigins; stdlib_dir = packages_dir)    
-    
+    # remove_sources
+    packages_dir = joinpath(destination, product.stdlib_dir)
     if product.remove_sources 
-        # A better way would be to retain only declared assets
         @info "Removing sources from stdlib"
-        remove_jl_sources!(packages_dir)
+        rm(packages_dir; recursive = true)
     end
 
     @info "App staging completed successfully"

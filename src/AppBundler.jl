@@ -63,6 +63,6 @@ function __init__()
 
 end
 
-export Linux, MacOS, Windows
+export JuliaAppBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
 
 end

@@ -311,7 +311,7 @@ function DMG(;
              sandboxed_runtime = false,
              hfsplus = false,
              windowed = true,
-             parameters = Dict("WINDOWED" => windowed)
+             parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => sandboxed_runtime)
              )
 
     return DMG(icon, info_config, entitlements, dsstore, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, hfsplus, windowed, parameters)
@@ -347,7 +347,7 @@ function DMG(overlay; windowed = true, sandboxed_runtime = false, kwargs...)
     
     parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
     parameters["WINDOWED"] = windowed
-    parameters["SANDBOXED_RUNTIME"] = sandboxed_runtime
+    parameters["SANDBOXED_RUNTIME"] = string(sandboxed_runtime)
     
     return DMG(; prefix, parameters, windowed, kwargs...)
 end
@@ -599,8 +599,10 @@ end
 ```
 """
 function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), main_redirect = false, arch = :x86_64, predicate = nothing) 
+
+    (; parameters) = dmg
     
-    installer_title = join([dmg.parameters["APP_DISPLAY_NAME"], "Installer"], " ")
+    installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
 
     if length(installer_title) > 32
         error("Installer title \"$installer_title\" exceeds the maximum 32 characters allowed by xorriso (current length: $(length(installer_title))). Please shorten APP_DISPLAY_NAME to $(32 - length(" Installer")) characters or less.")
@@ -615,7 +617,7 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     end
 
     if compress
-        appname = dmg.parameters["APP_NAME"]
+        appname = parameters["APP_NAME"]
         app_stage = joinpath(mktempdir(), "$appname.app")
         stage(dmg, app_stage; dsstore = true, main_redirect, arch, predicate)        
     else

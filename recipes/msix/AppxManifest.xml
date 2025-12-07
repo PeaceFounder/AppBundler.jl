@@ -27,7 +27,6 @@
   </Resources>
 
   <Applications>
-
     {{#JULIA_APP_BUNDLE}}
     <Application EntryPoint="Windows.FullTrustApplication" 
 		 Executable="bin\julia.exe" 
@@ -59,9 +58,7 @@
       </Extensions>
     </Application>
     {{/JULIA_APP_BUNDLE}}
-
     {{#JULIAC_BUNDLE}}
-
     <Application EntryPoint="Windows.FullTrustApplication" 
 		 Executable="bin\{{APP_NAME_LOWERCASE}}.exe" 
 		 Id="{{APP_NAME}}" 
@@ -90,9 +87,7 @@
         </uap3:Extension>
       </Extensions>
     </Application>
-
     {{/JULIAC_BUNDLE}}
-
   </Applications>
 
   <Capabilities>

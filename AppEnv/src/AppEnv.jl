@@ -5,30 +5,30 @@ import Base: PkgId, PkgOrigin, UUID
 const RUNTIME_MODE_OPTIONS = ["MIN", "INTERACTIVE", "COMPILATION", "SANDBOX"]
 
 # Compilation can be done in one mode
-const DEFAULT_RUNTIME_MODE = get(ENV, "DEFAULT_RUNTIME_MODE", get(ENV, "RUNTIME_MODE", "INTERACTIVE"))
+#const DEFAULT_RUNTIME_MODE = get(ENV, "DEFAULT_RUNTIME_MODE", get(ENV, "RUNTIME_MODE", "INTERACTIVE"))
 
 #get(ENV, "JULIA_RUNTIME_MODE", "INTERACTIVE") # We set it at compilation
 
-const DEFAULT_MODULE_NAME = get(ENV, "MODULE_NAME", "MainEnv")
-const DEFAULT_APP_NAME = get(ENV, "APP_NAME", "")
-const DEFAULT_BUNDLE_IDENTIFIER = get(ENV, "BUNDLE_IDENTIFIER", "")
+#const DEFAULT_MODULE_NAME = get(ENV, "MODULE_NAME", "MainEnv")
+#const DEFAULT_APP_NAME = get(ENV, "APP_NAME", "")
+#const DEFAULT_BUNDLE_IDENTIFIER = get(ENV, "BUNDLE_IDENTIFIER", "")
 
-const DEFAULT_STDLIB = get(ENV, "STDLIB", relpath(Sys.STDLIB, dirname(Sys.BINDIR)))
+#const DEFAULT_STDLIB = get(ENV, "STDLIB", relpath(Sys.STDLIB, dirname(Sys.BINDIR)))
 
-println("Compilation is about to happen with the following parameters:")
-println("\tDEFAULT_RUNTIME_MODE=" * DEFAULT_RUNTIME_MODE)
-println("\tDEFAULT_MODULE_NAME=" * DEFAULT_MODULE_NAME)
-println("\tDEFAULT_APP_NAME=" * DEFAULT_APP_NAME)
-println("\tDEFAULT_BUNDLE_IDENTIFIER=" * DEFAULT_BUNDLE_IDENTIFIER)
+# println("Compilation is about to happen with the following parameters:")
+# println("\tDEFAULT_RUNTIME_MODE=" * DEFAULT_RUNTIME_MODE)
+# println("\tDEFAULT_MODULE_NAME=" * DEFAULT_MODULE_NAME)
+# println("\tDEFAULT_APP_NAME=" * DEFAULT_APP_NAME)
+# println("\tDEFAULT_BUNDLE_IDENTIFIER=" * DEFAULT_BUNDLE_IDENTIFIER)
 
 global USER_DATA::String # This is set by the startup macro itself
 
 
 # Theese constants must be present at compilation time as otherwise it does not make sense
 
-function save_pkgorigins(path, pkgorigins::Dict{PkgId, PkgOrigin}; stdlib_dir = Sys.STDLIB)
+function save_pkgorigins(index_path, pkgorigins::Dict{PkgId, PkgOrigin}; root_dir = nothing)
 
-    file = open(path, "w")
+    file = open(index_path, "w")
 
     try
         for (pkgid, pkgorigin) in pkgorigins
@@ -36,7 +36,7 @@ function save_pkgorigins(path, pkgorigins::Dict{PkgId, PkgOrigin}; stdlib_dir = 
             (; name, uuid) = pkgid
             (; path, version) = pkgorigin
             
-            rpath = relpath(path, stdlib_dir)
+            rpath = isnothing(root_dir) ? path : relpath(path, root_dir)
 
             println(file, "$uuid\t$name\t$version\t$rpath")
             
@@ -70,7 +70,7 @@ function parse_version(version_str::AbstractString)
     return VersionNumber(major, minor, patch)
 end
 
-function load_pkgorigins!(pkgorigins, path; stdlib_dir = Sys.STDLIB)
+function load_pkgorigins!(pkgorigins, path; root_dir = dirname(path))
     #pkgorigins = Dict{PkgId, PkgOrigin}()
     
     file = open(path, "r")
@@ -99,11 +99,11 @@ function load_pkgorigins!(pkgorigins, path; stdlib_dir = Sys.STDLIB)
             end
             
             # Reconstruct absolute path
-            abspath = joinpath(stdlib_dir, rpath)
+            _abspath = abspath(joinpath(root_dir, rpath))
             
             # Create PkgId and PkgOrigin
             pkg_id = PkgId(uuid, name)
-            pkg_origin = PkgOrigin(abspath, nothing, version)
+            pkg_origin = PkgOrigin(_abspath, nothing, version)
             
             # Add to dictionary
             pkgorigins[pkg_id] = pkg_origin
@@ -116,17 +116,17 @@ function load_pkgorigins!(pkgorigins, path; stdlib_dir = Sys.STDLIB)
 end
 
 
-function collect_pkgorigins!(pkgorigins::Dict{PkgId, PkgOrigin}; stdlib_dir = Sys.STDLIB)
+function collect_pkgorigins!(pkgorigins::Dict{PkgId, PkgOrigin}; root_dir = Sys.STDLIB)
     
     uuid_regex = r"^uuid\s*=\s*\"([a-f0-9\-]+)\""mi
     version_regex = r"^version\s*=\s*\"([^\"]+)\""mi
     
-    if !isdir(stdlib_dir)
+    if !isdir(root_dir)
         return pkgorigins
     end
 
-    for name in readdir(stdlib_dir)
-        pkg_path = joinpath(stdlib_dir, name)
+    for name in readdir(root_dir)
+        pkg_path = joinpath(root_dir, name)
         
         # Skip if not a directory
         isdir(pkg_path) || continue
@@ -174,18 +174,18 @@ function collect_pkgorigins!(pkgorigins::Dict{PkgId, PkgOrigin}; stdlib_dir = Sy
     return pkgorigins
 end
 
-collect_pkgorigins(; stdlib_dir = Sys.STDLIB) = collect_pkgorigins!(Dict{PkgId, PkgOrigin}(); stdlib_dir)
+collect_pkgorigins(; root_dir = Sys.STDLIB) = collect_pkgorigins!(Dict{PkgId, PkgOrigin}(); root_dir)
 
 
-function set_load_path!(LOAD_PATH; module_name="")
+function set_load_path!(LOAD_PATH; stdlib_project_name)
 
     empty!(LOAD_PATH)
     push!(LOAD_PATH, "@", "@stdlib")
-    push!(LOAD_PATH, joinpath(Sys.STDLIB, module_name))
+    push!(LOAD_PATH, joinpath(Sys.STDLIB, stdlib_project_name))
 
 end
 
-function set_depot_path!(DEPOT_PATH; bundle_identifier, app_name, runtime_mode)
+function set_depot_path!(DEPOT_PATH; bundle_identifier = "", app_name = "", runtime_mode = "MIN")
 
     if runtime_mode == "SANDBOX"
 
@@ -199,18 +199,9 @@ function set_depot_path!(DEPOT_PATH; bundle_identifier, app_name, runtime_mode)
             error("Sandbox runtime mode is only supported for windows, macos and linux")
         end
 
-    elseif runtime_mode == "COMPILATION"
-
-        set_depot_path_min!(DEPOT_PATH)
-        popfirst!(DEPOT_PATH)
-
     elseif runtime_mode == "MIN"
 
         set_depot_path_min!(DEPOT_PATH)
-
-    elseif runtime_mode == "INTERACTIVE"
-
-        global USER_DATA = get(ENV, "USER_DATA", mktempdir())
 
     else
         error("Sandbox mode RUNTIME_MODE=$runtime_mode not supported")
@@ -326,33 +317,24 @@ function set_depot_path_msix!(DEPOT_PATH; bundle_identifier)
     return
 end
 
-
-function init(; 
-              runtime_mode::String = get(ENV, "RUNTIME_MODE", DEFAULT_RUNTIME_MODE),
-              module_name::String = get(ENV, "MODULE_NAME", DEFAULT_MODULE_NAME),
-              app_name::String = get(ENV, "APP_NAME", DEFAULT_APP_NAME),
-              bundle_identifier::String = get(ENV, "BUNDLE_IDENTIFIER", DEFAULT_BUNDLE_IDENTIFIER)
-              )
-
-    # Prevents reinitialization
-    if isdefined(@__MODULE__, :USER_DATA)
-        return
+function load_config(config_path)
+    config_dict = Dict{String, String}()
+    
+    for line in eachline(config_path)
+        # Skip empty lines
+        isempty(strip(line)) && continue
+        
+        # Split on the first '=' character
+        key, value = split(line, '=', limit=2)
+        config_dict[strip(key)] = strip(value)
     end
 
-    @assert runtime_mode in RUNTIME_MODE_OPTIONS "runtime_mode=$runtime_mode not recognized. Available options are $(join(RUNTIME_MODE_OPTIONS, '|'))"
+    runtime_mode = config_dict["RUNTIME_MODE"]    
+    stdlib_project_name = config_dict["STDLIB_PROJECT_NAME"]
+    app_name = get(config_dict, "APP_NAME", "")
+    bundle_identifier = get(config_dict, "BUNDLE_IDENTIFIER", "")
 
-    if runtime_mode == "INTERACTIVE"
-        global USER_DATA = get(ENV, "USER_DATA", mktempdir())
-        return
-    end
-
-    Sys.STDLIB = joinpath(dirname(Sys.BINDIR), DEFAULT_STDLIB)
-
-    # This is a bit of a hack
-    if isempty(module_name)
-        #error("MODULE_NAME not set")
-        module_name = get(ENV, "MODULE_NAME", DEFAULT_MODULE_NAME)
-    end
+    @assert runtime_mode in RUNTIME_MODE_OPTIONS
 
     if runtime_mode == "SANDBOX"
 
@@ -365,38 +347,77 @@ function init(;
         end
     end
 
-    set_load_path!(Base.LOAD_PATH; module_name)
+    return (; runtime_mode, stdlib_project_name, app_name, bundle_identifier)
+end
+
+
+function save_config(config_path; stdlib_project_name, app_name = "", bundle_identifier = "", runtime_mode = "MIN")
+
+    @assert runtime_mode in RUNTIME_MODE_OPTIONS
+
+    config = """
+        RUNTIME_MODE=$runtime_mode
+        STDLIB_PROJECT_NAME=$stdlib_project_name
+        APP_NAME=$app_name
+        BUNDLE_IDENTIFIER=$bundle_identifier
+    """
+
+    rm(config_path; force=true)
+    write(config_path, config)
+
+    return
+end
+
+
+# function init(; 
+#               runtime_mode::String = get(ENV, "RUNTIME_MODE", DEFAULT_RUNTIME_MODE),
+#               module_name::String = get(ENV, "MODULE_NAME", DEFAULT_MODULE_NAME),
+#               app_name::String = get(ENV, "APP_NAME", DEFAULT_APP_NAME),
+#               bundle_identifier::String = get(ENV, "BUNDLE_IDENTIFIER", DEFAULT_BUNDLE_IDENTIFIER)
+#               )
+
+
+function init(; config_path = joinpath(dirname(Sys.BINDIR), "config"),
+              index_path = joinpath(dirname(Sys.BINDIR), "index"))
+
+    # Prevents reinitialization
+    if isdefined(@__MODULE__, :USER_DATA)
+        return
+    end
+
+    # If config file is not present we assume it is an interactive mode
+    if !isfile(config_path)
+        global USER_DATA = get(ENV, "USER_DATA", mktempdir())
+        return
+    end
+
+    (; runtime_mode, stdlib_project_name, app_name, bundle_identifier) = load_config(config_path)
+
+    set_load_path!(Base.LOAD_PATH; stdlib_project_name)
     set_depot_path!(Base.DEPOT_PATH; app_name, bundle_identifier, runtime_mode)
 
-    if runtime_mode == "COMPILATION"
-        popfirst!(Base.LOAD_PATH)
+    if isfile(index_path)
+        load_pkgorigins!(Base.pkgorigins, index_path)
     else
-
-        index_path = joinpath(Sys.STDLIB, "index")
-        if isfile(index_path)
-            load_pkgorigins!(Base.pkgorigins, index_path)
-        else
-            @warn "Can't find pkgorigin index at $index_path"
-            #collect_pkgorigins!(Base.pkgorigins)
-        end
-
+        @warn "Can't find pkgorigin index at $index_path"
+        #collect_pkgorigins!(Base.pkgorigins)
     end
 
     return
 end
 
 
-function reset_cache()
+# function reset_cache()
 
-    pkg = Base.PkgId(Base.UUID("9f11263e-cf0d-4932-bae6-807953dbea74"), "AppEnv")
-    cache_dir = Base.compilecache_path(pkg)
+#     pkg = Base.PkgId(Base.UUID("9f11263e-cf0d-4932-bae6-807953dbea74"), "AppEnv")
+#     cache_dir = Base.compilecache_path(pkg)
 
-    if !isnothing(cache_dir)
-        @info "Removing the cache"
-        rm(cache_dir; recursive=true)
-    end
+#     if !isnothing(cache_dir)
+#         @info "Removing the cache"
+#         rm(cache_dir; recursive=true)
+#     end
     
-end
+# end
 
 
 end # module AppEnv

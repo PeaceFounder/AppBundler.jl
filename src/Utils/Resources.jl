@@ -9,6 +9,8 @@ import Downloads
 
 import Base.BinaryPlatforms: AbstractPlatform, arch, wordsize
 import Pkg.BinaryPlatforms: MacOS, Linux, Windows
+import Base: PkgId, PkgOrigin, UUID
+import AppEnv
 
 # Import from parent module
 using ..AppBundler: julia_tarballs, artifacts_cache
@@ -58,6 +60,159 @@ function merge_directories(source::String, destination::String; overwrite::Bool=
         end
     end
 end
+
+function copy_assets(source, destination, assets::Vector{String})
+    # Ensure destination directory exists
+    mkpath(destination)
+    
+    for asset in assets
+        source_path = joinpath(source, asset)
+        dest_path = joinpath(destination, asset)
+        
+        if !ispath(source_path)
+            @warn "Asset not found: $source_path"
+            continue
+        end
+        
+        # Create parent directory for destination if needed
+        dest_parent = dirname(dest_path)
+        if !isempty(dest_parent)
+            mkpath(dest_parent)
+        end
+        
+        # Copy file or directory
+        if isfile(source_path)
+            cp(source_path, dest_path; force=true)
+        elseif isdir(source_path)
+            cp(source_path, dest_path; force=true)
+        else
+            @warn "Unknown path type: $source_path"
+        end
+    end
+    
+    return
+end
+
+
+function install_assets(project, asset_dir, asset_spec::Dict{Symbol, Vector{String}})
+
+    ctx = create_pkg_context(project)
+    
+    # Copy assets from dependencies
+    for (uuid, pkgentry) in ctx.env.manifest
+        pkg_symbol = Symbol(pkgentry.name)
+        
+        if haskey(asset_spec, pkg_symbol)
+            source_path = Pkg.Operations.source_path(ctx.env.project_file, pkgentry)
+            #source_path = pkgentry.path
+            
+            if isnothing(source_path)
+                @warn "Skipping $(pkgentry.name): source path not found"
+            else
+                pkg_dir = joinpath(asset_dir, pkgentry.name)
+                copy_assets(source_path, pkg_dir, asset_spec[pkg_symbol])
+            end
+        end
+    end
+
+    # Copy assets from the main project
+    module_name = get_module_name(project)
+    if !isnothing(module_name) && haskey(asset_spec, Symbol(module_name)) && !isdir(joinpath(asset_dir, module_name))
+            project_asset_dir = joinpath(asset_dir, module_name)
+            copy_assets(project, joinpath(asset_dir, module_name), asset_spec[Symbol(module_name)])
+    end
+
+    return
+end
+
+function install_pkgorigin_index(project, index_path, asset_dir)
+
+    pkgorigins = collect_pkgorigins(project)
+    override_pkgorigins_path!(pkgorigins, asset_dir)
+    AppEnv.save_pkgorigins(index_path, pkgorigins; root_dir = nothing)
+
+    return
+end
+
+function collect_pkgorigins!(pkgorigins::Dict{PkgId, PkgOrigin}, project)
+
+    ctx = create_pkg_context(project)
+    
+    for (uuid, pkgentry) in ctx.env.manifest
+        pkg_symbol = Symbol(pkgentry.name)
+        
+        # Get the source path for this package
+        #source_path = pkgentry.path
+        source_path = Pkg.Operations.source_path(ctx.env.project_file, pkgentry)
+
+        #@infiltrate
+        
+        if isnothing(source_path)
+            @warn "Skipping $(pkgentry.name): source path not found"
+            continue
+        end
+        
+        # Find the main module file (typically src/PackageName.jl)
+
+        module_file = joinpath(source_path, "src", "$(pkgentry.name).jl")
+        
+        if !isfile(module_file)
+            @warn "Module file not found for $(pkgentry.name): $module_file"
+            continue
+        end
+
+        #module_file = joinpath(asset_dir, pkgentry.name, "src", "$(pkgentry.name).jl")
+
+        
+        # Create PkgId
+        pkg_id = PkgId(uuid, pkgentry.name)
+        
+        # Get version (may be nothing for dev packages)
+        version = pkgentry.version
+        
+        # Create PkgOrigin
+        pkg_origin = PkgOrigin(module_file, nothing, version)
+        
+        pkgorigins[pkg_id] = pkg_origin
+    end
+
+    module_name = get_module_name(project)
+    if !isnothing(module_name)
+        
+        project_dict = TOML.parsefile(joinpath(project, "Project.toml"))
+
+        uuid = get(project_dict, "uuid", nothing)
+
+        if haskey(project_dict, "version")
+            version = VersionNumber(project_dict["version"])
+        else
+            version = nothing
+        end
+
+        if !isnothing(uuid)
+            pkgid = PkgId(UUID(uuid), module_name)
+
+            module_file = joinpath(project, "src", "$(module_name).jl")
+            pkg_origin = PkgOrigin(module_file, nothing, version)
+
+            pkgorigins[pkgid] = pkg_origin
+        end
+    end
+    
+    return pkgorigins
+end
+
+collect_pkgorigins(project) = collect_pkgorigins!(Dict{PkgId, PkgOrigin}(), project)
+
+function override_pkgorigins_path!(pkgorigins, asset_dir)
+    
+    for (pkgid, pkgorigin) in pkgorigins
+        pkgorigin.path = joinpath(asset_dir, pkgid.name, "src", "$(pkgid.name).jl")
+    end
+
+    return
+end
+
 
 function create_pkg_context(project)
 
