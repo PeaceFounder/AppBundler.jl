@@ -1,8 +1,9 @@
 import Pkg.BinaryPlatforms: MacOS, Linux, Windows
-import AppBundler: stage, PkgImage
+import AppBundler: stage, JuliaAppBundle
+import AppBundler
 
-
-import AppBundler.Stage: julia_download_url
+import AppBundler.Resources: julia_download_url
+#import AppBundler.Stage: julia_download_url
 import Pkg.BinaryPlatforms: Linux, Windows, MacOS
 
 using Test
@@ -19,8 +20,6 @@ using Test
 end
 
 #src_dir = dirname(@__DIR__) # AppBundler itself
-
-src_dir = joinpath(dirname(@__DIR__), "examples/glapp")
 #src_dir = joinpath(dirname(@__DIR__), "examples/gtkapp")
 #src_dir = joinpath(dirname(@__DIR__), "examples/qmlapp")
 #src_dir = joinpath(dirname(@__DIR__), "examples/mousetrap")
@@ -33,8 +32,19 @@ elseif Sys.iswindows()
     platform = Windows(Sys.ARCH)
 end
 
-product_spec = PkgImage(src_dir; precompile = true)
+src_dir = joinpath(pkgdir(AppBundler), "examples/GLApp")
+
+product_spec = JuliaAppBundle(src_dir; precompile = true)
 stage(product_spec, platform, mktempdir())
 
-product_spec = PkgImage(src_dir; precompile = false, target_instantiation = true)
-stage(product_spec, platform, mktempdir())
+asset_spec = Dict{Symbol, Vector{String}}(
+    :AppEnv => ["LICENSE"]
+)
+
+product_spec = JuliaAppBundle(src_dir; precompile = true, sysimg_packages = ["GLApp"], asset_spec, asset_rpath = "assets", remove_sources=true)
+stage(product_spec, platform, mktempdir(); cpu_target="native")
+
+# # Tests sysimg generation with Julia 1.12
+src_dir = joinpath(pkgdir(AppBundler), "examples/CmdApp")
+product_spec = JuliaAppBundle(src_dir; precompile = true, sysimg_packages = ["CmdApp"], remove_sources=true)
+stage(product_spec, platform, mktempdir(); cpu_target="native")

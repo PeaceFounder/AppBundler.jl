@@ -1,4 +1,4 @@
-# Startup Configuration File (common startup.jl)
+# Startup Configuration File 
 #
 # This file runs after platform-specific arguments are set, allowing you to apply
 # common startup options across all environments. Use this file to:
@@ -8,6 +8,15 @@
 #
 # The diagnostic output below shows the active project, load paths, and depot paths
 # to help verify your environment configuration.
+
+if isdir(joinpath(last(DEPOT_PATH), "compiled/v$(VERSION.major).$(VERSION.minor)", "AppEnv")) || any(i -> i.name == "AppEnv", keys(Base.loaded_modules))
+    import AppEnv
+else
+    include(joinpath(Sys.STDLIB, "AppEnv/src/AppEnv.jl"))
+end
+AppEnv.init()
+
+Base.ACTIVE_PROJECT[] = AppEnv.USER_DATA
 
 if isinteractive()
     @async begin

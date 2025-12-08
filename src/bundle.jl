@@ -30,6 +30,7 @@ function get_bundle_parameters(project_toml)
     parameters["PUBLISHER"] = "CN=AppBundler"
     parameters["PUBLISHER_DISPLAY_NAME"] = "AppBundler"
     parameters["BUILD_NUMBER"] = 0
+    parameters["RUNTIME_MODE"] = "SANDBOX"
     
     if haskey(toml_dict, "bundle")
         for (key, value) in toml_dict["bundle"]
@@ -291,6 +292,7 @@ struct DMG
     pfx_cert::Union{String, Nothing}
     shallow_signing::Bool
     hardened_runtime::Bool
+    sandboxed_runtime::Bool
     hfsplus::Bool
     windowed::Bool
     parameters::Dict
@@ -306,12 +308,13 @@ function DMG(;
              pfx_cert = get_path(prefix, "dmg/certificate.pfx"),
              shallow_signing = true,
              hardened_runtime = true,
+             sandboxed_runtime = false,
              hfsplus = false,
              windowed = true,
-             parameters = Dict("WINDOWED" => windowed)
+             parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => sandboxed_runtime)
              )
 
-    return DMG(icon, info_config, entitlements, dsstore, pfx_cert, shallow_signing, hardened_runtime, hfsplus, windowed, parameters)
+    return DMG(icon, info_config, entitlements, dsstore, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, hfsplus, windowed, parameters)
 end
 
 """
@@ -338,13 +341,14 @@ dmg = DMG(app_dir)
 dmg = DMG(app_dir; icon = "custom_icon.icns")
 ```
 """
-function DMG(overlay; windowed = true, kwargs...)
+function DMG(overlay; windowed = true, sandboxed_runtime = false, kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     
     parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
     parameters["WINDOWED"] = windowed
-
+    parameters["SANDBOXED_RUNTIME"] = string(sandboxed_runtime)
+    
     return DMG(; prefix, parameters, windowed, kwargs...)
 end
 
@@ -372,7 +376,7 @@ msix = MSIX(app_dir)
 stage(msix, "build/msix_staging")
 ```
 """
-function stage(msix::MSIX, destination::String)
+function stage(msix::MSIX, destination::String; predicate = nothing)
 
     if !isdir(destination)
         mkdir(destination)
@@ -386,7 +390,7 @@ function stage(msix::MSIX, destination::String)
     end
 
     (; parameters) = msix
-    install(msix.appxmanifest, joinpath(destination, "AppxManifest.xml"); parameters)
+    install(msix.appxmanifest, joinpath(destination, "AppxManifest.xml"); parameters, predicate)
     cp(msix.resources_pri, joinpath(destination, "resources.pri"))
     install(msix.msixinstallerdata, joinpath(destination, "Msix.AppInstaller.Data/MSIXAppInstallerData.xml"); parameters)
 
@@ -476,13 +480,13 @@ dmg = DMG(app_dir)
 stage(dmg, "MyApp.app"; dsstore = true, main_redirect = true, arch = :arm64)
 ```
 """
-function stage(dmg::DMG, destination::String; dsstore = false, main_redirect = false, arch = :x86_64) 
+function stage(dmg::DMG, destination::String; dsstore = false, main_redirect = false, arch = :x86_64, predicate = nothing) 
 
     (; parameters) = dmg
     app_name = parameters["APP_NAME"]
 
     install(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns"))
-    install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters)
+    install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)
 
     if main_redirect
         launcher = retrieve_macos_launcher(MacOS(arch))
@@ -524,17 +528,17 @@ snap = Snap(app_dir)
 stage(snap, "build/snap_staging"; install_configure = true)
 ```
 """
-function stage(snap::Snap, destination::String; install_configure = false)
+function stage(snap::Snap, destination::String; install_configure = false, predicate = nothing)
 
     (; parameters) = snap
     app_name = parameters["APP_NAME_LOWERCASE"]
 
     install(snap.icon, joinpath(destination, "meta/icon.png"))
-    install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters)
-    install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_name.desktop"); parameters)
+    install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters, predicate)
+    install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_name.desktop"); parameters, predicate)
     
     if install_configure
-        install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters, executable = true)
+        install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters, executable = true, predicate)
     end
 
     return
@@ -594,9 +598,11 @@ bundle(dmg, "MyApp.dmg"; compress = true, compression = :lzma) do staging_dir
 end
 ```
 """
-function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), main_redirect = false, arch = :x86_64) 
+function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), main_redirect = false, arch = :x86_64, predicate = nothing) 
+
+    (; parameters) = dmg
     
-    installer_title = join([dmg.parameters["APP_DISPLAY_NAME"], "Installer"], " ")
+    installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
 
     if length(installer_title) > 32
         error("Installer title \"$installer_title\" exceeds the maximum 32 characters allowed by xorriso (current length: $(length(installer_title))). Please shorten APP_DISPLAY_NAME to $(32 - length(" Installer")) characters or less.")
@@ -611,12 +617,12 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     end
 
     if compress
-        appname = dmg.parameters["APP_NAME"]
+        appname = parameters["APP_NAME"]
         app_stage = joinpath(mktempdir(), "$appname.app")
-        stage(dmg, app_stage; dsstore = true, main_redirect, arch)        
+        stage(dmg, app_stage; dsstore = true, main_redirect, arch, predicate)        
     else
         app_stage = destination
-        stage(dmg, app_stage; dsstore = false, main_redirect, arch)        
+        stage(dmg, app_stage; dsstore = false, main_redirect, arch, predicate)        
     end
 
     setup(app_stage)
@@ -631,8 +637,11 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     #   file missing: .../terminfos/._make-fancy-terminfo.sh
     # These ._* files typically appear alongside executable .jl or .sh files in the Julia stdlib.
     run(`find $app_stage -name "._*" -delete`)
+
+    entitlements = joinpath(mktempdir(), "Entitlements.plist")
+    install(dmg.entitlements, entitlements; parameters, predicate)
     
-    DMGPack.pack(app_stage, destination, dmg.entitlements; pfx_path = dmg.pfx_cert, password, compression = compress ? compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, hfsplus = dmg.hfsplus)
+    DMGPack.pack(app_stage, destination, entitlements; pfx_path = dmg.pfx_cert, password, compression = compress ? compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, hfsplus = dmg.hfsplus)
 
     return
 end
@@ -686,7 +695,7 @@ bundle(msix, "MyApp.msix"; compress = true) do staging_dir
 end
 ```
 """
-function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, password = get(ENV, "WINDOWS_PFX_PASSWORD", ""))
+function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, password = get(ENV, "WINDOWS_PFX_PASSWORD", ""), predicate = nothing)
 
     if ispath(destination)
         if force
@@ -698,7 +707,7 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
 
     app_stage = compress ? mktempdir() : destination
 
-    stage(msix, app_stage)    
+    stage(msix, app_stage; predicate)    
     setup(app_stage)
 
     (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
@@ -750,7 +759,7 @@ bundle(snap, "MyApp.snap"; compress = true) do staging_dir
 end
 ```
 """
-function bundle(setup::Function, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false, install_configure = false)
+function bundle(setup::Function, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false, install_configure = false, predicate = nothing)
 
     if ispath(destination)
         if force
@@ -762,7 +771,7 @@ function bundle(setup::Function, snap::Snap, destination::String; compress::Bool
 
     app_stage = compress ? mktempdir() : destination
     
-    stage(snap, app_stage; install_configure)    
+    stage(snap, app_stage; install_configure, predicate)    
     setup(app_stage)
 
     if compress

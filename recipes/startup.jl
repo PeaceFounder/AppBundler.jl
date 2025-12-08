@@ -1,16 +1,28 @@
-# This is a default startup file that is used for staging Julia which Platform-independent startup configuration
-# It is superseeded with platform specific startup.jl file in order to support varios customizations, like precompilation and etc
+# Startup Configuration File 
+#
+# This file runs after platform-specific arguments are set, allowing you to apply
+# common startup options across all environments. Use this file to:
+#   - Load development tools (e.g., Revise.jl for hot-reloading, Infiltrator.jl for debugging)
+#   - Configure environment-specific settings
+#   - Display diagnostic information about the Julia environment
 
-libdir = dirname(dirname(@__DIR__))
+# If AppEnv is not precompiled we can only load it dynamically
+if isdir(joinpath(last(DEPOT_PATH), "compiled/v$(VERSION.major).$(VERSION.minor)", "AppEnv")) || any(i -> i.name == "AppEnv", keys(Base.loaded_modules))
+    import AppEnv
+else
+    include(joinpath(Sys.STDLIB, "AppEnv/src/AppEnv.jl"))
+end
+AppEnv.init()
 
-# Add paths to LOAD_PATH for proper package precompilation:
-# - Without the app directory in LOAD_PATH, extensions fail to precompile
-# - If removed after precompilation, it invalidates the package image 
-empty!(LOAD_PATH)
-push!(LOAD_PATH, "@", "@stdlib")
-isempty("{{MODULE_NAME}}") ? push!(LOAD_PATH, joinpath(Sys.STDLIB, "MainEnv")) : push!(LOAD_PATH, joinpath(Sys.STDLIB, "{{MODULE_NAME}}"))
+Base.ACTIVE_PROJECT[] = AppEnv.USER_DATA
 
-user_depot = get(ENV, "USER_DATA", mktempdir())
+if isinteractive() && !isempty("{{MODULE_NAME}}") && isempty(ARGS)
+    println("No arguments provided. To display help, use:")
 
-empty!(DEPOT_PATH)
-push!(DEPOT_PATH, user_depot, joinpath(libdir, "share/julia"))
+    if Sys.iswindows()
+        println("  {{APP_NAME}}.exe --eval \"using {{MODULE_NAME}}\" --help")
+    else
+        julia = relpath(joinpath(Sys.BINDIR, "julia"), pwd())
+        println("  $julia --eval \"using {{MODULE_NAME}}\" --help")
+    end
+end

@@ -8,6 +8,20 @@ DOWNLOAD_CACHE = ""
 julia_tarballs() = joinpath(DOWNLOAD_CACHE, "julia-tarballs")
 artifacts_cache() = joinpath(DOWNLOAD_CACHE, "artifacts")
 
+"""
+    BuildSpec
+
+Abstract specification for building and packaging applications.
+
+Concrete subtypes:
+- [`JuliaAppBundle`](@ref): Julia application with full runtime
+- [`JuliacBundle`](@ref): Standalone executable compiled with JuliaC
+"""
+abstract type BuildSpec end
+
+function stage end
+
+
 include("Utils/DSStore.jl")
 include("Utils/HFS.jl")
 include("Utils/DMGPack.jl")
@@ -15,12 +29,21 @@ include("Utils/SnapPack.jl")
 include("Utils/MSIXPack.jl")
 include("Utils/MSIXIcons.jl")
 include("Utils/WinSubsystem.jl")
+
+include("Utils/Resources.jl")
+include("Utils/TerminalSpinners.jl")
+include("Utils/SysImgTools.jl")
 include("Utils/Stage.jl")
+
+include("Utils/JuliaC.jl")
+
 include("Utils/ArgParser.jl")
 
 import .ArgParser: parse_args
-import .Stage: stage # 
-using .Stage: merge_directories, install
+#import .Stage: stage # 
+#using .Stage: merge_directories, install
+using .Stage: install
+using .Resources: merge_directories#, install
 
 include("utils.jl")
 include("bundle.jl")
@@ -40,6 +63,6 @@ function __init__()
 
 end
 
-export Linux, MacOS, Windows
+export JuliaAppBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
 
 end

@@ -12,6 +12,10 @@ end
     include("stage.jl")
 end
 
+@time @safetestset "JuliaC staging tests" begin
+    include("juliac.jl")
+end
+
 @time @safetestset "GLApp example" begin
     include("integrity.jl")
 end
