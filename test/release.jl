@@ -78,51 +78,51 @@ let
     end
 end
 
-# let
-#     project = joinpath(dirname(@__DIR__), "examples/CmdApp")
-#     spec = JuliaCBundle(project; trim = true)
-#     target_name = "cmdapp_juliac"
-#     windowed = false
+let
+    project = joinpath(dirname(@__DIR__), "examples/CmdApp")
+    spec = JuliaCBundle(project; trim = true)
+    target_name = "cmdapp_juliac"
+    windowed = false
 
-#     if Sys.islinux()
-#         snap = Snap(project; windowed)
-#         bundle(spec, snap, joinpath(build_dir, "$target_name.snap"); force)
-#     end
+    if Sys.islinux()
+        snap = Snap(project; windowed)
+        bundle(spec, snap, joinpath(build_dir, "$target_name.snap"); force)
+    end
 
-#     if Sys.isapple()
-#         dmg = DMG(project; windowed)
-#         bundle(spec, dmg, joinpath(build_dir, "$target_name.dmg"); force)
-#     end
+    if Sys.isapple()
+        dmg = DMG(project; windowed)
+        bundle(spec, dmg, joinpath(build_dir, "$target_name.dmg"); force)
+    end
 
-#     if Sys.iswindows()
-#         msix = MSIX(project; windowed)
-#         bundle(spec, msix, joinpath(build_dir, "$target_name.msix"); force)
-#     end
-# end
+    if Sys.iswindows()
+        msix = MSIX(project; windowed)
+        bundle(spec, msix, joinpath(build_dir, "$target_name.msix"); force)
+    end
+end
 
-# let
+let
 
-#     asset_spec = Dict{Symbol, Vector{String}}(
-#         :QMLApp => ["src/App.qml"]
-#     )
+    asset_spec = Dict{Symbol, Vector{String}}(
+        :QMLApp => ["src/App.qml"]
+    )
 
-#     project = joinpath(dirname(@__DIR__), "examples/QMLApp")
-#     spec = JuliaCBundle(project; trim = false, asset_spec)
-#     target_name = "qmlapp_juliac"
-#     windowed = true
+    project = joinpath(dirname(@__DIR__), "examples/QMLApp")
+    spec = JuliaCBundle(project; trim = false, asset_spec)
+    target_name = "qmlapp_juliac"
+    windowed = true
 
-#     if Sys.islinux()
-#         snap = Snap(project; windowed)
-#         bundle(spec, snap, joinpath(build_dir, "$target_name.snap"); force)
-#     end
+    if Sys.islinux()
+        snap = Snap(project; windowed)
+        bundle(spec, snap, joinpath(build_dir, "$target_name.snap"); force)
+    end
 
-#     if Sys.isapple()
-#         dmg = DMG(project; windowed) #sandboxed_runtime=true
-#         bundle(spec, dmg, joinpath(build_dir, "$target_name.dmg"); force)
-#     end
+    if Sys.isapple()
+        dmg = DMG(project; windowed) #sandboxed_runtime=true
+        bundle(spec, dmg, joinpath(build_dir, "$target_name.dmg"); force)
+    end
 
-#     if Sys.iswindows()
-#         msix = MSIX(project; windowed)
-#         bundle(spec, msix, joinpath(build_dir, "$target_name.msix"); force)
-#     end
-# end
+    if Sys.iswindows()
+        msix = MSIX(project; windowed)
+        bundle(spec, msix, joinpath(build_dir, "$target_name.msix"); force)
+    end
+end

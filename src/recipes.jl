@@ -56,7 +56,11 @@ function bundle(product::JuliaAppBundle, snap::Snap, destination::String; compre
         app_name = snap.parameters["APP_NAME_LOWERCASE"]
         install(main_file, joinpath(app_stage, "bin/$app_name"); parameters = snap.parameters, executable = true)
 
-        install(snap.configure_hook, joinpath(app_stage, "meta/hooks/configure"); parameters = Dict("PRECOMPILED_MODULES" => join(product.precompiled_modules, ",")), executable = true)
+        # This approach has errors. 
+
+        configure_compiled_modules = Stage.get_project_deps(product.source)
+        # push!(configure_compiled_modules, "AppEnv") # won't work as AppEnv is used to bootstrap the DEPOT_PATH
+        install(snap.configure_hook, joinpath(app_stage, "meta/hooks/configure"); parameters = Dict("PROJECT_DEPS" => join(configure_compiled_modules, ",")), executable = true)
 
         #install_config(joinpath(app_stage, "config"), snap.parameters)
     end
@@ -173,17 +177,13 @@ function bundle(product::JuliaCBundle, msix::MSIX, destination::String; compress
 
         #install_config(joinpath(app_stage, "config"), msix.parameters)
 
-        # May need to look into this
-        # if msix.windowed
-        #     WinSubsystem.change_subsystem_inplace("$app_stage/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
-        #     WinSubsystem.change_subsystem_inplace("$app_stage/bin/lld.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
-        # end
+         if msix.windowed
+             WinSubsystem.change_subsystem_inplace(joinpath(app_stage, "bin", "$app_name.exe"); subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
+         end
     end
 
     return
 end
-
-
 
 
 """

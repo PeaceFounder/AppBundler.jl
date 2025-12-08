@@ -478,17 +478,21 @@ function stage(product::JuliaAppBundle, platform::AbstractPlatform, destination:
     @info "Installing pkgorigins index"
 
     # remove_sources
+    module_name = get_module_name(product.source)
     packages_dir = joinpath(destination, product.stdlib_dir)
     if product.remove_sources 
         @info "Removing sources from stdlib"
         rm(packages_dir; recursive = true)
         mkdir(packages_dir)
         cp(joinpath(pkgdir(AppEnv), "Project.toml"), joinpath(packages_dir, "Project.toml"))
+
+        stdlib_project_name = isnothing(module_name) ? "MainEnv" : module_name
+        mkdir(joinpath(packages_dir, stdlib_project_name))
+        cp(joinpath(product.source, "Project.toml"), joinpath(packages_dir, stdlib_project_name, "Project.toml"))
     end
 
     @info "App staging completed successfully"
     @info "Staged app available at: $destination"
-    module_name = get_module_name(product.source)
     if !isnothing(module_name)
         @info "Launch it with bin/julia -e \"using $module_name\""
     else

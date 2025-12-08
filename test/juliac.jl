@@ -8,8 +8,8 @@ asset_spec = Dict{Symbol, Vector{String}}(
 )
 
 spec = JuliaCBundle(project; trim = true, asset_spec)
-#build_dir = mktempdir()
-build_dir = joinpath(dirname(@__DIR__), "build")
+build_dir = mktempdir()
+#build_dir = joinpath(dirname(@__DIR__), "build")
 
 if isfile(spec.juliac_cmd.exec[1])
 
@@ -31,37 +31,3 @@ if isfile(spec.juliac_cmd.exec[1])
 else
     @warn "JuliaC tests are skipped because juliac can't be found in ~/.julia/juliac"
 end
-
-
-
-#project = joinpath(dirname(@__DIR__), "examples/QMLApp")
-#spec = JuliaCBundle(project; trim = false)
-
-#stage(spec, builddir)
-
-# Snap test
-
-#@show destination = joinpath(mktempdir(), "cmdapp")
-
-# project = joinpath(dirname(@__DIR__), "examples/CmdApp")
-
-# spec = JuliaCBundle(project; trim = true)
-
-# build_dir = joinpath(dirname(@__DIR__), "build")
-
-# if Sys.islinux()
-#     snap = Snap(project; windowed = false)
-#     bundle(spec, snap, joinpath(build_dir, "cmdapp.snap"); force=true)
-# end
-
-
-# if Sys.isapple()
-#     dmg = DMG(project; windowed = true, sandboxed_runtime=true)
-#     bundle(spec, dmg, joinpath(build_dir, "cmdapp.dmg"); force=true)
-# end
-
-
-# if Sys.iswindows()
-#     msix = MSIX(project; windowed = false)
-#     bundle(spec, msix, joinpath(build_dir, "cmdappwin.msix"); force=true)
-# end
