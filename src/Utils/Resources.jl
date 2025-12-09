@@ -300,12 +300,57 @@ function get_module_name(source::String)
     return nothing
 end
 
-function retrieve_packages(project, packages_dir)
+import Pkg: Operations, Types, GitTools, isurl
+import LibGit2
+import Pkg.API: tree_hash
+
+# Taken from Pkg instantiate
+function fetch_packages(ctx)
+
+    pkgs = Operations.load_all_deps(ctx.env)
+
+    # Handling packages tracking repos
+    for pkg in pkgs
+        repo_source = pkg.repo.source
+        repo_source !== nothing || continue
+        sourcepath = Operations.source_path(ctx.env.manifest_file, pkg, ctx.julia_version)
+        isdir(sourcepath) && continue
+        ## Download repo at tree hash
+        # determine canonical form of repo source
+        if !isurl(repo_source)
+            repo_source = normpath(joinpath(dirname(ctx.env.project_file), repo_source))
+        end
+        if !isurl(repo_source) && !isdir(repo_source)
+            pkgerror("Did not find path `$(repo_source)` for $(err_rep(pkg))")
+        end
+        repo_path = Types.add_repo_cache_path(repo_source)
+        let repo_source=repo_source
+            LibGit2.with(GitTools.ensure_clone(ctx.io, repo_path, repo_source; isbare=true)) do repo
+                # We only update the clone if the tree hash can't be found
+                tree_hash_object = tree_hash(repo, string(pkg.tree_hash))
+                if tree_hash_object === nothing
+                    GitTools.fetch(ctx.io, repo, repo_source; refspecs=Types.refspecs)
+                    tree_hash_object = tree_hash(repo, string(pkg.tree_hash))
+                end
+                if tree_hash_object === nothing
+                    pkgerror("Did not find tree_hash $(pkg.tree_hash) for $(err_rep(pkg))")
+                end
+                mkpath(sourcepath)
+                GitTools.checkout_tree_to_path(repo, tree_hash_object, sourcepath)
+            end
+        end
+    end
+
+    Pkg.Operations.download_source(ctx)
+
+    return
+end
+
+function install_packages(project, packages_dir)
 
     ctx = create_pkg_context(project)
-
-    # Perhaps I need to do it at a seperate depot
-    Pkg.Operations.download_source(ctx)
+    
+    fetch_packages(ctx)
 
     for (uuid, pkgentry) in ctx.env.manifest
         
@@ -346,7 +391,7 @@ end
 
 # If one wishes he can specify artifacts_cache directory to be that in DEPOT_PATH 
 # That way one could avoid downloading twice when it is deployed as a build script
-function retrieve_artifacts(platform::AbstractPlatform, modules_dir, artifacts_dir; artifacts_cache_dir = artifacts_cache(), include_lazy=true)
+function install_artifacts(platform::AbstractPlatform, modules_dir, artifacts_dir; artifacts_cache_dir = artifacts_cache(), include_lazy=true)
 
     if !haskey(platform, "julia_version")
         platform = deepcopy(platform)
@@ -439,7 +484,7 @@ function julia_download_url(platform::Windows, version::VersionNumber)
     return url
 end
 
-function retrieve_julia(platform::AbstractPlatform, julia_dir; version = julia_version(platform)) 
+function install_julia(platform::AbstractPlatform, julia_dir; version = julia_version(platform)) 
 
     base_url = "https://julialang-s3.julialang.org/bin"
 
@@ -592,14 +637,14 @@ function fetch(project, destination;
             """)
     end
 
-    retrieve_julia(platform, destination; version = julia_version)
+    install_julia(platform, destination; version = julia_version)
 
     packages_dir = joinpath(destination, stdlib_dir)
-    retrieve_packages(project, packages_dir)
+    install_packages(project, packages_dir)
 
     apply_patches(joinpath(project, "meta/patches"), packages_dir; overwrite=true)
 
-    retrieve_artifacts(platform, packages_dir, "$destination/share/julia/artifacts"; include_lazy = include_lazy_artifacts)
+    install_artifacts(platform, packages_dir, "$destination/share/julia/artifacts"; include_lazy = include_lazy_artifacts)
     
     return
 end
