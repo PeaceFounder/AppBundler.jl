@@ -1,4 +1,4 @@
-module Stage
+module JuliaImg
 
 # NOTE: AppEnv coupling required for cache validity
 #
@@ -10,10 +10,14 @@ module Stage
 # Until extension loading can be decoupled from LOAD_PATH, AppEnv must remain
 # integrated to ensure consistent LOAD_PATH across compilation and runtime.
 
-using ..AppBundler: julia_tarballs, artifacts_cache, BuildSpec
-import ..AppBundler: stage
+# Need to look 
+using ..AppBundler: BuildSpec
+import ..AppBundler: stage, julia_tarballs, artifacts_cache
 
-using ..SysImgTools
+include("TerminalSpinners.jl")
+include("SysImgTools.jl")
+
+using .SysImgTools
 using ..Resources
 using ..Resources: get_module_name
 
@@ -33,11 +37,11 @@ function stdlib_default_dir(project)
 end
 
 """
-    JuliaAppBundle(source; precompile = true, incremental = true, julia_version = get_julia_version(source))
+    JuliaImgBundle(source; precompile = true, incremental = true, julia_version = get_julia_version(source))
 
 Create a package image configuration for Julia application compilation.
 
-This constructor initializes a JuliaAppBundle configuration that controls how a Julia application
+This constructor initializes a JuliaImgBundle configuration that controls how a Julia application
 is compiled and packaged, including precompilation settings and target Julia version.
 
 # Arguments
@@ -54,16 +58,16 @@ is compiled and packaged, including precompilation settings and target Julia ver
 # Examples
 ```julia
 # Create package image with default settings
-pkg = JuliaAppBundle(app_dir)
+pkg = JuliaImgBundle(app_dir)
 
 # Create without precompilation (compile on target system)
-pkg = JuliaAppBundle(app_dir; precompile = false)
+pkg = JuliaImgBundle(app_dir; precompile = false)
 
 # Create with specific Julia version and clean compilation
-pkg = JuliaAppBundle(app_dir; julia_version = v"1.10.0", incremental = false)
+pkg = JuliaImgBundle(app_dir; julia_version = v"1.10.0", incremental = false)
 ```
 """
-@kwdef struct JuliaAppBundle <: BuildSpec
+@kwdef struct JuliaImgBundle <: BuildSpec
     source::String
     include_lazy_artifacts::Bool = true
     stdlib_dir = stdlib_default_dir(source) # STDLIB directory relative to Sys.BINDIR
@@ -82,17 +86,17 @@ pkg = JuliaAppBundle(app_dir; julia_version = v"1.10.0", incremental = false)
     parallel_precompilation::Bool = (incremental || :Pkg in precompiled_modules) && !haskey(ENV, "CI")
 end
 
-function JuliaAppBundle(source; sysimg_packages = [], incremental = isempty(sysimg_packages), kwargs...) 
+function JuliaImgBundle(source; sysimg_packages = [], incremental = isempty(sysimg_packages), kwargs...) 
 
     if !isempty(sysimg_packages) && incremental
         @warn "All pkgimage cache needs to be rebuilt when new sysimage is built. To remove this warning set incremental=false"
         incremental = false
     end
 
-   return JuliaAppBundle(; source, sysimg_packages, incremental, kwargs...)
+   return JuliaImgBundle(; source, sysimg_packages, incremental, kwargs...)
 end
 
-get_julia_version(spec::JuliaAppBundle) = get_julia_version(spec.source)
+get_julia_version(spec::JuliaImgBundle) = get_julia_version(spec.source)
 
 """
     get_julia_version(source::String) -> VersionNumber
@@ -140,7 +144,7 @@ function get_template(source, target)
     if isfile(joinpath(source, "meta", target))
         return joinpath(source, "meta", target)
     else
-        path = joinpath(dirname(dirname(@__DIR__)), "recipes", target)
+        path = joinpath(dirname(dirname(dirname(@__DIR__))), "recipes", target)
         isfile(path) || error("$target is not defined in recipes")
         return path
     end
@@ -230,9 +234,7 @@ function compile_sysimg(destination, project;
 
     compilation_script = sysimg_compilation_script(project, sysimg_packages)
 
-    #withenv("DEFAULT_RUNTIME_MODE" => "MIN", "MODULE_NAME" => isnothing(module_name) ? "MainEnv" : module_name) do
     SysImgTools.compile_sysimage(compilation_script, tmp_sysimg; base_sysimg, julia_cmd, cpu_target, sysimg_args, project)
-    #end
 
     mv(tmp_sysimg, base_sysimg; force=true)
 
@@ -279,13 +281,13 @@ end
 
 
 """
-    validate_cross_compilation(product::JuliaAppBundle, platform::AbstractPlatform) -> Bool
+    validate_cross_compilation(product::JuliaImgBundle, platform::AbstractPlatform) -> Bool
 
 Validate whether cross-compilation is supported for the given platform combination.
 Throws descriptive errors for unsupported combinations.
 
 # Arguments
-- `product::JuliaAppBundle`: The package configuration
+- `product::JuliaImgBundle`: The package configuration
 - `platform::AbstractPlatform`: Target platform
 
 # Returns
@@ -397,7 +399,7 @@ end
 
 
 """
-    stage(product::JuliaAppBundle, platform::AbstractPlatform, destination::String)
+    stage(product::JuliaImgBundle, platform::AbstractPlatform, destination::String)
 
 Stage a Julia application by downloading Julia runtime, copying packages, and optionally precompiling.
 
@@ -407,7 +409,7 @@ copying application dependencies, retrieving artifacts, configuring startup file
 precompiling the application.
 
 # Arguments
-- `product::JuliaAppBundle`: Package image configuration specifying source, precompilation settings, and Julia version
+- `product::JuliaImgBundle`: Package image configuration specifying source, precompilation settings, and Julia version
 - `platform::AbstractPlatform`: Target platform (e.g., `MacOS(:arm64)`, `Windows(:x86_64)`, `Linux(:x86_64)`)
 - `destination::String`: Target directory where the staged application will be created
 
@@ -431,16 +433,16 @@ The function performs the following steps in order:
 # Examples
 ```julia
 # Stage application for macOS arm64
-pkg = JuliaAppBundle("src/")
+pkg = JuliaImgBundle("src/")
 stage(pkg, MacOS(:arm64), "build/MyApp.app/Contents/Resources/julia")
 
 # Stage without precompilation for faster builds
-pkg = JuliaAppBundle(app_dir; precompile = false)
+pkg = JuliaImgBundle(app_dir; precompile = false)
 stage(pkg, Linux(:x86_64), "build/linux_staging")
 
 ```
 """
-function stage(product::JuliaAppBundle, platform::AbstractPlatform, destination::String; cpu_target = get_cpu_target(platform), runtime_mode = "MIN", app_name = "", bundle_identifier = "")
+function stage(product::JuliaImgBundle, platform::AbstractPlatform, destination::String; cpu_target = get_cpu_target(platform), runtime_mode = "MIN", app_name = "", bundle_identifier = "")
 
     if product.precompile
         validate_cross_compilation(platform)

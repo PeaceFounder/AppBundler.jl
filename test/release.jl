@@ -2,7 +2,7 @@
 # are functional on each platform. Small configuration errors in startup scripts or 
 # missing post-configuration steps can silently break bundles without failing builds.
 
-import AppBundler: Snap, MSIX, DMG, bundle, JuliaAppBundle, JuliaCBundle
+import AppBundler: Snap, MSIX, DMG, bundle, JuliaImgBundle, JuliaCBundle
 
 build_dir = joinpath(dirname(@__DIR__), "build")
 mkpath(build_dir)
@@ -10,7 +10,7 @@ force = true
 
 let
     project = joinpath(dirname(@__DIR__), "examples/modjulia")
-    spec = JuliaAppBundle(project; incremental = true, precompile = false)
+    spec = JuliaImgBundle(project; incremental = true, precompile = false)
     target_name = "modjulia_uncompiled"
     windowed = false
 
@@ -32,7 +32,7 @@ end
 
 let
     project = joinpath(dirname(@__DIR__), "examples/modjulia")
-    spec = JuliaAppBundle(project; sysimg_packages = ["Mods"])
+    spec = JuliaImgBundle(project; sysimg_packages = ["Mods"])
     target_name = "modjulia_sysimg"
     windowed = false
 
@@ -58,7 +58,7 @@ let
     )
 
     project = joinpath(dirname(@__DIR__), "examples/QMLApp")
-    spec = JuliaAppBundle(project; sysimg_packages = ["QMLApp"], remove_sources = true, asset_rpath = "assets", asset_spec)
+    spec = JuliaImgBundle(project; sysimg_packages = ["QMLApp"], remove_sources = true, asset_rpath = "assets", asset_spec)
     target_name = "qmlapp_sysimg"
     windowed = true
 

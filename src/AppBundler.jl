@@ -14,7 +14,7 @@ artifacts_cache() = joinpath(DOWNLOAD_CACHE, "artifacts")
 Abstract specification for building and packaging applications.
 
 Concrete subtypes:
-- [`JuliaAppBundle`](@ref): Julia application with full runtime
+- [`JuliaImgBundle`](@ref): Julia application with full runtime
 - [`JuliacBundle`](@ref): Standalone executable compiled with JuliaC
 """
 abstract type BuildSpec end
@@ -22,28 +22,35 @@ abstract type BuildSpec end
 function stage end
 
 
-include("Utils/DSStore.jl")
-include("Utils/HFS.jl")
-include("Utils/DMGPack.jl")
-include("Utils/SnapPack.jl")
-include("Utils/MSIXPack.jl")
-include("Utils/MSIXIcons.jl")
-include("Utils/WinSubsystem.jl")
+include("DMG/DSStore.jl")
+include("DMG/HFS.jl")
+include("DMG/DMGPack.jl")
 
-include("Utils/Resources.jl")
-include("Utils/TerminalSpinners.jl")
-include("Utils/SysImgTools.jl")
-include("Utils/Stage.jl")
+include("Snap/SnapPack.jl")
 
-include("Utils/JuliaC.jl")
+include("MSIX/MSIXPack.jl")
+include("MSIX/MSIXIcons.jl")
+include("MSIX/WinSubsystem.jl")
 
-include("Utils/ArgParser.jl")
+# include("Utils/TerminalSpinners.jl")
+# include("Utils/Resources.jl")
+# include("Utils/SysImgTools.jl")
+# include("Utils/Stage.jl")
 
-import .ArgParser: parse_args
+include("bundlers/Resources.jl") # JuliaC needs assets and pkgorigins_index which is shared between JuliaImg and JuliaC
+include("bundlers/JuliaImg/JuliaImg.jl") 
+include("bundlers/JuliaC.jl")
+
+#include("ArgParser.jl")
+
+#import .ArgParser: parse_args
 #import .Stage: stage # 
 #using .Stage: merge_directories, install
-using .Stage: install
-using .Resources: merge_directories#, install
+using .JuliaImg: install
+#using .Resources: merge_directories#, install
+using .JuliaImg.Resources: merge_directories#, install
+
+include("config.jl")
 
 include("utils.jl")
 include("bundle.jl")
@@ -63,6 +70,6 @@ function __init__()
 
 end
 
-export JuliaAppBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
+export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
 
 end

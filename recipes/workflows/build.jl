@@ -18,7 +18,7 @@ force = false
 version = AppBundler.get_version(APP_DIR)
 target_name = "{{APP_NAME}}-$version-$(target_arch)"
 
-spec = JuliaAppBundle(APP_DIR; precompile, incremental)
+spec = JuliaImgBundle(APP_DIR; precompile, incremental)
 
 if :linux in target_platforms
     snap = Snap(APP_DIR; windowed)

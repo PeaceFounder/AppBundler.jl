@@ -1,48 +1,7 @@
-import TOML
-
 import Pkg, Artifacts
 using Pkg.BinaryPlatforms: MacOS
 using AppBundlerUtils_jll
 import Mustache
-
-function get_bundle_parameters(project_toml)
-
-    toml_dict = TOML.parsefile(project_toml)
-
-    parameters = Dict{String, Any}()
-
-    if haskey(toml_dict, "name") && isfile(joinpath(dirname(project_toml), "src", toml_dict["name"] * ".jl"))
-        parameters["MODULE_NAME"] = toml_dict["name"]
-    end
-
-    app_name = haskey(toml_dict, "APP_NAME") ? toml_dict["APP_NAME"] : haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
-    parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
-    #parameters["APP_DIR_NAME"] = haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
-    #parameters["APP_VERSION"] = haskey(toml_dict, "version") ? toml_dict["version"] : "0.0.1"
-    parameters["APP_VERSION"] = get(toml_dict, "version", "0.0.1")
-
-    # Setting defaults
-    parameters["APP_DISPLAY_NAME"] = app_name #parameters["APP_NAME"]
-    parameters["APP_SUMMARY"] = "This is a default app summary"
-    parameters["APP_DESCRIPTION"] = "A longer description of the app"
-    parameters["WITH_SPLASH_SCREEN"] = "false"
-    parameters["BUNDLE_IDENTIFIER"] = "org.appbundler." * lowercase(parameters["APP_NAME"])
-    parameters["PUBLISHER"] = "CN=AppBundler"
-    parameters["PUBLISHER_DISPLAY_NAME"] = "AppBundler"
-    parameters["BUILD_NUMBER"] = 0
-    parameters["RUNTIME_MODE"] = "SANDBOX"
-    
-    if haskey(toml_dict, "bundle")
-        for (key, value) in toml_dict["bundle"]
-            parameters[key] = string(value) # Mustache does not print false.
-        end
-    end
-
-    parameters["APP_NAME_LOWERCASE"] = lowercase(parameters["APP_NAME"])
-
-    return parameters
-end
-
 
 """
     MSIX(; prefix, icon, appxmanifest, resources_pri, msixinstallerdata, path_length_threshold, skip_long_paths, pfx_cert, parameters)

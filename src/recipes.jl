@@ -1,6 +1,6 @@
 using Base.BinaryPlatforms: arch
 using Pkg.BinaryPlatforms: Linux, Windows, MacOS
-using .Stage: JuliaAppBundle
+using .JuliaImg: JuliaImgBundle
 using .JuliaC: JuliaCBundle 
 import AppEnv
 
@@ -16,7 +16,7 @@ import AppEnv
 #     return
 # end
 
-function bundle(product::JuliaAppBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), target_arch = Sys.ARCH)
+function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), target_arch = Sys.ARCH)
 
     predicate = :JULIA_APP_BUNDLE
     
@@ -39,7 +39,7 @@ function bundle(product::JuliaAppBundle, dmg::DMG, destination::String; compress
     return
 end
 
-function bundle(product::JuliaAppBundle, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false, target_arch = Sys.ARCH)
+function bundle(product::JuliaImgBundle, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false, target_arch = Sys.ARCH)
 
     predicate = :JULIA_APP_BUNDLE
 
@@ -77,7 +77,7 @@ function normalize_executable(path::String)
     return
 end
 
-function bundle(product::JuliaAppBundle, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, target_arch = Sys.ARCH)
+function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, target_arch = Sys.ARCH)
 
     predicate = :JULIA_APP_BUNDLE
 
@@ -250,7 +250,7 @@ function build_app(platform::Windows, source, destination; compress::Bool = isex
     msix = MSIX(source; windowed,
                 (adhoc_signing ? (; pfx_cert=nothing) : (;))...)
 
-    product = JuliaAppBundle(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
+    product = JuliaImgBundle(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
     
     return bundle(product, msix, destination; compress, force, target_arch = arch(platform))
 end
@@ -314,7 +314,7 @@ function build_app(platform::Linux, source, destination; compress::Bool = isext(
 
     snap = Snap(source; windowed)
 
-    product = JuliaAppBundle(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
+    product = JuliaImgBundle(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
 
     return bundle(product, snap, destination; compress, force, target_arch = arch(platform))
 end
@@ -379,7 +379,7 @@ function build_app(platform::MacOS, source, destination; compress::Bool = isext(
     dmg = DMG(source; windowed, hfsplus, 
               (adhoc_signing ? (; pfx_cert=nothing) : (;))...)
 
-    product = JuliaAppBundle(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
+    product = JuliaImgBundle(source; precompile, incremental, sysimg_packages, sysimg_args, remove_sources)
     
     return bundle(product, dmg, destination; compress, force, target_arch = arch(platform))
 end
