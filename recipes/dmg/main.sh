@@ -19,7 +19,7 @@ fi
 
 {{#JULIAC_BUNDLE}}
 
-CMD="$SCRIPT_DIR/bin/{{APP_NAME_LOWERCASE}}"
+CMD="$SCRIPT_DIR/bin/{{APP_NAME}}"
 {{^WINDOWED}}
 if [ $# -eq 0 ]; then
     osascript -e 'tell application "Terminal" to activate' \

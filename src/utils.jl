@@ -56,7 +56,7 @@ function generate_windows_signing_certificate(root; person_name = "AppBundler", 
 
     mkpath(dirname(destination))
     
-    MSIXPack.generate_self_signed_certificate(destination; password, name = person_name, country, validity_days)
+    MSIXPack.generate_self_signed_certificate(destination; password, publisher="O=AppBundler, C=$country, CN=$person_name", validity_days)
 
     println("""
     The certificate is encrypted with a strong encryption algorithm and stored at meta/windows/certificate.pfx; To use certificate set certificate password with environment variable:

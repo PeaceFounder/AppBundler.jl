@@ -5,7 +5,11 @@ using osslsigncode_jll
 using rcodesign_jll: rcodesign
 using OpenSSL_jll: openssl
 
-function generate_self_signed_certificate(pfx_path; password = "", name = "AppBundler", country = "XX", organization = "PeaceFounder", validity_days = 365)
+function generate_self_signed_certificate(pfx_path; password = "", publisher = "O=PeaceFounder, C=XX, CN=AppBundler", validity_days = 365)
+
+#name = "AppBundler", country = "XX", organization = "PeaceFounder", validity_days = 365)
+#O=$organization, C=$country, CN=$name
+    
     code_sign_conf = """
     [ req ]
     default_bits = 2048
@@ -15,9 +19,7 @@ function generate_self_signed_certificate(pfx_path; password = "", name = "AppBu
     req_extensions = req_ext
 
     [ dn ]
-    CN = $name
-    C = $country
-    O = $organization
+    $publisher
 
     [ req_ext ]
     keyUsage = digitalSignature
@@ -42,9 +44,9 @@ function generate_self_signed_certificate(pfx_path; password = "", name = "AppBu
     return
 end
 
-function extract_subject_from_certificate(cert_path; password = "")
+function extract_subject_from_certificate(cert_path)
     # Run the OpenSSL command and capture the output
-    cmd = `$(openssl()) x509 -in $cert_path -noout -subject -nameopt RFC2253 -passin "pass:$password"`
+    cmd = `$(openssl()) x509 -in $cert_path -noout -subject -nameopt RFC2253`
     output = read(cmd, String)
     
     # Extract just the subject part
@@ -69,42 +71,17 @@ function extract_publisher_from_manifest(appxmanifest_path)
     end
 end
 
-function update_publisher_in_manifest(appxmanifest_path, publisher)
-
-    publisher = replace(publisher, ","=>", ")
-
-    # Read the manifest file
-    content = read(appxmanifest_path, String)
-    
-    # Replace the Publisher attribute value using regex
-    updated_content = replace(content, r"Publisher=\"[^\"]*\"" => "Publisher=\"$publisher\"")
-    
-    # Write the updated content back to the file
-    write(appxmanifest_path, updated_content)
-end
-
 function pack(source, destination; pfx_path = nothing, password = "")
 
     if isnothing(pfx_path)
         @warn "Creating one time self signed certificate"
+
+        appxmanifest = joinpath(source, "AppxManifest.xml")
+        publisher = extract_publisher_from_manifest(appxmanifest)
+
         pfx_path = joinpath(tempdir(), "certificate.pfx")
-        generate_self_signed_certificate(pfx_path; password)
+        generate_self_signed_certificate(pfx_path; password, publisher) # Need to match the publisher here with AppxManifest.xml
     end
-
-    publisher = extract_subject_from_certificate(pfx_path; password)
-    @info "Using publisher: $publisher"
-
-    appxmanifest = joinpath(source, "AppxManifest.xml")
-
-    publisher_manifest = extract_publisher_from_manifest(appxmanifest)
-    
-    if publisher_manifest == ""
-        @info "Setting publisher to $publisher"
-    elseif publisher_manifest != publisher
-        @warn "Publisher in manifest is $publisher_manifest wheras in certificate $publisher. Using the latter"
-    end
-
-    update_publisher_in_manifest(appxmanifest, publisher)
 
     @info "Forming MSIX archive"
     unsigned_msix = joinpath(tempdir(), "unsigned_msix.msix")
@@ -131,12 +108,11 @@ function unpack(source::String, destination::String)
 end
 
 # A helper function to explore potential issuess with msixpack
-function repack(source, destination; pfx_path = nothing, publisher = nothing, password = "")
+function repack(source, destination; pfx_path = nothing, password = "")
 
     @info "Extracting MSIX"
     extracted_msix = joinpath(tempdir(), "extracted_msix")
     unpack(source, extracted_msix)
-    #@show extracted_msix = extract_msix(source)
 
     @info "Repackging MSIX"
     pack(extracted_msix, destination; pfx_path, password)

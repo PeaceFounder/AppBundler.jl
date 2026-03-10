@@ -60,7 +60,7 @@
     {{/JULIA_APP_BUNDLE}}
     {{#JULIAC_BUNDLE}}
     <Application EntryPoint="Windows.FullTrustApplication" 
-		 Executable="bin\{{APP_NAME_LOWERCASE}}.exe" 
+		 Executable="bin\{{APP_NAME}}.exe" 
 		 Id="{{APP_NAME}}" 
 		 uap10:RuntimeBehavior="packagedClassicApp" 
 		 uap10:Subsystem="{{#WINDOWED}}windows{{/WINDOWED}}{{^WINDOWED}}console{{/WINDOWED}}" 
@@ -80,7 +80,7 @@
       <Extensions>
         <uap3:Extension Category="windows.appExecutionAlias" 
                         EntryPoint="Windows.FullTrustApplication" 
-                        Executable="bin\{{APP_NAME_LOWERCASE}}.exe">
+                        Executable="bin\{{APP_NAME}}.exe">
           <uap3:AppExecutionAlias>
             <desktop:ExecutionAlias Alias="{{APP_NAME}}.exe" />
           </uap3:AppExecutionAlias>

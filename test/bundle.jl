@@ -43,8 +43,8 @@ predicate = :JULIA_APP_BUNDLE
 
     @test hash_stage() do dest
         stage(msix, dest; predicate)
-        AppBundler.MSIXPack.update_publisher_in_manifest(joinpath(dest, "AppxManifest.xml"), "AppBundler")
-    end == "2f2422ef39534041f56695e275441ab10835fc5e5d675cd5c40e058b5839cbc7"
+        #AppBundler.MSIXPack.update_publisher_in_manifest(joinpath(dest, "AppxManifest.xml"), "AppBundler")
+    end == "f0795381b99cddea7d98b7b52bf9264f82d733ab7443723d1f218ee74ba7f93a" #"2f2422ef39534041f56695e275441ab10835fc5e5d675cd5c40e058b5839cbc7"
 
     @test hash_stage() do stage_dir
 
@@ -59,12 +59,12 @@ predicate = :JULIA_APP_BUNDLE
         AppBundler.MSIXPack.unpack(dest, stage_dir)
         rm(joinpath(stage_dir, "AppxSignature.p7x")) # Signatures are always nondeterministic
 
-        AppBundler.MSIXPack.update_publisher_in_manifest(joinpath(stage_dir, "AppxManifest.xml"), "AppBundler")
+        #AppBundler.MSIXPack.update_publisher_in_manifest(joinpath(stage_dir, "AppxManifest.xml"), "AppBundler")
         
         # @test hash_file(joinpath(stage_dir, "AppxBlockMap.xml")) == "70ff6695ec913326f645c1cd30e48f75f57545ee4ae546db5843bf0779e6ee7e"
         rm(joinpath(stage_dir, "AppxBlockMap.xml")) # AppxBlockMap.xml has a slight nondeterminism
 
-    end == "2f2422ef39534041f56695e275441ab10835fc5e5d675cd5c40e058b5839cbc7"
+    end == "f0795381b99cddea7d98b7b52bf9264f82d733ab7443723d1f218ee74ba7f93a"
 end
 
 if Sys.isunix()

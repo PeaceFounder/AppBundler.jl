@@ -1,43 +1,141 @@
 import TOML
 
-# ToDo: Adopt Preferences.toml
-function get_bundle_parameters(project_toml)
+import LibGit2
+using Preferences
+
+
+function get_module_name(project_toml)
 
     toml_dict = TOML.parsefile(project_toml)
+    if haskey(toml_dict, "name") && isfile(joinpath(dirname(project_toml), "src", toml_dict["name"] * ".jl"))
+        return toml_dict["name"]
+    else
+        error("Main module name can't be infered from the project")
+    end
+end
+
+function get_project_version(project_toml)
+    toml_dict = TOML.parsefile(project_toml)
+    return get(toml_dict, "version", "0.0.1")
+end
+
+
+function commit_count(repo_path = ".")
+    try
+        repo = LibGit2.GitRepo(repo_path)
+    catch
+        return 0
+    end
+
+    try
+        head = LibGit2.head_oid(repo)
+        walker = LibGit2.GitRevWalker(repo)
+        LibGit2.push!(walker, head)
+        count = 0
+        for _ in walker
+            count += 1
+        end
+        return count
+    finally
+        close(repo)
+    end
+end
+
+function get_bundle_parameters(project_toml)
+
 
     parameters = Dict{String, Any}()
 
-    if haskey(toml_dict, "name") && isfile(joinpath(dirname(project_toml), "src", toml_dict["name"] * ".jl"))
-        parameters["MODULE_NAME"] = toml_dict["name"]
-    end
+    module_name = get_module_name(project_toml)
+    parameters["MODULE_NAME"] = module_name
 
-    app_name = haskey(toml_dict, "APP_NAME") ? toml_dict["APP_NAME"] : haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
+    app_name = @load_preference("app_name", module_name)
     parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
+    parameters["APP_DISPLAY_NAME"] = @load_preference("app_name", app_name)
+
+
     #parameters["APP_DIR_NAME"] = haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
     #parameters["APP_VERSION"] = haskey(toml_dict, "version") ? toml_dict["version"] : "0.0.1"
-    parameters["APP_VERSION"] = get(toml_dict, "version", "0.0.1")
+
+    parameters["APP_VERSION"] = get_project_version(project_toml)
+    parameters["BUILD_NUMBER"] = @load_preference("build_number", commit_count(dirname(project_toml)))
+    
+    
+    parameters["APP_SUMMARY"] = @load_preference("app_summary", "This is a default app summary")
+    parameters["APP_DESCRIPTION"] = @load_preference("app_description", "A longer description of the app")
+    
+    parameters["BUNDLE_IDENTIFIER"] = @load_preference("bundle_identifier", "org.appbundler." * parameters["APP_NAME"])
+
+    #parameters["PUBLISHER"] = @load_preference("publisher", "CN=AppBundler") # Needs to be read out from a certificate
+    parameters["PUBLISHER_DISPLAY_NAME"] = @load_preference("publisher_name", "AppBundler")
+
+    #parameters["RUNTIME_MODE"] = @load_preference("runtime_mode", "SANDBOX")
+    
+
 
     # Setting defaults
-    parameters["APP_DISPLAY_NAME"] = app_name #parameters["APP_NAME"]
-    parameters["APP_SUMMARY"] = "This is a default app summary"
-    parameters["APP_DESCRIPTION"] = "A longer description of the app"
-    parameters["WITH_SPLASH_SCREEN"] = "false"
-    parameters["BUNDLE_IDENTIFIER"] = "org.appbundler." * lowercase(parameters["APP_NAME"])
-    parameters["PUBLISHER"] = "CN=AppBundler"
-    parameters["PUBLISHER_DISPLAY_NAME"] = "AppBundler"
-    parameters["BUILD_NUMBER"] = 0
-    parameters["RUNTIME_MODE"] = "SANDBOX"
-    
-    if haskey(toml_dict, "bundle")
-        for (key, value) in toml_dict["bundle"]
-            parameters[key] = string(value) # Mustache does not print false.
-        end
-    end
+    #parameters["APP_DISPLAY_NAME"] = app_name #parameters["APP_NAME"]
 
-    parameters["APP_NAME_LOWERCASE"] = lowercase(parameters["APP_NAME"])
+    #parameters["APP_SUMMARY"] = "This is a default app summary"
+    #parameters["APP_DESCRIPTION"] = "A longer description of the app"
+    #parameters["WITH_SPLASH_SCREEN"] = "false"
+    #parameters["BUNDLE_IDENTIFIER"] = "org.appbundler." * lowercase(parameters["APP_NAME"])
+    #parameters["PUBLISHER"] = "CN=AppBundler"
+    #parameters["PUBLISHER_DISPLAY_NAME"] = "AppBundler"
+    #parameters["BUILD_NUMBER"] = 0
+
+    #parameters["RUNTIME_MODE"] = "SANDBOX"
+    
+    # if haskey(toml_dict, "bundle")
+    #     for (key, value) in toml_dict["bundle"]
+    #         parameters[key] = string(value) # Mustache does not print false.
+    #     end
+    # end
+
+    #parameters["APP_NAME"] = lowercase(parameters["APP_NAME"])
 
     return parameters
 end
+
+
+# # ToDo: Adopt Preferences.toml
+# function get_bundle_parameters(project_toml)
+
+#     toml_dict = TOML.parsefile(project_toml)
+
+#     parameters = Dict{String, Any}()
+
+#     if haskey(toml_dict, "name") && isfile(joinpath(dirname(project_toml), "src", toml_dict["name"] * ".jl"))
+#         parameters["MODULE_NAME"] = toml_dict["name"]
+#     end
+
+#     app_name = haskey(toml_dict, "APP_NAME") ? toml_dict["APP_NAME"] : haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
+#     parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
+#     #parameters["APP_DIR_NAME"] = haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
+#     #parameters["APP_VERSION"] = haskey(toml_dict, "version") ? toml_dict["version"] : "0.0.1"
+#     parameters["APP_VERSION"] = get(toml_dict, "version", "0.0.1")
+
+#     # Setting defaults
+#     parameters["APP_DISPLAY_NAME"] = app_name #parameters["APP_NAME"]
+#     parameters["APP_SUMMARY"] = "This is a default app summary"
+#     parameters["APP_DESCRIPTION"] = "A longer description of the app"
+#     parameters["WITH_SPLASH_SCREEN"] = "false"
+#     parameters["BUNDLE_IDENTIFIER"] = "org.appbundler." * lowercase(parameters["APP_NAME"])
+#     parameters["PUBLISHER"] = "CN=AppBundler"
+#     parameters["PUBLISHER_DISPLAY_NAME"] = "AppBundler"
+#     parameters["BUILD_NUMBER"] = 0
+#     parameters["RUNTIME_MODE"] = "SANDBOX"
+    
+#     if haskey(toml_dict, "bundle")
+#         for (key, value) in toml_dict["bundle"]
+#             parameters[key] = string(value) # Mustache does not print false.
+#         end
+#     end
+
+#     parameters["APP_NAME_LOWERCASE"] = lowercase(parameters["APP_NAME"])
+
+#     return parameters
+# end
 
 # argument parser
 

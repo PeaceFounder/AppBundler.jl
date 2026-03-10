@@ -70,7 +70,7 @@ function MSIX(;
               skip_unicode_paths = true,
               pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
               windowed = true,
-              parameters = Dict("WINDOWED" => windowed)
+              parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => replace(get_publisher(pfx_cert), ","=>", "))
               )
     
     return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, pfx_cert, windowed, parameters)
@@ -106,9 +106,31 @@ function MSIX(overlay; windowed = true, kwargs...)
 
     # ToDo: refactor setting of the defaults
     parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
-    parameters["WINDOWED"] = windowed
+    msix = MSIX(; prefix, parameters, windowed, kwargs...)
 
-    return MSIX(; prefix, parameters, windowed, kwargs...)
+    parameters["WINDOWED"] = windowed
+    parameters["PUBLISHER"] = replace(get_publisher(msix.pfx_cert), ","=>", ")
+
+    return msix
+end
+
+function get_publisher(pfx_cert; password="")
+
+    publisher = @load_preference("publisher", nothing)
+
+    if !isnothing(publisher)
+        return publisher
+    else
+        if isnothing(pfx_cert)
+            return "O=PeaceFounder,C=XX,CN=AppBundler" # order is important
+        else
+            try
+                return MSIXPack.extract_subject_from_certificate(pfx_cert)
+            catch
+                error("Extracting publisher from $pfx_cert failed. To sidestep this issue set `publisher` in LocalPrefereces.toml")
+            end
+        end
+    end
 end
 
 
@@ -490,7 +512,7 @@ stage(snap, "build/snap_staging"; install_configure = true)
 function stage(snap::Snap, destination::String; install_configure = false, predicate = nothing)
 
     (; parameters) = snap
-    app_name = parameters["APP_NAME_LOWERCASE"]
+    app_name = parameters["APP_NAME"]
 
     install(snap.icon, joinpath(destination, "meta/icon.png"))
     install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters, predicate)

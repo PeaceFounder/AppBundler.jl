@@ -53,7 +53,7 @@ function bundle(product::JuliaImgBundle, snap::Snap, destination::String; compre
         install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = snap.parameters, force = true)
         
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/main.sh")
-        app_name = snap.parameters["APP_NAME_LOWERCASE"]
+        app_name = snap.parameters["APP_NAME"]
         install(main_file, joinpath(app_stage, "bin/$app_name"); parameters = snap.parameters, executable = true)
 
         # This approach has errors. 

@@ -1,4 +1,4 @@
-name: {{APP_NAME_LOWERCASE}}
+name: {{APP_NAME}}
 title: {{APP_DISPLAY_NAME}}
 base: core22
 version: '{{APP_VERSION}}'
@@ -9,7 +9,7 @@ confinement: classic
 
 apps:
   {{APP_NAME_LOWERCASE}}:
-    command: bin/{{APP_NAME_LOWERCASE}}
+    command: bin/{{APP_NAME}}
     desktop: meta/gui/{{APP_NAME}}.desktop
     plugs:
       - opengl
