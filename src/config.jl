@@ -43,6 +43,8 @@ end
 
 function get_bundle_parameters(project_toml)
 
+    # The parameter resolution can differ depending on what is being bundled. 
+    # For instance MODULE_NAME is Julia specific only.
 
     parameters = Dict{String, Any}()
 
@@ -53,89 +55,19 @@ function get_bundle_parameters(project_toml)
     parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
     parameters["APP_DISPLAY_NAME"] = @load_preference("app_name", app_name)
 
-
-    #parameters["APP_DIR_NAME"] = haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
-    #parameters["APP_VERSION"] = haskey(toml_dict, "version") ? toml_dict["version"] : "0.0.1"
-
     parameters["APP_VERSION"] = get_project_version(project_toml)
     parameters["BUILD_NUMBER"] = @load_preference("build_number", commit_count(dirname(project_toml)))
-    
     
     parameters["APP_SUMMARY"] = @load_preference("app_summary", "This is a default app summary")
     parameters["APP_DESCRIPTION"] = @load_preference("app_description", "A longer description of the app")
     
     parameters["BUNDLE_IDENTIFIER"] = @load_preference("bundle_identifier", "org.appbundler." * parameters["APP_NAME"])
 
-    #parameters["PUBLISHER"] = @load_preference("publisher", "CN=AppBundler") # Needs to be read out from a certificate
     parameters["PUBLISHER_DISPLAY_NAME"] = @load_preference("publisher_name", "AppBundler")
-
-    #parameters["RUNTIME_MODE"] = @load_preference("runtime_mode", "SANDBOX")
-    
-
-
-    # Setting defaults
-    #parameters["APP_DISPLAY_NAME"] = app_name #parameters["APP_NAME"]
-
-    #parameters["APP_SUMMARY"] = "This is a default app summary"
-    #parameters["APP_DESCRIPTION"] = "A longer description of the app"
-    #parameters["WITH_SPLASH_SCREEN"] = "false"
-    #parameters["BUNDLE_IDENTIFIER"] = "org.appbundler." * lowercase(parameters["APP_NAME"])
-    #parameters["PUBLISHER"] = "CN=AppBundler"
-    #parameters["PUBLISHER_DISPLAY_NAME"] = "AppBundler"
-    #parameters["BUILD_NUMBER"] = 0
-
-    #parameters["RUNTIME_MODE"] = "SANDBOX"
-    
-    # if haskey(toml_dict, "bundle")
-    #     for (key, value) in toml_dict["bundle"]
-    #         parameters[key] = string(value) # Mustache does not print false.
-    #     end
-    # end
-
-    #parameters["APP_NAME"] = lowercase(parameters["APP_NAME"])
 
     return parameters
 end
 
-
-# # ToDo: Adopt Preferences.toml
-# function get_bundle_parameters(project_toml)
-
-#     toml_dict = TOML.parsefile(project_toml)
-
-#     parameters = Dict{String, Any}()
-
-#     if haskey(toml_dict, "name") && isfile(joinpath(dirname(project_toml), "src", toml_dict["name"] * ".jl"))
-#         parameters["MODULE_NAME"] = toml_dict["name"]
-#     end
-
-#     app_name = haskey(toml_dict, "APP_NAME") ? toml_dict["APP_NAME"] : haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
-#     parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
-#     #parameters["APP_DIR_NAME"] = haskey(toml_dict, "name") ? toml_dict["name"] : basename(dirname(project_toml))
-#     #parameters["APP_VERSION"] = haskey(toml_dict, "version") ? toml_dict["version"] : "0.0.1"
-#     parameters["APP_VERSION"] = get(toml_dict, "version", "0.0.1")
-
-#     # Setting defaults
-#     parameters["APP_DISPLAY_NAME"] = app_name #parameters["APP_NAME"]
-#     parameters["APP_SUMMARY"] = "This is a default app summary"
-#     parameters["APP_DESCRIPTION"] = "A longer description of the app"
-#     parameters["WITH_SPLASH_SCREEN"] = "false"
-#     parameters["BUNDLE_IDENTIFIER"] = "org.appbundler." * lowercase(parameters["APP_NAME"])
-#     parameters["PUBLISHER"] = "CN=AppBundler"
-#     parameters["PUBLISHER_DISPLAY_NAME"] = "AppBundler"
-#     parameters["BUILD_NUMBER"] = 0
-#     parameters["RUNTIME_MODE"] = "SANDBOX"
-    
-#     if haskey(toml_dict, "bundle")
-#         for (key, value) in toml_dict["bundle"]
-#             parameters[key] = string(value) # Mustache does not print false.
-#         end
-#     end
-
-#     parameters["APP_NAME_LOWERCASE"] = lowercase(parameters["APP_NAME"])
-
-#     return parameters
-# end
 
 # argument parser
 
@@ -161,11 +93,11 @@ function parse_args(raw_args)
     # Default values
     config = Dict(
         :build_dir => nothing,  # Use nothing to distinguish "not set" from ""
-        :precompile => true,
-        :incremental => false,
+        #:precompile => true,
+        #:incremental => false,
         :adhoc_signing => false,
         :target_arch => Sys.ARCH,
-        :target_platforms => Symbol[]
+        :target_bundle => Symbol[]
     )
     
     i = 1
@@ -193,27 +125,27 @@ function parse_args(raw_args)
                 end
                 config[:build_dir] = abspath(build_dir)  # Store absolute path
             end
-        elseif arg == "--compiled-modules"
-            i += 1
-            if i > length(args)
-                error("--compiled-modules requires a value")
-            end
-            value = args[i]
-            if value == "yes"
-                config[:precompile] = true
-                config[:incremental] = false
-            elseif value == "incremental"
-                config[:precompile] = true
-                config[:incremental] = true
-            elseif value == "no"
-                config[:precompile] = false
-                config[:incremental] = false
-            elseif value == "existing"
-                config[:precompile] = false
-                config[:incremental] = true
-            else
-                error("Unrecognized value '$value' for --compiled-modules. Use: yes|no|incremental|existing")
-            end
+        # elseif arg == "--compiled-modules"
+        #     i += 1
+        #     if i > length(args)
+        #         error("--compiled-modules requires a value")
+        #     end
+        #     value = args[i]
+        #     if value == "yes"
+        #         config[:precompile] = true
+        #         config[:incremental] = false
+        #     elseif value == "incremental"
+        #         config[:precompile] = true
+        #         config[:incremental] = true
+        #     elseif value == "no"
+        #         config[:precompile] = false
+        #         config[:incremental] = false
+        #     elseif value == "existing"
+        #         config[:precompile] = false
+        #         config[:incremental] = true
+        #     else
+        #         error("Unrecognized value '$value' for --compiled-modules. Use: yes|no|incremental|existing")
+        #     end
         elseif arg == "--adhoc-signing"
             config[:adhoc_signing] = true
         elseif arg == "--target-arch"
@@ -222,15 +154,15 @@ function parse_args(raw_args)
                 error("--target-arch requires a value")
             end
             config[:target_arch] = Symbol(args[i])
-        elseif arg == "--target-platform"
+        elseif arg == "--target-bundle"
             i += 1
             if i > length(args)
-                error("--target-platform requires a value")
+                error("--target-bundle requires a value")
             end
             if args[i] == "all"
-                push!(config[:target_platforms], :linux, :macos, :windows)
+                push!(config[:target_bundle], :msix, :dmg, :snap)
             else
-                push!(config[:target_platforms], Symbol(args[i]))
+                push!(config[:target_bundle], Symbol(args[i]))
             end
         else
             @warn "Unknown argument: $arg"
@@ -239,15 +171,15 @@ function parse_args(raw_args)
     end
 
     # Set default platform if none specified
-    if isempty(config[:target_platforms])
+    if isempty(config[:target_bundle])
         if Sys.isapple()
-            push!(config[:target_platforms], :macos)
+            push!(config[:target_bundle], :dmg)
         elseif Sys.islinux()
-            push!(config[:target_platforms], :linux)
+            push!(config[:target_bundle], :snap)
         elseif Sys.iswindows()
-            push!(config[:target_platforms], :windows)
+            push!(config[:target_bundle], :msix)
         else
-            error("Could not detect platform. Specify manually with --target-platform={linux|macos|windows|all}")
+            error("Could not detect platform. Specify manually with --target-bundle={msix|dmg|snap|all}")
         end
     end
 
@@ -266,24 +198,18 @@ function print_help()
     Options:
       --build-dir DIR                   Build directory (default: ./build)
                                         Use '@temp' for temporary directory
-      --compiled-modules={yes*|no|incremental|existing}
-                                        Control precompilation and incremental builds
-                                        yes: precompile, no incremental (default)
-                                        incremental: precompile with incremental
-                                        no: no precompilation
-                                        existing: use existing, no new precompilation
       --adhoc-signing                   Enable ad-hoc code signing (macOS/Windows)
       --target-arch ARCH                Target architecture (default: current system)
-      --target-platform={linux|macos|windows|all}
+      --target-bundle={dmg|snap|msix|all}
                                         Build for specific platform(s) (default: current)
                                         Can be specified multiple times
       -h, --help                        Show this help message
     
     Examples:
-      julia --project=meta meta/build.jl --target-platform=all
-      julia --project=meta meta/build.jl --build-dir=@temp --compiled-modules=no
-      julia --project=meta meta/build.jl --target-platform=linux --target-platform=windows
-      julia --project=meta meta/build.jl --target-arch=aarch64 --target-platform=macos
+      julia --project=meta meta/build.jl --target-bundle=all
+      julia --project=meta meta/build.jl --build-dir=@temp 
+      julia --project=meta meta/build.jl --target-bundle=snap --target-bundle=msix
+      julia --project=meta meta/build.jl --target-arch=aarch64 --target-bundle=dmg
     
     Note: Options marked with * indicate the default value.
     """)

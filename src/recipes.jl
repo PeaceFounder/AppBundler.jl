@@ -18,7 +18,7 @@ import AppEnv
 
 function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), target_arch = Sys.ARCH)
 
-    predicate = :JULIA_APP_BUNDLE
+    predicate = :JULIA_IMG_BUNDLE
     
     bundle(dmg, destination; compress, compression, force, password, main_redirect = true, arch = target_arch, predicate) do app_stage
         # app_stage always points to app directory
@@ -41,7 +41,7 @@ end
 
 function bundle(product::JuliaImgBundle, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false, target_arch = Sys.ARCH)
 
-    predicate = :JULIA_APP_BUNDLE
+    predicate = :JULIA_IMG_BUNDLE
 
     bundle(snap, destination; compress, force, predicate) do app_stage
 
@@ -79,7 +79,7 @@ end
 
 function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, target_arch = Sys.ARCH)
 
-    predicate = :JULIA_APP_BUNDLE
+    predicate = :JULIA_IMG_BUNDLE
 
     bundle(msix, destination; compress, force, predicate) do app_stage
         

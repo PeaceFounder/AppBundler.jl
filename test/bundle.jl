@@ -35,7 +35,7 @@ function verify_msix_signature(msix_file)
     return
 end
 
-predicate = :JULIA_APP_BUNDLE
+predicate = :JULIA_IMG_BUNDLE
 
 @time @testset "MSIX bundling tests" begin
 

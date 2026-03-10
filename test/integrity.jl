@@ -10,7 +10,7 @@ try
     AppBundler.generate_signing_certificates(; root = app_dir, force = true)
 
     build_dir = mktempdir()
-    push!(ARGS, "--compiled-modules=no")
+    #push!(ARGS, "--compiled-modules=no")
     push!(ARGS, "--build-dir=$build_dir")
     @eval include("../examples/GLApp/meta/build.jl")
 

@@ -2,7 +2,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)" # $0 can also be a relative path
 
-{{#JULIA_APP_BUNDLE}}
+{{#JULIA_IMG_BUNDLE}}
 
 JULIA="$SCRIPT_DIR/bin/julia"
 {{^WINDOWED}}
@@ -15,7 +15,7 @@ fi
 # Arguments provided: Execute in current shell
 "$JULIA"{{#MODULE_NAME}} --eval="using {{MODULE_NAME}}" -- {{/MODULE_NAME}} $@
 
-{{/JULIA_APP_BUNDLE}}
+{{/JULIA_IMG_BUNDLE}}
 
 {{#JULIAC_BUNDLE}}
 

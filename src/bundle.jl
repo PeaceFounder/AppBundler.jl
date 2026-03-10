@@ -64,10 +64,10 @@ function MSIX(;
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
               resources_pri = get_path(prefix, "msix/resources.pri"),
               msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml"),
-              path_length_threshold = 260,
-              skip_long_paths = false,
-              skip_symlinks = true,
-              skip_unicode_paths = true,
+              path_length_threshold = @load_preference("msix_path_length_threshold", 260),
+              skip_long_paths = @load_preference("msix_skip_long_paths", false),
+              skip_symlinks = @load_preference("msix_skip_long_paths", true),
+              skip_unicode_paths = @load_preference("msix_skip_unicode_paths", true),
               pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
               windowed = true,
               parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => replace(get_publisher(pfx_cert), ","=>", "))
@@ -287,9 +287,9 @@ function DMG(;
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
              dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
              pfx_cert = get_path(prefix, "dmg/certificate.pfx"),
-             shallow_signing = true,
-             hardened_runtime = true,
-             sandboxed_runtime = false,
+             shallow_signing = @load_preference("dmg_shallow_signing", true),
+             hardened_runtime = @load_preference("dmg_hardened_runtime", true),
+             sandboxed_runtime = @load_preference("dmg_sandboxed_runtime", false),
              hfsplus = false,
              windowed = true,
              parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => sandboxed_runtime)
@@ -322,7 +322,7 @@ dmg = DMG(app_dir)
 dmg = DMG(app_dir; icon = "custom_icon.icns")
 ```
 """
-function DMG(overlay; windowed = true, sandboxed_runtime = false, kwargs...)
+function DMG(overlay; windowed = true, sandboxed_runtime = @load_preference("dmg_sandboxed_runtime", false), kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     

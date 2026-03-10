@@ -12,7 +12,6 @@ function generate_self_signing_pfx(pfx_path; password = "PASSWORD")
 
 end
 
-
 """
     pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer")
 
