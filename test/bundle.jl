@@ -76,10 +76,10 @@ if Sys.isunix()
         dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true)
 
         @test hash_stage() do dest
-            stage(dmg, joinpath(dest, "gtkapp.app"); dsstore=true, main_redirect=true, predicate)
-            AppBundler.DMGPack.replace_binary_with_hash(joinpath(dest, "gtkapp.app/Contents/MacOS/gtkapp"))
+            stage(dmg, joinpath(dest, "GtkApp.app"); dsstore=true, main_redirect=true, predicate)
+            AppBundler.DMGPack.replace_binary_with_hash(joinpath(dest, "GtkApp.app/Contents/MacOS/gtkapp"))
             rm("$dest/Applications")
-        end == "475c21a0947fe2e7a217581982ea574854da395ae78e06e341d646565fca501a"
+        end == "a06201da07a673a2c3c1dbc13d85c3a72334e4b3e479df2322245a98ce14e838"
 
         @test hash_stage() do stage_dir
 
@@ -98,21 +98,21 @@ if Sys.isunix()
             if Sys.isapple()
                 # This check is also important for stagging
                 @info "Verifying that the application is correctly codesigned"
-                run(`codesign --verify --deep --verbose=4 "$stage_dir/gtkapp.app"`)
+                run(`codesign --verify --deep --verbose=4 "$stage_dir/GtkApp.app"`)
 
                 @info "Verifying if the application has hardened runtime enabled"
                 io = IOBuffer()
-                run(pipeline(`codesign -dvv $stage_dir/gtkapp.app`, stderr=io))
+                run(pipeline(`codesign -dvv $stage_dir/GtkApp.app`, stderr=io))
                 output = String(take!(io))
 
                 @test occursin(r"Timestamp=", output)
                 @test occursin(r"flags=0x[0-9a-f]+\(runtime\)", output)
             end
 
-            @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "gtkapp.app/Contents/MacOS/gtkapp"))
-            rm("$stage_dir/gtkapp.app/Contents/_CodeSignature"; recursive=true)
+            @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
+            rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
 
-        end == "475c21a0947fe2e7a217581982ea574854da395ae78e06e341d646565fca501a"
+        end == "a06201da07a673a2c3c1dbc13d85c3a72334e4b3e479df2322245a98ce14e838"
 
 
         if Sys.isapple()
@@ -131,11 +131,11 @@ if Sys.isunix()
                 mount_point = mount_dmg(dest)
                 try
                     @info "Verifying that the application is correctly codesigned"                    
-                    run(`codesign --verify --deep --strict --verbose=4 "$mount_point/gtkapp.app"`)
+                    run(`codesign --verify --deep --strict --verbose=4 "$mount_point/GtkApp.app"`)
 
                     @info "Verifying if the application has hardened runtime enabled"
                     io = IOBuffer()
-                    run(pipeline(`codesign -dvv $mount_point/gtkapp.app`, stderr=io))
+                    run(pipeline(`codesign -dvv $mount_point/GtkApp.app`, stderr=io))
                     output = String(take!(io))
 
                     @test occursin(r"Timestamp=", output)
@@ -146,10 +146,10 @@ if Sys.isunix()
                     unmount_dmg(mount_point)
                 end
 
-                @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "gtkapp.app/Contents/MacOS/gtkapp"))
-                rm("$stage_dir/gtkapp.app/Contents/_CodeSignature"; recursive=true)
+                @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
+                rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
 
-            end == "475c21a0947fe2e7a217581982ea574854da395ae78e06e341d646565fca501a"
+            end == "a06201da07a673a2c3c1dbc13d85c3a72334e4b3e479df2322245a98ce14e838"
         end
     end
 

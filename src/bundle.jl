@@ -55,7 +55,7 @@ struct MSIX
     skip_unicode_paths::Bool
     pfx_cert::Union{String, Nothing} 
     windowed::Bool
-    parameters::Dict
+    parameters::Dict{String, Any}
 end
 
 function MSIX(;
@@ -66,7 +66,7 @@ function MSIX(;
               msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml"),
               path_length_threshold = @load_preference("msix_path_length_threshold", 260),
               skip_long_paths = @load_preference("msix_skip_long_paths", false),
-              skip_symlinks = @load_preference("msix_skip_long_paths", true),
+              skip_symlinks = @load_preference("msix_skip_symlinks", true),
               skip_unicode_paths = @load_preference("msix_skip_unicode_paths", true),
               pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
               windowed = true,
@@ -100,19 +100,29 @@ msix = MSIX(app_dir)
 msix = MSIX(app_dir; skip_long_paths = true)
 ```
 """
-function MSIX(overlay; windowed = true, kwargs...)
+function MSIX(overlay; kwargs...)
     
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
-
-    # ToDo: refactor setting of the defaults
-    parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
-    msix = MSIX(; prefix, parameters, windowed, kwargs...)
-
-    parameters["WINDOWED"] = windowed
-    parameters["PUBLISHER"] = replace(get_publisher(msix.pfx_cert), ","=>", ")
+    msix = MSIX(; prefix, kwargs...)
+    get_bundle_parameters!(msix.parameters, joinpath(overlay, "Project.toml"))
 
     return msix
 end
+
+# function MSIX(overlay; windowed = true, kwargs...)
+    
+#     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+
+#     # ToDo: refactor setting of the defaults
+#     parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
+#     msix = MSIX(; prefix, parameters, windowed, kwargs...)
+
+#     parameters["WINDOWED"] = windowed
+#     parameters["PUBLISHER"] = replace(get_publisher(msix.pfx_cert), ","=>", ")
+
+#     return msix
+# end
+
 
 function get_publisher(pfx_cert; password="")
 
@@ -176,7 +186,7 @@ struct Snap # by extensions files could have multiple modes that are set via sta
     desktop_launcher::String
     configure_hook::String # needs to be enabled when staging
     windowed::Bool
-    parameters::Dict
+    parameters::Dict{String, Any}
 end
 
 function Snap(;
@@ -216,14 +226,13 @@ snap = Snap(app_dir)
 snap = Snap(app_dir; icon = "custom_icon.png")
 ```
 """
-function Snap(overlay; windowed = true, kwargs...)
+function Snap(overlay; kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
-    
-    parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
-    parameters["WINDOWED"] = windowed
+    snap = Snap(; prefix, kwargs...)
+    parameters = get_bundle_parameters!(snap.parameters, joinpath(overlay, "Project.toml"))
 
-    return Snap(; prefix, parameters, windowed, kwargs...)
+    return snap
 end
 
 # TODO: mention that application needs to be notarized by Apple. That can be done outside the build process by stapling already signed DMG archive. 
@@ -276,7 +285,7 @@ struct DMG
     sandboxed_runtime::Bool
     hfsplus::Bool
     windowed::Bool
-    parameters::Dict
+    parameters::Dict{String, Any}
 end
 
 # soft link can be used in case one needs to use png source. The issue here is of communicating intent.
@@ -292,7 +301,7 @@ function DMG(;
              sandboxed_runtime = @load_preference("dmg_sandboxed_runtime", false),
              hfsplus = false,
              windowed = true,
-             parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => sandboxed_runtime)
+             parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => string(sandboxed_runtime))
              )
 
     return DMG(icon, info_config, entitlements, dsstore, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, hfsplus, windowed, parameters)
@@ -322,15 +331,13 @@ dmg = DMG(app_dir)
 dmg = DMG(app_dir; icon = "custom_icon.icns")
 ```
 """
-function DMG(overlay; windowed = true, sandboxed_runtime = @load_preference("dmg_sandboxed_runtime", false), kwargs...)
+function DMG(overlay; kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+    dmg = DMG(; prefix, kwargs...)
+    get_bundle_parameters!(dmg.parameters, joinpath(overlay, "Project.toml"))
     
-    parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
-    parameters["WINDOWED"] = windowed
-    parameters["SANDBOXED_RUNTIME"] = string(sandboxed_runtime)
-    
-    return DMG(; prefix, parameters, windowed, kwargs...)
+    return dmg
 end
 
 """
@@ -598,7 +605,8 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     end
 
     if compress
-        appname = parameters["APP_NAME"]
+        #appname = parameters["APP_NAME"]
+        appname = parameters["APP_DISPLAY_NAME"]
         app_stage = joinpath(mktempdir(), "$appname.app")
         stage(dmg, app_stage; dsstore = true, main_redirect, arch, predicate)        
     else

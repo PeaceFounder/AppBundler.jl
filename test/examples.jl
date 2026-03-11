@@ -1,3 +1,7 @@
+#ToDo: Need to refactor this using the AppBundler's new API
+# No need for the github workflow
+
+
 # examples.jl - Test suite for AppBundler example applications
 #
 # Usage:

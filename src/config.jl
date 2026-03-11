@@ -4,13 +4,24 @@ import LibGit2
 using Preferences
 
 
+function get_project_name(project_toml)
+
+    toml_dict = TOML.parsefile(project_toml)
+    if haskey(toml_dict, "name") 
+        return toml_dict["name"]
+    else
+        return nothing
+    end
+end
+
+
 function get_module_name(project_toml)
 
     toml_dict = TOML.parsefile(project_toml)
     if haskey(toml_dict, "name") && isfile(joinpath(dirname(project_toml), "src", toml_dict["name"] * ".jl"))
         return toml_dict["name"]
     else
-        error("Main module name can't be infered from the project")
+        error("Main module name can't be infered from the project. In case thats intentiional use `juliaimg_mainless = true` in LocalPrefereces.toml")
     end
 end
 
@@ -21,6 +32,8 @@ end
 
 
 function commit_count(repo_path = ".")
+    
+    local repo
     try
         repo = LibGit2.GitRepo(repo_path)
     catch
@@ -41,19 +54,25 @@ function commit_count(repo_path = ".")
     end
 end
 
-function get_bundle_parameters(project_toml)
+get_bundle_parameters(project_toml) = get_bundle_parameters!(Dict{String, Any}(), project_toml)
+
+function get_bundle_parameters!(parameters::Dict{String, Any}, project_toml)
 
     # The parameter resolution can differ depending on what is being bundled. 
     # For instance MODULE_NAME is Julia specific only.
 
-    parameters = Dict{String, Any}()
+    if @load_preference("juliaimg_mainless", false)
+        project_name = get_project_name(project_toml)
+        app_name = @load_preference("app_name", project_name)
+    else
+        module_name = get_module_name(project_toml)
+        parameters["MODULE_NAME"] = module_name
+        app_name = @load_preference("app_name", module_name) 
+    end
 
-    module_name = get_module_name(project_toml)
-    parameters["MODULE_NAME"] = module_name
-
-    app_name = @load_preference("app_name", module_name)
     parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
-    parameters["APP_DISPLAY_NAME"] = @load_preference("app_name", app_name)
+
+    @show parameters["APP_DISPLAY_NAME"] = @load_preference("app_display_name", @load_preference("app_name", app_name))
 
     parameters["APP_VERSION"] = get_project_version(project_toml)
     parameters["BUILD_NUMBER"] = @load_preference("build_number", commit_count(dirname(project_toml)))
@@ -95,9 +114,12 @@ function parse_args(raw_args)
         :build_dir => nothing,  # Use nothing to distinguish "not set" from ""
         #:precompile => true,
         #:incremental => false,
-        :adhoc_signing => false,
+        :compress => @load_preference("compress", true),
+        :windowed => @load_preference("windowed", false),
+        :adhoc_signing => @load_preference("adhoc_signing", false),
         :target_arch => Sys.ARCH,
-        :target_bundle => Symbol[]
+        :target_bundle => Symbol[],
+        :target_name => nothing
     )
     
     i = 1
@@ -146,6 +168,12 @@ function parse_args(raw_args)
         #     else
         #         error("Unrecognized value '$value' for --compiled-modules. Use: yes|no|incremental|existing")
         #     end
+        elseif arg == "--debug"
+            config[:compress] = false
+            config[:adhoc_signing] = true
+            config[:windowed] = false
+        elseif arg == "--target-name"
+            config[:target_name] = args[i + 1]
         elseif arg == "--adhoc-signing"
             config[:adhoc_signing] = true
         elseif arg == "--target-arch"

@@ -30,5 +30,5 @@ backgroundType = 0
 ["Applications"]
 Iloc = [432, 150]
 
-["{{APP_NAME}}.app"]
+["{{APP_DISPLAY_NAME}}.app"]
 Iloc = [161, 150]

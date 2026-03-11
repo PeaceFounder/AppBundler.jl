@@ -83,9 +83,9 @@ function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force 
     cp(joinpath(dirname(@__DIR__), "recipes/workflows/GitHub.yml"), joinpath(root, ".github/workflows/Release.yml"); force)
     chmod(joinpath(root, ".github/workflows/Release.yml"), 0o666)
 
-    install(joinpath(dirname(@__DIR__), "recipes/workflows/build.jl"), joinpath(root, "meta/build.jl"); parameters, force)
+    #install(joinpath(dirname(@__DIR__), "recipes/workflows/build.jl"), joinpath(root, "meta/build.jl"); parameters, force)
     #chmod(joinpath(root, "meta/build.jl"), 0o444)
-    chmod(joinpath(root, "meta/build.jl"), 0o666)
+    #chmod(joinpath(root, "meta/build.jl"), 0o666)
    
     println("""
     Setup done. You may now commit the workflow to the repo that will automatically build artifiacts and attach for new GitHub releases. You can also test builds before releasing. See documentation for more.
