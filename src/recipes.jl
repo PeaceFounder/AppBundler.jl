@@ -58,7 +58,7 @@ function bundle(product::JuliaImgBundle, snap::Snap, destination::String; compre
 
         # This approach has errors. 
 
-        configure_compiled_modules = Stage.get_project_deps(product.source)
+        configure_compiled_modules = JuliaImg.get_project_deps(product.source)
         # push!(configure_compiled_modules, "AppEnv") # won't work as AppEnv is used to bootstrap the DEPOT_PATH
         install(snap.configure_hook, joinpath(app_stage, "meta/hooks/configure"); parameters = Dict("PROJECT_DEPS" => join(configure_compiled_modules, ",")), executable = true)
 

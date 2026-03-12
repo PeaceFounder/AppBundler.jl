@@ -112,14 +112,13 @@ function parse_args(raw_args)
     # Default values
     config = Dict(
         :build_dir => nothing,  # Use nothing to distinguish "not set" from ""
-        #:precompile => true,
-        #:incremental => false,
         :compress => @load_preference("compress", true),
         :windowed => @load_preference("windowed", false),
         :adhoc_signing => @load_preference("adhoc_signing", false),
         :target_arch => Sys.ARCH,
         :target_bundle => Symbol[],
-        :target_name => nothing
+        :target_name => nothing,
+        :overwrite_target => @load_preference("overwrite_target", false)
     )
     
     i = 1
@@ -147,27 +146,8 @@ function parse_args(raw_args)
                 end
                 config[:build_dir] = abspath(build_dir)  # Store absolute path
             end
-        # elseif arg == "--compiled-modules"
-        #     i += 1
-        #     if i > length(args)
-        #         error("--compiled-modules requires a value")
-        #     end
-        #     value = args[i]
-        #     if value == "yes"
-        #         config[:precompile] = true
-        #         config[:incremental] = false
-        #     elseif value == "incremental"
-        #         config[:precompile] = true
-        #         config[:incremental] = true
-        #     elseif value == "no"
-        #         config[:precompile] = false
-        #         config[:incremental] = false
-        #     elseif value == "existing"
-        #         config[:precompile] = false
-        #         config[:incremental] = true
-        #     else
-        #         error("Unrecognized value '$value' for --compiled-modules. Use: yes|no|incremental|existing")
-        #     end
+        elseif arg == "--force"
+            config[:overwrite_target] = true
         elseif arg == "--debug"
             config[:compress] = false
             config[:adhoc_signing] = true

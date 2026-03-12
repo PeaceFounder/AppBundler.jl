@@ -5,5 +5,5 @@ version = "0.0.1"
 [deps]
 Gtk4 = "9db2cae5-386f-4011-9d63-a5602296539b"
 
-[bundle]
-PUBLISHER = "CN=JanisErdmanis"
+[extras]
+AppBundler = "40eb83ae-c93a-480c-8f39-f018b568f472"

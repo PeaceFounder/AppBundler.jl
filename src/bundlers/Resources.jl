@@ -6,6 +6,7 @@ using TOML
 import Pkg
 import Artifacts
 import Downloads
+import Preferences
 
 import Base.BinaryPlatforms: AbstractPlatform, arch, wordsize
 import Pkg.BinaryPlatforms: MacOS, Linux, Windows
@@ -93,7 +94,6 @@ function copy_assets(source, destination, assets::Vector{String})
     return
 end
 
-
 function install_assets(project, asset_dir, asset_spec::Dict{Symbol, Vector{String}})
 
     ctx = create_pkg_context(project)
@@ -123,6 +123,20 @@ function install_assets(project, asset_dir, asset_spec::Dict{Symbol, Vector{Stri
     end
 
     return
+end
+
+function extract_asset_spec(project)
+
+    asset_spec = Dict{Symbol, Vector{String}}()
+    ctx = create_pkg_context(project)
+    
+    for (uuid, pkgentry) in ctx.env.manifest
+        if Preferences.has_preference(uuid, "assets")
+            asset_spec[Symbol(pkgentry.name)] = Preferences.load_preference(uuid, "assets")
+        end
+    end
+
+    return asset_spec
 end
 
 function install_pkgorigin_index(project, index_path, asset_dir)

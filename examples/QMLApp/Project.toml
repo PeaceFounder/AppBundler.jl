@@ -7,14 +7,5 @@ version = "0.1.0"
 QML = "2db162a6-7e43-52c3-8d84-290c1c42d82a"
 AppEnv = "9f11263e-cf0d-4932-bae6-807953dbea74"
 
-[sources]
-AppEnv = {path = "../../AppEnv"}
-
-[bundle]
-APP_DESCRIPTION = "Longer description of the app"
-APP_DISPLAY_NAME = "QML App"
-APP_SUMMARY = "Summary of the app"
-BUNDLE_IDENTIFIER = "org.appbundler.qmlapp"
-PUBLISHER = "CN=JanisErdmanis"
-PUBLISHER_DISPLAY_NAME = "Janis Erdmanis"
-WITH_SPLASH_SCREEN = true
+[extras]
+AppBundler = "40eb83ae-c93a-480c-8f39-f018b568f472"

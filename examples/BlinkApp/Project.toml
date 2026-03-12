@@ -8,3 +8,6 @@ Blink = "ad839575-38b3-5650-b840-f874b8c74a25"
 
 [compat]
 Blink = "0.12.9"
+
+[extras]
+AppBundler = "40eb83ae-c93a-480c-8f39-f018b568f472"

@@ -1,0 +1,4 @@
+[AppBundler]
+windowed = true
+juliaimg_incremental = false
+juliaimg_precompile = true

@@ -9,3 +9,6 @@ IntelOpenMP_jll = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Mods = "7475f97c-0381-53b1-977b-4c60186c8d62"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+
+[extras]
+AppBundler = "40eb83ae-c93a-480c-8f39-f018b568f472"

@@ -1,5 +1,4 @@
 [AppBundler]
 app_name = "GLApp"
-juliaimg_incremental = true
-overwrite_target = true
 windowed = true
+juliaimg_incremental = true

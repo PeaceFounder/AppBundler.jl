@@ -2,6 +2,7 @@ module AppBundler
 
 using Scratch
 import Pkg.BinaryPlatforms: Linux, MacOS, Windows
+import Pkg
 
 DOWNLOAD_CACHE = ""
 
@@ -70,8 +71,6 @@ function __init__()
 
 end
 
-
-
 function main_build(ARGS; sources_dir)
 
     config = parse_args(ARGS)
@@ -82,9 +81,39 @@ function main_build(ARGS; sources_dir)
     adhoc_signing = config[:adhoc_signing]
     compress = config[:compress]
     windowed = config[:windowed]
+    overwrite_target = config[:overwrite_target]
 
     bundler = @load_preference("bundler", "juliaimg")
-    overwrite_target = @load_preference("overwrite_target", false)
+
+    if bundler == "juliaimg"
+
+        if @load_preference("juliaimg_selective_assets", false)
+            remove_sources = true
+            asset_spec = Resources.extract_asset_spec(sources_dir)
+        else
+            remove_sources = false
+            asset_spec = Dict{Symbol, Vector{String}}()
+        end
+
+        spec = JuliaImgBundle(sources_dir; 
+                              precompile = @load_preference("juliaimg_precompile", true), 
+                              incremental = @load_preference("juliaimg_incremental", false),
+                              sysimg_packages = @load_preference("juliaimg_sysimg", []),
+                              remove_sources,
+                              asset_spec
+                              ) # todo: @load_preference("juliaimg_assets", nothing)
+
+    elseif bundler == "juliac"
+
+        asset_spec = Resources.extract_asset_spec(sources_dir)
+        spec = JuliaCBundle(sources_dir; trim = @load_preference("juliac_trim", false), asset_spec) # todo: @load_preference("juliac_assets", [])
+
+    else
+
+        error("Got unsupported bundler type $bundler")
+
+    end
+
 
     function target_name(parameters)
         if isnothing(config[:target_name])
@@ -94,24 +123,6 @@ function main_build(ARGS; sources_dir)
         else
             return config[:target_name]
         end
-    end
-
-    if bundler == "juliaimg"
-
-        spec = JuliaImgBundle(sources_dir; 
-                              precompile = @load_preference("juliaimg_precompile", true), 
-                              incremental = @load_preference("juliaimg_incremental", false),
-                              sysimg_packages = @load_preference("juliaimg_sysimg", [])
-                              ) # todo: @load_preference("juliaimg_assets", nothing)
-
-    elseif bundler == "juliac"
-
-        spec = JuliaCBundle(sources_dir; trim = @load_preference("juliac_trim", false)) # todo: @load_preference("juliac_assets", [])
-
-    else
-
-        error("Got unsupported bundler type $bundler")
-
     end
 
     if :msix in target_bundle
@@ -172,7 +183,6 @@ function (@main)(ARGS)
 
     return 0
 end
-
 
 
 export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage

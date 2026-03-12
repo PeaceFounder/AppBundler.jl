@@ -3,3 +3,6 @@ version = "0.0.1"
 
 [deps]
 Mousetrap = "5deeb4b9-6e04-4da7-8b7f-c77fb1eae65e"
+
+[extras]
+AppBundler = "40eb83ae-c93a-480c-8f39-f018b568f472"

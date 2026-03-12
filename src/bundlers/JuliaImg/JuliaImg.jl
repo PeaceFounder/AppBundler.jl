@@ -76,7 +76,7 @@ pkg = JuliaImgBundle(app_dir; julia_version = v"1.10.0", incremental = false)
 
     sysimg_packages::Vector{String} = []
     sysimg_args::Cmd = ``
-    remove_sources::Bool = false
+    remove_sources::Bool = false # ToDo: It only makes sense to remove sources for packages baked in the sysimg
     asset_rpath::Union{String, Nothing} = nothing
     asset_spec::Dict{Symbol, Vector{String}} = Dict{Symbol, Vector{String}}()
 

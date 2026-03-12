@@ -1,0 +1,6 @@
+[AppBundler]
+windowed = false
+juliaimg_mainless = true
+juliaimg_incremental = true
+juliaimg_precompile = true
+juliaimg_sysimg = ["Mods"]

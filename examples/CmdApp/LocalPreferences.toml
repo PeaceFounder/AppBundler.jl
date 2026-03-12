@@ -1,0 +1,4 @@
+[AppBundler]
+windowed = false
+bundler = "juliac"
+juliac_trim = true

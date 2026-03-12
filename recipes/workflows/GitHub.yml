@@ -69,7 +69,7 @@ jobs:
           MACOS_PFX_PASSWORD: ${{ secrets.MACOS_PFX_PASSWORD }}
           WINDOWS_PFX_PASSWORD: ${{ secrets.WINDOWS_PFX_PASSWORD }}
         run: |
-          ${{ matrix.xvfb && 'xvfb-run -s ''-screen 0 1024x768x24''' || '' }} julia --project=meta meta/build.jl --target-platform=${{ matrix.os }} --target-arch=${{ matrix.arch }} --build-dir=build
+          ${{ matrix.xvfb && 'xvfb-run -s ''-screen 0 1024x768x24''' || '' }} julia --project=meta --eval "using AppBundler" build . --target-arch=${{ matrix.arch }} --build-dir=build
       
       - uses: actions/upload-artifact@v4
         with:
