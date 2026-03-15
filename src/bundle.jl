@@ -53,7 +53,9 @@ struct MSIX
     skip_long_paths::Bool 
     skip_symlinks::Bool
     skip_unicode_paths::Bool
+    selfsign::Bool
     pfx_cert::Union{String, Nothing} 
+    publisher::String
     windowed::Bool
     parameters::Dict{String, Any}
 end
@@ -64,17 +66,20 @@ function MSIX(;
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
               resources_pri = get_path(prefix, "msix/resources.pri"),
               msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml"),
-              path_length_threshold = @load_preference("msix_path_length_threshold", 260),
-              skip_long_paths = @load_preference("msix_skip_long_paths", false),
-              skip_symlinks = @load_preference("msix_skip_symlinks", true),
-              skip_unicode_paths = @load_preference("msix_skip_unicode_paths", true),
+              path_length_threshold = @load_preference("msix_path_length_threshold"),
+              skip_long_paths = @load_preference("msix_skip_long_paths"),
+              skip_symlinks = @load_preference("msix_skip_symlinks"),
+              skip_unicode_paths = @load_preference("msix_skip_unicode_paths"),
+              selfsign = false,              
               pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
+              publisher = get_publisher(pfx_cert, selfsign),
               windowed = true,
-              parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => replace(get_publisher(pfx_cert), ","=>", "))
+              parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher)
               )
     
-    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, pfx_cert, windowed, parameters)
+    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, pfx_cert, publisher, windowed, parameters)
 end
+
 
 """
     MSIX(overlay; kwargs...)
@@ -109,33 +114,24 @@ function MSIX(overlay; kwargs...)
     return msix
 end
 
-# function MSIX(overlay; windowed = true, kwargs...)
-    
-#     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+function normalize_publisher(publisher)
+    items = split(publisher, ",")
+    stripped_items = strip.(items)
+    return join(items, ", ")
+end
 
-#     # ToDo: refactor setting of the defaults
-#     parameters = get_bundle_parameters(joinpath(overlay, "Project.toml"))
-#     msix = MSIX(; prefix, parameters, windowed, kwargs...)
-
-#     parameters["WINDOWED"] = windowed
-#     parameters["PUBLISHER"] = replace(get_publisher(msix.pfx_cert), ","=>", ")
-
-#     return msix
-# end
-
-
-function get_publisher(pfx_cert; password="")
+function get_publisher(pfx_cert, selfsign; password="")
 
     publisher = @load_preference("publisher", nothing)
 
     if !isnothing(publisher)
-        return publisher
+        return publisher |> normalize_publisher
     else
-        if isnothing(pfx_cert)
-            return "O=PeaceFounder,C=XX,CN=AppBundler" # order is important
+        if isnothing(pfx_cert) || selfsign
+            return "O=PeaceFounder,C=XX,CN=AppBundler" |> normalize_publisher # order is important
         else
             try
-                return MSIXPack.extract_subject_from_certificate(pfx_cert)
+                return MSIXPack.extract_subject_from_certificate(pfx_cert) |> normalize_publisher
             catch
                 error("Extracting publisher from $pfx_cert failed. To sidestep this issue set `publisher` in LocalPrefereces.toml")
             end
@@ -279,6 +275,7 @@ struct DMG
     info_config::String
     entitlements::String
     dsstore::String # if it's toml then use it as source for parsing
+    selfsign::Bool
     pfx_cert::Union{String, Nothing}
     shallow_signing::Bool
     hardened_runtime::Bool
@@ -295,16 +292,17 @@ function DMG(;
              info_config = get_path(prefix, "dmg/Info.plist"),
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
              dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
+             selfsign = false,
              pfx_cert = get_path(prefix, "dmg/certificate.pfx"),
-             shallow_signing = @load_preference("dmg_shallow_signing", true),
-             hardened_runtime = @load_preference("dmg_hardened_runtime", true),
-             sandboxed_runtime = @load_preference("dmg_sandboxed_runtime", false),
+             shallow_signing = @load_preference("dmg_shallow_signing"),
+             hardened_runtime = @load_preference("dmg_hardened_runtime"),
+             sandboxed_runtime = @load_preference("dmg_sandboxed_runtime"),
              hfsplus = false,
              windowed = true,
              parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => string(sandboxed_runtime))
              )
 
-    return DMG(icon, info_config, entitlements, dsstore, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, hfsplus, windowed, parameters)
+    return DMG(icon, info_config, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, hfsplus, windowed, parameters)
 end
 
 """
@@ -604,6 +602,13 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
         end
     end
 
+    if dmg.selfsign
+        pfx_path = joinpath(tempdir(), "certificate.pfx")
+        DMGPack.generate_self_signing_pfx(pfx_path; password = "")        
+    else
+        pfx_path = dmg.pfx_cert
+    end        
+
     if compress
         #appname = parameters["APP_NAME"]
         appname = parameters["APP_DISPLAY_NAME"]
@@ -630,7 +635,7 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     entitlements = joinpath(mktempdir(), "Entitlements.plist")
     install(dmg.entitlements, entitlements; parameters, predicate)
     
-    DMGPack.pack(app_stage, destination, entitlements; pfx_path = dmg.pfx_cert, password, compression = compress ? compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, hfsplus = dmg.hfsplus)
+    DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = compress ? compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, hfsplus = dmg.hfsplus)
 
     return
 end
@@ -703,7 +708,14 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
     ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
 
     if compress
-        MSIXPack.pack(app_stage, destination; pfx_path = msix.pfx_cert, password)        
+        if msix.selfsign
+            pfx_path = joinpath(tempdir(), "certificate.pfx")
+            MSIXPack.generate_self_signed_certificate(pfx_path; password, publisher = msix.publisher)
+        else
+            pfx_path = msix.pfx_cert
+        end        
+
+        MSIXPack.pack(app_stage, destination; pfx_path, password)        
     end
     
     return

@@ -38,16 +38,21 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
     isnothing(compression) || compression in [:lzma, :bzip2, :zlib, :lzfse] || error("Compression can only be `compression=[:lzma|:bzip|:zlib|:lzfse]`")
     isnothing(pfx_path) || isfile(pfx_path) || error("Signing certificate at $pfx_path not found")
 
-    if isnothing(pfx_path) 
-        @warn "Creating a one time self signing certificate..."
-        pfx_path = joinpath(tempdir(), "certificate_macos.pfx")
-        generate_self_signing_pfx(pfx_path; password = "")
-    end
+    # if isnothing(pfx_path) 
+    #     @warn "Creating a one time self signing certificate..."
+    #     pfx_path = joinpath(tempdir(), "certificate_macos.pfx")
+    #     generate_self_signing_pfx(pfx_path; password = "")
+    # end
 
     @info "Codesigning application bundle at $app_stage with certificate at $pfx_path"
     shallow_flag = shallow_signing ? `--shallow` : ``
     runtime_flag = hardened_runtime ? `--code-signature-flags runtime` : ``
-    run(`$(rcodesign()) sign $shallow_flag --p12-file "$pfx_path" --p12-password "$password" $runtime_flag --entitlements-xml-path "$entitlements" "$app_stage"`)
+
+    if !isnothing(pfx_path)
+        run(`$(rcodesign()) sign $shallow_flag --p12-file "$pfx_path" --p12-password "$password" $runtime_flag --entitlements-xml-path "$entitlements" "$app_stage"`)
+    else
+        @warn "Skipping codesigning. Use `--selfsign` to codesign your code with self signed certificate."
+    end
 
     if !isnothing(compression)
 
@@ -60,8 +65,10 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
         @info "Compressing iso to dmg with $compression algorithm at $destination"
         run(`$(dmg()) dmg $iso_stage $destination --compression=$compression`)
 
-        @info "Codesigning DMG bundle with certificate at $pfx_path"
-        run(`$(rcodesign()) sign --p12-file "$pfx_path" --p12-password "$password" "$destination"`)
+        if !isnothing(pfx_path)
+            @info "Codesigning DMG bundle with certificate at $pfx_path"
+            run(`$(rcodesign()) sign --p12-file "$pfx_path" --p12-password "$password" "$destination"`)
+        end
     end
 
     return

@@ -78,16 +78,16 @@ function main_build(ARGS; sources_dir)
     target_arch = config[:target_arch]
     target_bundle = config[:target_bundle]
     build_dir = config[:build_dir]
-    adhoc_signing = config[:adhoc_signing]
+    selfsign = config[:selfsign]
     compress = config[:compress]
     windowed = config[:windowed]
     overwrite_target = config[:overwrite_target]
 
-    bundler = @load_preference("bundler", "juliaimg")
+    bundler = @load_preference("bundler")
 
     if bundler == "juliaimg"
 
-        if @load_preference("juliaimg_selective_assets", false)
+        if @load_preference("juliaimg_selective_assets")
             remove_sources = true
             asset_spec = Resources.extract_asset_spec(sources_dir)
         else
@@ -96,9 +96,9 @@ function main_build(ARGS; sources_dir)
         end
 
         spec = JuliaImgBundle(sources_dir; 
-                              precompile = @load_preference("juliaimg_precompile", true), 
-                              incremental = @load_preference("juliaimg_incremental", false),
-                              sysimg_packages = @load_preference("juliaimg_sysimg", []),
+                              precompile = @load_preference("juliaimg_precompile"), 
+                              incremental = @load_preference("juliaimg_incremental"),
+                              sysimg_packages = @load_preference("juliaimg_sysimg"),
                               remove_sources,
                               asset_spec
                               ) # todo: @load_preference("juliaimg_assets", nothing)
@@ -106,7 +106,7 @@ function main_build(ARGS; sources_dir)
     elseif bundler == "juliac"
 
         asset_spec = Resources.extract_asset_spec(sources_dir)
-        spec = JuliaCBundle(sources_dir; trim = @load_preference("juliac_trim", false), asset_spec) # todo: @load_preference("juliac_assets", [])
+        spec = JuliaCBundle(sources_dir; trim = @load_preference("juliac_trim"), asset_spec) # todo: @load_preference("juliac_assets", [])
 
     else
 
@@ -128,14 +128,14 @@ function main_build(ARGS; sources_dir)
     if :msix in target_bundle
         
         msix = MSIX(sources_dir; windowed, 
-                    (adhoc_signing ? (; pfx_cert=nothing) : (;))...)
+                    (selfsign ? (; pfx_cert=nothing) : (;))...)
         target_path = joinpath(build_dir, target_name(msix.parameters))
         bundle(spec, msix, compress ? "$target_path.msix" : target_path; force = overwrite_target, target_arch)
         
     elseif :dmg in target_bundle
 
         dmg = DMG(sources_dir; windowed, 
-                  (adhoc_signing ? (; pfx_cert=nothing) : (;))...)
+                  (selfsign ? (; pfx_cert=nothing) : (;))...)
         target_path = joinpath(build_dir, target_name(dmg.parameters))
         bundle(spec, dmg, compress ? "$target_path.dmg" : target_path; force = overwrite_target, target_arch)
 

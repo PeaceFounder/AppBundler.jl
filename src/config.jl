@@ -3,7 +3,6 @@ import TOML
 import LibGit2
 using Preferences
 
-
 function get_project_name(project_toml)
 
     toml_dict = TOML.parsefile(project_toml)
@@ -13,7 +12,6 @@ function get_project_name(project_toml)
         return nothing
     end
 end
-
 
 function get_module_name(project_toml)
 
@@ -29,7 +27,6 @@ function get_project_version(project_toml)
     toml_dict = TOML.parsefile(project_toml)
     return get(toml_dict, "version", "0.0.1")
 end
-
 
 function commit_count(repo_path = ".")
     
@@ -61,7 +58,7 @@ function get_bundle_parameters!(parameters::Dict{String, Any}, project_toml)
     # The parameter resolution can differ depending on what is being bundled. 
     # For instance MODULE_NAME is Julia specific only.
 
-    if @load_preference("juliaimg_mainless", false)
+    if @load_preference("juliaimg_mainless")
         project_name = get_project_name(project_toml)
         app_name = @load_preference("app_name", project_name)
     else
@@ -77,18 +74,15 @@ function get_bundle_parameters!(parameters::Dict{String, Any}, project_toml)
     parameters["APP_VERSION"] = get_project_version(project_toml)
     parameters["BUILD_NUMBER"] = @load_preference("build_number", commit_count(dirname(project_toml)))
     
-    parameters["APP_SUMMARY"] = @load_preference("app_summary", "This is a default app summary")
-    parameters["APP_DESCRIPTION"] = @load_preference("app_description", "A longer description of the app")
+    parameters["APP_SUMMARY"] = @load_preference("app_summary")
+    parameters["APP_DESCRIPTION"] = @load_preference("app_description")
     
     parameters["BUNDLE_IDENTIFIER"] = @load_preference("bundle_identifier", "org.appbundler." * parameters["APP_NAME"])
 
-    parameters["PUBLISHER_DISPLAY_NAME"] = @load_preference("publisher_name", "AppBundler")
+    parameters["PUBLISHER_DISPLAY_NAME"] = @load_preference("publisher_name")
 
     return parameters
 end
-
-
-# argument parser
 
 function normalize_args(args)
     normalized = String[]
@@ -112,13 +106,13 @@ function parse_args(raw_args)
     # Default values
     config = Dict(
         :build_dir => nothing,  # Use nothing to distinguish "not set" from ""
-        :compress => @load_preference("compress", true),
-        :windowed => @load_preference("windowed", false),
-        :adhoc_signing => @load_preference("adhoc_signing", false),
+        :compress => @load_preference("compress"),
+        :windowed => @load_preference("windowed"),
+        :selfsign => @load_preference("selfsign"),
         :target_arch => Sys.ARCH,
         :target_bundle => Symbol[],
         :target_name => nothing,
-        :overwrite_target => @load_preference("overwrite_target", false)
+        :overwrite_target => @load_preference("overwrite_target")
     )
     
     i = 1
@@ -150,12 +144,12 @@ function parse_args(raw_args)
             config[:overwrite_target] = true
         elseif arg == "--debug"
             config[:compress] = false
-            config[:adhoc_signing] = true
+            config[:selfsign] = true
             config[:windowed] = false
         elseif arg == "--target-name"
             config[:target_name] = args[i + 1]
-        elseif arg == "--adhoc-signing"
-            config[:adhoc_signing] = true
+        elseif arg == "--selfsign"
+            config[:selfsign] = true
         elseif arg == "--target-arch"
             i += 1
             if i > length(args)
@@ -206,7 +200,7 @@ function print_help()
     Options:
       --build-dir DIR                   Build directory (default: ./build)
                                         Use '@temp' for temporary directory
-      --adhoc-signing                   Enable ad-hoc code signing (macOS/Windows)
+      --selfsign                        Enable self signing (macOS/Windows)
       --target-arch ARCH                Target architecture (default: current system)
       --target-bundle={dmg|snap|msix|all}
                                         Build for specific platform(s) (default: current)

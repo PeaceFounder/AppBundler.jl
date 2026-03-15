@@ -39,7 +39,7 @@ predicate = :JULIA_IMG_BUNDLE
 
 @time @testset "MSIX bundling tests" begin
 
-    msix = MSIX(joinpath(@__DIR__, "../examples/GtkApp"))
+    msix = MSIX(joinpath(@__DIR__, "../examples/GtkApp"); selfsign=true)
 
     @test hash_stage() do dest
         stage(msix, dest; predicate)
@@ -73,7 +73,7 @@ if Sys.isunix()
 
     @time @testset "DMG bundling tests" begin
 
-        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true)
+        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true, selfsign = true)
 
         @test hash_stage() do dest
             stage(dmg, joinpath(dest, "GtkApp.app"); dsstore=true, main_redirect=true, predicate)
@@ -118,7 +118,7 @@ if Sys.isunix()
         if Sys.isapple()
             @test hash_stage() do stage_dir
 
-                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false)
+                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false, selfsign = true)
                 dest = joinpath(mktempdir(), "gtkapp.dmg")
                 bundle(dmg, dest; main_redirect=true, predicate) do app_stage
                     @info "The DMG app stage is $app_stage"

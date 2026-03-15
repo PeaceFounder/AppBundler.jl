@@ -4,18 +4,6 @@ using .JuliaImg: JuliaImgBundle
 using .JuliaC: JuliaCBundle 
 import AppEnv
 
-# function install_config(config_path, parameters)
-    
-#     (; stdlib_project_name) = AppEnv.load_config(config_path)
-#     runtime_mode = "SANDBOX"
-#     app_name = parameters["APP_NAME"]
-#     bundle_identifier = parameters["BUNDLE_IDENTIFIER"]
-
-#     AppEnv.save_config(config_path; runtime_mode, stdlib_project_name, app_name, bundle_identifier)
-    
-#     return
-# end
-
 function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), target_arch = Sys.ARCH)
 
     predicate = :JULIA_IMG_BUNDLE

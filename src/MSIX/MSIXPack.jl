@@ -73,15 +73,15 @@ end
 
 function pack(source, destination; pfx_path = nothing, password = "")
 
-    if isnothing(pfx_path)
-        @warn "Creating one time self signed certificate"
+    # if isnothing(pfx_path)
+    #     @warn "Creating one time self signed certificate"
 
-        appxmanifest = joinpath(source, "AppxManifest.xml")
-        publisher = extract_publisher_from_manifest(appxmanifest)
+    #     appxmanifest = joinpath(source, "AppxManifest.xml")
+    #     publisher = extract_publisher_from_manifest(appxmanifest)
 
-        pfx_path = joinpath(tempdir(), "certificate.pfx")
-        generate_self_signed_certificate(pfx_path; password, publisher) # Need to match the publisher here with AppxManifest.xml
-    end
+    #     pfx_path = joinpath(tempdir(), "certificate.pfx")
+    #     generate_self_signed_certificate(pfx_path; password, publisher) # Need to match the publisher here with AppxManifest.xml
+    # end
 
     @info "Forming MSIX archive"
     unsigned_msix = joinpath(tempdir(), "unsigned_msix.msix")
@@ -92,9 +92,13 @@ function pack(source, destination; pfx_path = nothing, password = "")
     @info "Performing codesigning with certificate at $pfx_path"
 
     rm(destination; force=true)
-    run(`$(osslsigncode()) sign -nolegacy -pkcs12 $pfx_path -pass "$password" -in "$unsigned_msix" -out "$destination"`)
 
-    @info "Signed MSIX at $destination"
+    if !isnothing(pfx_path)
+        run(`$(osslsigncode()) sign -nolegacy -pkcs12 $pfx_path -pass "$password" -in "$unsigned_msix" -out "$destination"`)
+        @info "Signed MSIX at $destination"
+    else
+        @warn "Skipping MSIX signing as no signing certificate were provided."
+    end
 
     return
 end
