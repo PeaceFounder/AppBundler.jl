@@ -84,14 +84,15 @@ function get_bundle_parameters!(parameters::Dict{String, Any}, project_toml)
     return parameters
 end
 
+# ToDo: Revise this function for accepting values that contain " "
+# ToDo: Add tests for this funciton
 function normalize_args(args)
     normalized = String[]
     for arg in args
         if startswith(arg, "--") && contains(arg, '=')
-            # Split --flag=value into --flag and value
             flag, value = split(arg, '=', limit=2)
             push!(normalized, flag)
-            push!(normalized, value)
+            push!(normalized, strip(value, ['"', '\'']))
         else
             push!(normalized, arg)
         end
@@ -105,14 +106,15 @@ function parse_args(raw_args)
 
     # Default values
     config = Dict(
-        :build_dir => nothing,  # Use nothing to distinguish "not set" from ""
+        :build_dir => mktempdir(),  # Use nothing to distinguish "not set" from ""
         :compress => @load_preference("compress"),
         :windowed => @load_preference("windowed"),
         :selfsign => @load_preference("selfsign"),
         :target_arch => Sys.ARCH,
-        :target_bundle => Symbol[],
+        :target_bundle => Sys.islinux() ? :snap : Sys.isapple() ? :dmg : Sys.iswindows() ? :msix : error("Bundling for current platform is unsupported"),
         :target_name => nothing,
-        :overwrite_target => @load_preference("overwrite_target")
+        :overwrite_target => @load_preference("overwrite_target"),
+        :password => nothing
     )
     
     i = 1
@@ -147,9 +149,13 @@ function parse_args(raw_args)
             config[:selfsign] = true
             config[:windowed] = false
         elseif arg == "--target-name"
-            config[:target_name] = args[i + 1]
+            i += 1
+            config[:target_name] = args[i]
         elseif arg == "--selfsign"
             config[:selfsign] = true
+        elseif arg == "--password"
+            i += 1
+            config[:password] = args[i]
         elseif arg == "--target-arch"
             i += 1
             if i > length(args)
@@ -161,35 +167,13 @@ function parse_args(raw_args)
             if i > length(args)
                 error("--target-bundle requires a value")
             end
-            if args[i] == "all"
-                push!(config[:target_bundle], :msix, :dmg, :snap)
-            else
-                push!(config[:target_bundle], Symbol(args[i]))
-            end
+            config[:target_bundle] = Symbol(args[i])
         else
             @warn "Unknown argument: $arg"
         end
         i += 1
     end
 
-    # Set default platform if none specified
-    if isempty(config[:target_bundle])
-        if Sys.isapple()
-            push!(config[:target_bundle], :dmg)
-        elseif Sys.islinux()
-            push!(config[:target_bundle], :snap)
-        elseif Sys.iswindows()
-            push!(config[:target_bundle], :msix)
-        else
-            error("Could not detect platform. Specify manually with --target-bundle={msix|dmg|snap|all}")
-        end
-    end
-
-    # Set default build directory if not specified
-    if isnothing(config[:build_dir])
-        config[:build_dir] = mktempdir()
-    end
-    
     return config
 end
 

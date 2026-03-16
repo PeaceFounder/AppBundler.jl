@@ -54,8 +54,8 @@ struct MSIX
     skip_symlinks::Bool
     skip_unicode_paths::Bool
     selfsign::Bool
-    pfx_cert::Union{String, Nothing} 
     publisher::String
+    pfx_cert::Union{String, Nothing} 
     windowed::Bool
     parameters::Dict{String, Any}
 end
@@ -71,13 +71,13 @@ function MSIX(;
               skip_symlinks = @load_preference("msix_skip_symlinks"),
               skip_unicode_paths = @load_preference("msix_skip_unicode_paths"),
               selfsign = false,              
+              publisher = @load_preference("msix_publisher") |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
               pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
-              publisher = get_publisher(pfx_cert, selfsign),
               windowed = true,
               parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher)
               )
     
-    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, pfx_cert, publisher, windowed, parameters)
+    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, parameters)
 end
 
 
@@ -120,24 +120,24 @@ function normalize_publisher(publisher)
     return join(items, ", ")
 end
 
-function get_publisher(pfx_cert, selfsign; password="")
+# function get_publisher(pfx_cert, selfsign; password="")
 
-    publisher = @load_preference("publisher", nothing)
+#     publisher = @load_preference("publisher", nothing)
 
-    if !isnothing(publisher)
-        return publisher |> normalize_publisher
-    else
-        if isnothing(pfx_cert) || selfsign
-            return "O=PeaceFounder,C=XX,CN=AppBundler" |> normalize_publisher # order is important
-        else
-            try
-                return MSIXPack.extract_subject_from_certificate(pfx_cert) |> normalize_publisher
-            catch
-                error("Extracting publisher from $pfx_cert failed. To sidestep this issue set `publisher` in LocalPrefereces.toml")
-            end
-        end
-    end
-end
+#     if !isnothing(publisher)
+#         return publisher |> normalize_publisher
+#     else
+#         if isnothing(pfx_cert) || selfsign
+#             return "O=PeaceFounder,C=XX,CN=AppBundler" |> normalize_publisher # order is important
+#         else
+#             try
+#                 return MSIXPack.extract_subject_from_certificate(pfx_cert) |> normalize_publisher
+#             catch
+#                 error("Extracting publisher from $pfx_cert failed. To sidestep this issue set `publisher` in LocalPrefereces.toml")
+#             end
+#         end
+#     end
+# end
 
 
 """
@@ -584,7 +584,8 @@ bundle(dmg, "MyApp.dmg"; compress = true, compression = :lzma) do staging_dir
 end
 ```
 """
-function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), main_redirect = false, arch = :x86_64, predicate = nothing) 
+#function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), main_redirect = false, arch = :x86_64, predicate = nothing) 
+function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = "", main_redirect = false, arch = :x86_64, predicate = nothing) 
 
     (; parameters) = dmg
     
@@ -689,7 +690,8 @@ bundle(msix, "MyApp.msix"; compress = true) do staging_dir
 end
 ```
 """
-function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, password = get(ENV, "WINDOWS_PFX_PASSWORD", ""), predicate = nothing)
+#function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, password = get(ENV, "WINDOWS_PFX_PASSWORD", ""), predicate = nothing)
+function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, password = "", predicate = nothing)
 
     if ispath(destination)
         if force

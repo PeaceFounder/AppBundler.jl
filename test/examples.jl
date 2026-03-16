@@ -19,7 +19,7 @@ using AppBundler
 using Test
 
 build_dir = joinpath(@__DIR__, "../build")
-args(app_dir) = ["build", app_dir, "--build-dir=$build_dir", "--force"]
+args(app_dir) = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign"]
 
 @testset "GtkApp" begin
     app_dir = joinpath(dirname(@__DIR__), "examples/GTKApp")

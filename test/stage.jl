@@ -41,10 +41,9 @@ asset_spec = Dict{Symbol, Vector{String}}(
     :AppEnv => ["LICENSE"]
 )
 
-product_spec = JuliaImgBundle(src_dir; precompile = true, sysimg_packages = ["GLApp"], asset_spec, asset_rpath = "assets", remove_sources=true)
+product_spec = JuliaImgBundle(src_dir; precompile = true, asset_spec, asset_rpath = "assets", remove_sources=true)
 stage(product_spec, platform, mktempdir(); cpu_target="native")
 
-# # Tests sysimg generation with Julia 1.12
 src_dir = joinpath(pkgdir(AppBundler), "examples/CmdApp")
-product_spec = JuliaImgBundle(src_dir; precompile = true, sysimg_packages = ["CmdApp"], remove_sources=true)
+product_spec = JuliaImgBundle(src_dir; precompile = true, sysimg_packages = ["CmdApp"], asset_spec, remove_sources=true)
 stage(product_spec, platform, mktempdir(); cpu_target="native")
