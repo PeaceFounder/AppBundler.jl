@@ -82,7 +82,7 @@ function main_build(ARGS; sources_dir)
     compress = config[:compress]
     windowed = config[:windowed]
     overwrite_target = config[:overwrite_target]
-    password = config[:password] |> strip
+    password = config[:password]
 
     bundler = @load_preference("bundler")
 

@@ -155,7 +155,7 @@ function parse_args(raw_args)
             config[:selfsign] = true
         elseif arg == "--password"
             i += 1
-            config[:password] = args[i]
+            config[:password] = args[i] |> strip
         elseif arg == "--target-arch"
             i += 1
             if i > length(args)
