@@ -140,7 +140,7 @@ function main_build(ARGS; sources_dir)
         end
 
         target_path = joinpath(build_dir, target_name(msix.parameters))
-        bundle(spec, msix, compress ? "$target_path.msix" : target_path; force = overwrite_target, target_arch)
+        bundle(spec, msix, compress ? "$target_path.msix" : target_path; force = overwrite_target, target_arch, password)
 
     elseif :dmg == target_bundle
 

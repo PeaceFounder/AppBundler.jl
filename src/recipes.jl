@@ -4,7 +4,7 @@ using .JuliaImg: JuliaImgBundle
 using .JuliaC: JuliaCBundle 
 import AppEnv
 
-function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), target_arch = Sys.ARCH)
+function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = "", target_arch = Sys.ARCH)
 
     predicate = :JULIA_IMG_BUNDLE
     
@@ -65,11 +65,11 @@ function normalize_executable(path::String)
     return
 end
 
-function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, target_arch = Sys.ARCH)
+function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, target_arch = Sys.ARCH, password = "")
 
     predicate = :JULIA_IMG_BUNDLE
 
-    bundle(msix, destination; compress, force, predicate) do app_stage
+    bundle(msix, destination; compress, force, predicate, password) do app_stage
         
         app_name = msix.parameters["APP_NAME"]
         bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
@@ -98,7 +98,7 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; compre
 end
 
 
-function bundle(product::JuliaCBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), target_arch = Sys.ARCH)
+function bundle(product::JuliaCBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = "", target_arch = Sys.ARCH)
 
     if !Sys.isapple()
         @warn "The build for the DMG will not work as it is not built on macos"
@@ -150,13 +150,13 @@ function bundle(product::JuliaCBundle, snap::Snap, destination::String; compress
     return
 end
 
-function bundle(product::JuliaCBundle, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false)
+function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password = "", compress::Bool = isext(destination, ".msix"), force = false)
 
     if !Sys.iswindows()
         @warn "The build for MSIX will not work as it is not built on Windows"
     end
     # I need to pass down the arguments here somehow for the template
-    bundle(msix, destination; compress, force, predicate = :JULIAC_BUNDLE) do app_stage
+    bundle(msix, destination; compress, password = "", force, predicate = :JULIAC_BUNDLE) do app_stage
 
         app_name = msix.parameters["APP_NAME"]
         bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]

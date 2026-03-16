@@ -13,7 +13,7 @@ include("utils.jl")
 
 try
     AppBundler.install_github_workflow(; root = app_dir, force = true)
-    @show (; password_macos, password_windows) = AppBundler.generate_signing_certificates(; root = app_dir, force = true)
+    (; password_macos, password_windows) = AppBundler.generate_signing_certificates(; root = app_dir, force = true)
 
     args = ["build", app_dir, "--build-dir=$build_dir", "--target-name=glapp", "--target-bundle=$target_bundle"]
 

@@ -2,3 +2,4 @@
 app_name = "GLApp"
 windowed = true
 juliaimg_incremental = true
+#juliaimg_precompile = false
