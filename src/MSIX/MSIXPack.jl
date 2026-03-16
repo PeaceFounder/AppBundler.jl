@@ -3,14 +3,12 @@ module MSIXPack
 using Makemsix_jll
 using osslsigncode_jll
 using rcodesign_jll: rcodesign
-using OpenSSL_jll: openssl
+#using OpenSSL_jll: openssl
+using ..OpenSSLLegacy: openssl
 
 function generate_self_signed_certificate(pfx_path; password = "", publisher = "O=PeaceFounder, C=XX, CN=AppBundler", validity_days = 365)
-
-#name = "AppBundler", country = "XX", organization = "PeaceFounder", validity_days = 365)
-#O=$organization, C=$country, CN=$name
     
-    @show code_sign_conf = """
+    code_sign_conf = """
     [ req ]
     default_bits = 2048
     prompt = no
@@ -72,8 +70,6 @@ end
 # end
 
 function update_publisher_in_manifest(appxmanifest_path, publisher)
-
-    #publisher = replace(publisher, ","=>", ")
 
     # Read the manifest file
     content = read(appxmanifest_path, String)

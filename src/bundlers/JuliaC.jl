@@ -7,9 +7,31 @@ using ..Resources: get_module_name
 
 import AppEnv
 
+function juliac()
+
+    juliac_exe = Sys.iswindows() ? "juliac.bat" : "juliac"
+
+    # It may be worth to iterate over PATH to look for executable
+    # However it is unclear what precedance it should take
+
+    for i in Base.DEPOT_PATH
+        path = joinpath(i, "bin", juliac_exe)
+        if isfile(path)
+            return path
+        end
+    end
+
+    path = joinpath(homedir(), ".julia", "bin", juliac_exe)
+    if isfile(path)
+        return path
+    end
+
+    error("Commmadn juliac not found")
+end
+
 @kwdef struct JuliaCBundle <: BuildSpec
     project::String
-    juliac_cmd::Cmd = Cmd([joinpath(homedir(), ".julia/bin", Sys.iswindows() ? "juliac.bat" : "juliac")])
+    juliac_cmd::Cmd = Cmd([juliac()])
     executable_name::String = lowercase(get_module_name(project))
     trim::Bool = false
     args::Cmd = ``

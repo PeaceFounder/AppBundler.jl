@@ -42,8 +42,10 @@ jobs:
         
       - uses: julia-actions/setup-julia@v1
         with:
-          version: '1.11'
+          version: '1.12'
       - uses: julia-actions/cache@v1
+      - name: Install JuliaC
+        run: julia -e 'using Pkg; Pkg.Apps.add("JuliaC")'
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
         with:
