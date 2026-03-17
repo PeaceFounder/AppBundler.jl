@@ -265,8 +265,6 @@ function compile_pkgimgs(destination, project;
         empty!(DEPOT_PATH)
         push!(LOAD_PATH, "@stdlib", joinpath(Sys.STDLIB, $(repr(stdlib_project_name))))
         push!(DEPOT_PATH, joinpath(dirname(Sys.BINDIR), "share/julia"))
-        @show DEPOT_PATH
-        @show LOAD_PATH
     """
     withenv("JULIA_PROJECT" => project, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => cpu_target) do
         if use_pkg
@@ -366,10 +364,7 @@ function sysimg_compilation_script(project, packages)
             @eval Module() begin
                 push!(LOAD_PATH, $(repr(pkgdir(AppEnv))))
                 import AppEnv
-
-                println("Executing precompilation with modules: $(join(packages, ", "))...")
                 import $(join(packages, ','))
-                println("Precompilation executed successfully.")
             end
         """
     end
@@ -450,7 +445,7 @@ function stage(product::JuliaImgBundle, platform::AbstractPlatform, destination:
 
     (; stdlib_dir, include_lazy_artifacts, sysimg_packages, sysimg_args, precompiled_modules) = product
 
-    @info "Fetching sources for Julia $(get_julia_version(product)) for $platform"
+    println("Fetching sources for julia-$(get_julia_version(product))-$platform")
     Resources.fetch(product.source, destination; platform, stdlib_dir, include_lazy_artifacts)
 
     if isnothing(product.asset_rpath)
@@ -459,31 +454,27 @@ function stage(product::JuliaImgBundle, platform::AbstractPlatform, destination:
         Resources.install_assets(product.source, joinpath(destination, product.asset_rpath), product.asset_spec)
         Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.asset_rpath)
     end
-    
-    @info "Configuring stage"
+
     configure(destination, product; runtime_mode, app_name, bundle_identifier)
 
     if !isempty(product.sysimg_packages)
-        @info "Compiling sysimage for $(product.sysimg_packages)..."
+        println("Compiling sysimage for $(product.sysimg_packages)...")
         compile_sysimg(destination, product.source; sysimg_packages, sysimg_args, cpu_target)
     end
 
     if product.precompile && !isempty(product.precompiled_modules)
 
-        @info "Precompiling pkgimgs for $(product.precompiled_modules)..."
+        println("Precompiling pkgimgs for $(product.precompiled_modules)...")
         compile_pkgimgs(destination, product.source; precompiled_modules, cpu_target, use_pkg = product.parallel_precompilation, incremental = product.incremental)
 
     else
-        @info "Precompilation disabled. Precompilation will occur on target system at first launch."
+        @warn "Precompilation disabled. Precompilation will occur on target system at first launch."
     end
-
-    @info "Installing pkgorigins index"
 
     # remove_sources
     module_name = get_module_name(product.source)
     packages_dir = joinpath(destination, product.stdlib_dir)
     if product.remove_sources 
-        @info "Removing sources from stdlib"
         rm(packages_dir; recursive = true)
         mkdir(packages_dir)
         cp(joinpath(pkgdir(AppEnv), "Project.toml"), joinpath(packages_dir, "Project.toml"))
@@ -493,12 +484,12 @@ function stage(product::JuliaImgBundle, platform::AbstractPlatform, destination:
         cp(joinpath(product.source, "Project.toml"), joinpath(packages_dir, stdlib_project_name, "Project.toml"))
     end
 
-    @info "App staging completed successfully"
-    @info "Staged app available at: $destination"
+    println("App staging completed successfully")
+    println("Staged app available at: $destination")
     if !isnothing(module_name)
-        @info "Launch it with bin/julia -e \"using $module_name\""
+        println("Launch it with bin/julia -m $module_name")
     else
-        @info "Launch it with bin/julia"
+        println("Launch it with bin/julia")
     end
 
     return

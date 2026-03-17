@@ -69,7 +69,7 @@ function get_bundle_parameters!(parameters::Dict{String, Any}, project_toml)
 
     parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
 
-    @show parameters["APP_DISPLAY_NAME"] = @load_preference("app_display_name", @load_preference("app_name", app_name))
+    parameters["APP_DISPLAY_NAME"] = @load_preference("app_display_name", @load_preference("app_name", app_name))
 
     parameters["APP_VERSION"] = get_project_version(project_toml)
     parameters["BUILD_NUMBER"] = @load_preference("build_number", commit_count(dirname(project_toml)))

@@ -91,15 +91,13 @@ function pack(source, destination; pfx_path = nothing, password = "")
         update_publisher_in_manifest(appxmanifest, publisher)
     end
 
-    @info "Forming MSIX archive"
     unsigned_msix = joinpath(tempdir(), "unsigned_msix.msix")
     rm(unsigned_msix; force=true)
 
     run(`$(makemsix()) pack -d $source -p $unsigned_msix`)
 
-    @info "Performing codesigning with certificate at $pfx_path"
-
     if !isnothing(pfx_path)
+        @info "Performing codesigning with certificate at $pfx_path"
         run(`$(osslsigncode()) sign -nolegacy -pkcs12 $pfx_path -pass "$password" -in "$unsigned_msix" -out "$destination"`)
         @info "Signed MSIX at $destination"
     else

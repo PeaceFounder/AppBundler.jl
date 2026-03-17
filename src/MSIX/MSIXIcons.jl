@@ -14,7 +14,7 @@ function generate_app_icons(source_path::String, output_dir::String)
     mkpath(output_dir)
     
     # Load the source image using FileIO
-    println("Loading source image: $source_path")
+    #println("Loading source image: $source_path")
     source_img = load(source_path)
     
     # Define all the icon specifications
@@ -104,7 +104,7 @@ function generate_app_icons(source_path::String, output_dir::String)
         ("Wide310x150Logo.scale-400.png", 1240, 600),
     ]
     
-    println("Generating square and rectangular icons...")
+    #println("Generating square and rectangular icons...")
     total_icons = length(icon_specs) + length(wide_specs)
     current = 0
     
@@ -125,7 +125,7 @@ function generate_app_icons(source_path::String, output_dir::String)
     end
     
     # Generate wide tiles
-    println("Generating wide tile variants...")
+    #println("Generating wide tile variants...")
     for (filename, width, height) in wide_specs
         current += 1
         output_path = joinpath(output_dir, filename)
@@ -134,20 +134,20 @@ function generate_app_icons(source_path::String, output_dir::String)
         #println("  ✓ [$current/$total_icons] Created $filename ($(width)×$(height))")
     end
     
-    println("\nAll $total_icons icons generated successfully in '$output_dir' directory!")
+    # println("\nAll $total_icons icons generated successfully in '$output_dir' directory!")
     
-    # Print summary
-    println("\nGenerated icon categories:")
-    println("  • BadgeLogo: 5 variants")
-    println("  • SplashScreen: 5 variants") 
-    println("  • Square150x150Logo: 5 variants")
-    println("  • Square30x30Logo: 1 variant")
-    println("  • Square310x310Logo: 5 variants (+ 5 duplicates as Logo1)")
-    println("  • Square44x44Logo: 5 scale + 15 targetsize variants")
-    println("  • Square70x70Logo: 1 variant")
-    println("  • Square71x71Logo: 5 variants")
-    println("  • StoreLogo: 1 variant")
-    println("  • Wide310x150Logo: 5 variants")
+    # # Print summary
+    # println("\nGenerated icon categories:")
+    # println("  • BadgeLogo: 5 variants")
+    # println("  • SplashScreen: 5 variants") 
+    # println("  • Square150x150Logo: 5 variants")
+    # println("  • Square30x30Logo: 1 variant")
+    # println("  • Square310x310Logo: 5 variants (+ 5 duplicates as Logo1)")
+    # println("  • Square44x44Logo: 5 scale + 15 targetsize variants")
+    # println("  • Square70x70Logo: 1 variant")
+    # println("  • Square71x71Logo: 5 variants")
+    # println("  • StoreLogo: 1 variant")
+    # println("  • Wide310x150Logo: 5 variants")
 end
 
 """
@@ -212,7 +212,7 @@ function generate_basic_app_icons(source_path::String, output_dir::String="asset
         ("logo.png", 512, 512),
     ]
     
-    println("Generating basic icon set...")
+    #println("Generating basic icon set...")
     for (filename, width, height) in basic_specs
         output_path = joinpath(output_dir, filename)
         if width == height
@@ -221,7 +221,7 @@ function generate_basic_app_icons(source_path::String, output_dir::String="asset
             resized_img = create_wide_tile(source_img, width, height, resize_func)
         end
         save(output_path, resized_img)
-        println("  ✓ Created $filename ($(width)×$(height))")
+        #println("  ✓ Created $filename ($(width)×$(height))")
     end
 end
 

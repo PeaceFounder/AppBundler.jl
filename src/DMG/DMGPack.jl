@@ -44,11 +44,11 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
     #     generate_self_signing_pfx(pfx_path; password = "")
     # end
 
-    @info "Codesigning application bundle at $app_stage with certificate at $pfx_path"
     shallow_flag = shallow_signing ? `--shallow` : ``
     runtime_flag = hardened_runtime ? `--code-signature-flags runtime` : ``
 
     if !isnothing(pfx_path)
+        println("Codesigning application bundle at $app_stage with certificate at $pfx_path")
         run(`$(rcodesign()) sign $shallow_flag --p12-file "$pfx_path" --p12-password "$password" $runtime_flag --entitlements-xml-path "$entitlements" "$app_stage"`)
     else
         @warn "Skipping codesigning. Use `--selfsign` to codesign your code with self signed certificate."
@@ -58,15 +58,15 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
 
         iso_stage = tempname() 
 
-        @info "Forming iso archive with xorriso at $iso_stage"
+        println("Forming iso archive with xorriso at $iso_stage")
         hfsplus_flag = hfsplus ? `-hfsplus` : ``
         run(`$(xorriso()) -as mkisofs -V "$installer_title" $hfsplus_flag -relaxed-filenames -D -R -no-pad -o $iso_stage $(dirname(app_stage))`)
 
-        @info "Compressing iso to dmg with $compression algorithm at $destination"
+        println("Compressing iso to dmg with $compression algorithm at $destination")
         run(`$(dmg()) dmg $iso_stage $destination --compression=$compression`)
 
         if !isnothing(pfx_path)
-            @info "Codesigning DMG bundle with certificate at $pfx_path"
+            println("Codesigning DMG bundle with certificate at $pfx_path")
             run(`$(rcodesign()) sign --p12-file "$pfx_path" --p12-password "$password" "$destination"`)
         end
     end

@@ -22,7 +22,6 @@ abstract type BuildSpec end
 
 function stage end
 
-
 include("DMG/DSStore.jl")
 include("DMG/HFS.jl")
 include("DMG/DMGPack.jl")
@@ -34,26 +33,14 @@ include("MSIX/MSIXPack.jl")
 include("MSIX/MSIXIcons.jl")
 include("MSIX/WinSubsystem.jl")
 
-# include("Utils/TerminalSpinners.jl")
-# include("Utils/Resources.jl")
-# include("Utils/SysImgTools.jl")
-# include("Utils/Stage.jl")
-
 include("bundlers/Resources.jl") # JuliaC needs assets and pkgorigins_index which is shared between JuliaImg and JuliaC
 include("bundlers/JuliaImg/JuliaImg.jl") 
 include("bundlers/JuliaC.jl")
 
-#include("ArgParser.jl")
-
-#import .ArgParser: parse_args
-#import .Stage: stage # 
-#using .Stage: merge_directories, install
 using .JuliaImg: install
-#using .Resources: merge_directories#, install
 using .JuliaImg.Resources: merge_directories#, install
 
 include("config.jl")
-
 include("utils.jl")
 include("bundle.jl")
 include("recipes.jl") 
@@ -105,8 +92,6 @@ function main_build(ARGS; sources_dir)
                               asset_spec
                               ) 
 
-        @info "JuliaImg selected as bundler $spec"
-
     elseif bundler == "juliac"
 
         asset_spec = Resources.extract_asset_spec(sources_dir)
@@ -129,15 +114,20 @@ function main_build(ARGS; sources_dir)
     end
 
     if :msix == target_bundle
+
         msix = MSIX(sources_dir; windowed, selfsign)
-        @info "Building msix bundle $msix"
         
-        if isnothing(msix.pfx_cert) || selfsign
-            error("No pfx certificate found and selfsig is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
-        elseif isnothing(password)
-            #if !isnothing(msix.pfx_cert) && !selfsign && isnothing(password)
-            print("Type in certificate password:")
-            password = readline() |> strip
+        if selfsign
+            password = ""
+        else
+            if isnothing(msix.pfx_cert)
+                error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
+            end
+
+            if isnothing(password)
+                print("Type in certificate password:")
+                password = readline() |> strip
+            end
         end
 
         target_path = joinpath(build_dir, target_name(msix.parameters))
@@ -147,12 +137,18 @@ function main_build(ARGS; sources_dir)
 
         dmg = DMG(sources_dir; windowed, selfsign)
 
-        if isnothing(dmg.pfx_cert) || selfsign
-            error("No pfx certificate found and selfsig is disabled. Enable self signing with `--selfsign` or generate pfx certificates")     
-        elseif isnothing(password)
-            #if !isnothing(dmg.pfx_cert) && !selfsign && isnothing(password)
-            print("Type in certificate password:")
-            password = readline() |> strip
+
+        if selfsign
+            password = ""
+        else
+            if isnothing(dmg.pfx_cert)
+                error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
+            end
+
+            if isnothing(password)
+                print("Type in certificate password:")
+                password = strip(readline())
+            end
         end
 
         target_path = joinpath(build_dir, target_name(dmg.parameters))
@@ -163,6 +159,7 @@ function main_build(ARGS; sources_dir)
         snap = Snap(sources_dir; windowed)
         target_path = joinpath(build_dir, target_name(snap.parameters))
         bundle(spec, snap, compress ? "$target_path.snap" : target_path; force = overwrite_target, target_arch)
+
     else
         error("Got unsupported bundle type $target_bundle")
     end

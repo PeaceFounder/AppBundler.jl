@@ -584,7 +584,6 @@ bundle(dmg, "MyApp.dmg"; compress = true, compression = :lzma) do staging_dir
 end
 ```
 """
-#function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = get(ENV, "MACOS_PFX_PASSWORD", ""), main_redirect = false, arch = :x86_64, predicate = nothing) 
 function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = "", main_redirect = false, arch = :x86_64, predicate = nothing) 
 
     (; parameters) = dmg
@@ -603,13 +602,7 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
         end
     end
 
-    if dmg.selfsign
-        pfx_path = joinpath(tempdir(), "certificate.pfx")
-        DMGPack.generate_self_signing_pfx(pfx_path; password = "")        
-    else
-        pfx_path = dmg.pfx_cert
-    end        
-
+    @info "Staging DMG base"
     if compress
         #appname = parameters["APP_NAME"]
         appname = parameters["APP_DISPLAY_NAME"]
@@ -620,6 +613,7 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
         stage(dmg, app_stage; dsstore = false, main_redirect, arch, predicate)        
     end
 
+    @info "Installing App into stage"
     setup(app_stage)
 
     # Remove AppleDouble metadata files (._*) that macOS creates to preserve extended attributes
@@ -633,6 +627,15 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     # These ._* files typically appear alongside executable .jl or .sh files in the Julia stdlib.
     run(`find $app_stage -name "._*" -delete`)
 
+    if dmg.selfsign
+        @info "Generating self signing certificate"
+        pfx_path = joinpath(tempdir(), "certificate.pfx")
+        DMGPack.generate_self_signing_pfx(pfx_path; password = "")        
+    else
+        pfx_path = dmg.pfx_cert
+    end        
+
+    @info "Packing stage into DMG"
     entitlements = joinpath(mktempdir(), "Entitlements.plist")
     install(dmg.entitlements, entitlements; parameters, predicate)
     
@@ -690,7 +693,6 @@ bundle(msix, "MyApp.msix"; compress = true) do staging_dir
 end
 ```
 """
-#function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, password = get(ENV, "WINDOWS_PFX_PASSWORD", ""), predicate = nothing)
 function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, password = "", predicate = nothing)
 
     if ispath(destination)
@@ -703,7 +705,9 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
 
     app_stage = compress ? mktempdir() : destination
 
-    stage(msix, app_stage; predicate)    
+    @info "Staging MSIX base"
+    stage(msix, app_stage; predicate)
+    @info "Installing App into stage"
     setup(app_stage)
 
     (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
@@ -711,12 +715,14 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
 
     if compress
         if msix.selfsign
+            @info "Generating self signing certificate"
             pfx_path = joinpath(tempdir(), "certificate.pfx")
             MSIXPack.generate_self_signed_certificate(pfx_path; password, publisher = msix.publisher)
         else
             pfx_path = msix.pfx_cert
         end        
 
+        @info "Packing stage into MSIX"
         MSIXPack.pack(app_stage, destination; pfx_path, password)        
     end
     
@@ -773,11 +779,14 @@ function bundle(setup::Function, snap::Snap, destination::String; compress::Bool
     end
 
     app_stage = compress ? mktempdir() : destination
-    
+
+    @info "Staging Snap base"    
     stage(snap, app_stage; install_configure, predicate)    
+    @info "Installing App into stage"
     setup(app_stage)
 
     if compress
+        @info "Packing stage into Snap"
         SnapPack.pack(app_stage, destination)
     end
 
