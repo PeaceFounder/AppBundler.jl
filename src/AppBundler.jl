@@ -116,20 +116,16 @@ function main_build(ARGS; sources_dir)
     if :msix == target_bundle
 
         msix = MSIX(sources_dir; windowed, selfsign)
-        
+
         if selfsign
             password = ""
-        else
-            if isnothing(msix.pfx_cert)
-                error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
-            end
-
-            if isnothing(password)
-                print("Type in certificate password:")
-                password = readline() |> strip
-            end
+        elseif isnothing(msix.pfx_cert)
+            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
+        elseif isnothing(password)
+            print("Type in certificate password:")
+            password = readline() |> strip
         end
-
+        
         target_path = joinpath(build_dir, target_name(msix.parameters))
         bundle(spec, msix, compress ? "$target_path.msix" : target_path; force = overwrite_target, target_arch, password)
 
@@ -137,18 +133,13 @@ function main_build(ARGS; sources_dir)
 
         dmg = DMG(sources_dir; windowed, selfsign)
 
-
         if selfsign
             password = ""
-        else
-            if isnothing(dmg.pfx_cert)
-                error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
-            end
-
-            if isnothing(password)
-                print("Type in certificate password:")
-                password = strip(readline())
-            end
+        elseif isnothing(dmg.pfx_cert)
+            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
+        elseif isnothing(password)
+            print("Type in certificate password:")
+            password = readline() |> strip
         end
 
         target_path = joinpath(build_dir, target_name(dmg.parameters))

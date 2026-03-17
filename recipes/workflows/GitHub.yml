@@ -38,37 +38,19 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-
-      - name: Remove System32 OpenSSL DLLs (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          $system32 = "C:\Windows\System32"
-          
-          foreach ($dll in @("libcrypto-3-x64.dll", "libssl-3-x64.dll")) {
-            $path = Join-Path $system32 $dll
-            if (Test-Path $path) {
-              Remove-Item -Path $path -Force
-              Write-Host "Removed $dll from System32"
-            } else {
-              Write-Host "$dll not found in System32"
-            }
-          }
-        shell: pwsh
-
       - uses: julia-actions/setup-julia@v2
         with:
-          version: '1.11'
-
+          version: '1.12'
       - uses: julia-actions/cache@v1
-      
       - name: Install dependencies
         run: julia --project=meta -e 'using Pkg; Pkg.instantiate()'
-
+      - name: Install JuliaC
+        run: julia -e 'using Pkg; Pkg.Apps.add("JuliaC")'
       - name: Build
         env: 
           PASSWORD: ${{ matrix.os == 'macos' && secrets.MACOS_PFX_PASSWORD || matrix.os == 'windows' && secrets.WINDOWS_PFX_PASSWORD || '' }}
         run: |
-          ${{ matrix.xvfb && 'xvfb-run -s ''-screen 0 1024x768x24''' || '' }} julia --project=meta --eval "using AppBundler" build ..  --build-dir=../build --target-arch=${{ matrix.arch }} --password=${{ env.PASSWORD }}
+          ${{ matrix.xvfb && 'xvfb-run -s ''-screen 0 1024x768x24''' || '' }} julia --project=meta -m AppBundler build .. --build-dir=../build --target-arch=${{ matrix.arch }} --password=${{ env.PASSWORD }}
       
       - uses: actions/upload-artifact@v4
         with:

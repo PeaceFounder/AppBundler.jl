@@ -129,7 +129,7 @@ function bundle(product::JuliaCBundle, dmg::DMG, destination::String; compress::
     return
 end
 
-function bundle(product::JuliaCBundle, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false)
+function bundle(product::JuliaCBundle, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false, target_arch = Sys.ARCH)
 
     if !Sys.islinux()
         @warn "The build for the snap will not work as it is not built on linux"
@@ -150,7 +150,7 @@ function bundle(product::JuliaCBundle, snap::Snap, destination::String; compress
     return
 end
 
-function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password = "", compress::Bool = isext(destination, ".msix"), force = false)
+function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password = "", compress::Bool = isext(destination, ".msix"), force = false, target_arch = Sys.ARCH)
 
     if !Sys.iswindows()
         @warn "The build for MSIX will not work as it is not built on Windows"

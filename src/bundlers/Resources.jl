@@ -508,7 +508,7 @@ function install_julia(platform::AbstractPlatform, julia_dir; version = julia_ve
     tarball = joinpath(julia_tarballs(), basename(url))
 
     if !isfile(tarball) # Hashing would be much better here
-        download("$base_url/$url", tarball)
+        Downloads.download("$base_url/$url", tarball)
     end
 
     source = extract_tar_gz(tarball)
