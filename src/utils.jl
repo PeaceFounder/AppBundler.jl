@@ -3,20 +3,20 @@ using Base64
 using rcodesign_jll: rcodesign
 using TOML
 
-function get_version(app_dir)
+# function get_version(app_dir)
     
-    project = joinpath(app_dir, "Project.toml")
+#     project = joinpath(app_dir, "Project.toml")
 
-    if isfile(project)
-        try
-            return TOML.parsefile(project)["version"] 
-        catch
-            error("Parsing of $project file failed")
-        end
-    else
-        error("App project file does not exist at $project")
-    end
-end
+#     if isfile(project)
+#         try
+#             return TOML.parsefile(project)["version"] 
+#         catch
+#             error("Parsing of $project file failed")
+#         end
+#     else
+#         error("App project file does not exist at $project")
+#     end
+# end
 
 
 function generate_macos_signing_certificate(root; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)

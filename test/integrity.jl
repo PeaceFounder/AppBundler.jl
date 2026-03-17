@@ -53,8 +53,12 @@ try
     
 finally
     # cleanup
-    empty!(ARGS)
     rm(joinpath(app_dir, "meta/msix/certificate.pfx"); force = true)
     rm(joinpath(app_dir, "meta/dmg/certificate.pfx"); force = true)
     rm(joinpath(app_dir, ".github"); force = true, recursive = true)
 end
+
+
+# JuliaC example
+app_dir = joinpath(dirname(@__DIR__), "examples/CmdApp")
+AppBundler.main(["build", app_dir, "--selfsign"])

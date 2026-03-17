@@ -239,44 +239,44 @@ function create_pkg_context(project)
     return ctx
 end
 
-function get_transitive_dependencies(ctx, packages)
+# function get_transitive_dependencies(ctx, packages)
 
-    packages_sysimg = Set{Base.PkgId}()
+#     packages_sysimg = Set{Base.PkgId}()
 
-    frontier = Set{Base.PkgId}()
-    deps = ctx.env.project.deps
-    for pkg in packages
-        # Add all dependencies of the package
-        if ctx.env.pkg !== nothing && pkg == ctx.env.pkg.name
-            push!(frontier, Base.PkgId(ctx.env.pkg.uuid, pkg))
-        else
-            uuid = ctx.env.project.deps[pkg]
-            push!(frontier, Base.PkgId(uuid, pkg))
-        end
-    end
-    copy!(packages_sysimg, frontier)
-    new_frontier = Set{Base.PkgId}()
-    while !(isempty(frontier))
-        for pkgid in frontier
-            deps = if ctx.env.pkg !== nothing && pkgid.uuid == ctx.env.pkg.uuid
-                ctx.env.project.deps
-            else
-                ctx.env.manifest[pkgid.uuid].deps
-            end
-            pkgid_deps = [Base.PkgId(uuid, name) for (name, uuid) in deps]
-            for pkgid_dep in pkgid_deps
-                if !(pkgid_dep in packages_sysimg) #
-                    push!(packages_sysimg, pkgid_dep)
-                    push!(new_frontier, pkgid_dep)
-                end
-            end
-        end
-        copy!(frontier, new_frontier)
-        empty!(new_frontier)
-    end
+#     frontier = Set{Base.PkgId}()
+#     deps = ctx.env.project.deps
+#     for pkg in packages
+#         # Add all dependencies of the package
+#         if ctx.env.pkg !== nothing && pkg == ctx.env.pkg.name
+#             push!(frontier, Base.PkgId(ctx.env.pkg.uuid, pkg))
+#         else
+#             uuid = ctx.env.project.deps[pkg]
+#             push!(frontier, Base.PkgId(uuid, pkg))
+#         end
+#     end
+#     copy!(packages_sysimg, frontier)
+#     new_frontier = Set{Base.PkgId}()
+#     while !(isempty(frontier))
+#         for pkgid in frontier
+#             deps = if ctx.env.pkg !== nothing && pkgid.uuid == ctx.env.pkg.uuid
+#                 ctx.env.project.deps
+#             else
+#                 ctx.env.manifest[pkgid.uuid].deps
+#             end
+#             pkgid_deps = [Base.PkgId(uuid, name) for (name, uuid) in deps]
+#             for pkgid_dep in pkgid_deps
+#                 if !(pkgid_dep in packages_sysimg) #
+#                     push!(packages_sysimg, pkgid_dep)
+#                     push!(new_frontier, pkgid_dep)
+#                 end
+#             end
+#         end
+#         copy!(frontier, new_frontier)
+#         empty!(new_frontier)
+#     end
 
-    return packages_sysimg
-end
+#     return packages_sysimg
+# end
 
 function install_project_toml(uuid, pkgentry, destination)
     # Extract information from pkginfo

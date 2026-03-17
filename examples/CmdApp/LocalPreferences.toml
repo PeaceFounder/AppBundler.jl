@@ -1,3 +1,6 @@
+[AppEnv]
+assets = ["LICENSE"] 
+
 [AppBundler]
 windowed = false
 bundler = "juliac"
