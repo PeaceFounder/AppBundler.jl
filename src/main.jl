@@ -3,6 +3,133 @@ import TOML
 import LibGit2
 using Preferences
 
+function (@main)(ARGS)
+
+    if ARGS[1] == "build"
+
+        old_project = Base.ACTIVE_PROJECT[]
+        push!(Base.LOAD_PATH, pkgdir(AppBundler)) # needed for reading LocalPreferences.toml when AppBundler is loaded as project
+
+        try
+            Base.ACTIVE_PROJECT[] = joinpath(realpath(ARGS[2]))
+            main_build(ARGS[3:end]; sources_dir = realpath(ARGS[2]))
+        finally
+            pop!(Base.LOAD_PATH)
+            Base.ACTIVE_PROJECT[] = old_project
+        end
+
+    elseif ARGS[1] == "--help"
+        println("Use the command as `appbundler [build|instantiate] [args]`.")
+
+    else
+
+        error("Got unsupported command $(ARGS[1]). See `--help` for available commands.")
+
+    end
+
+    return 0
+end
+
+function main_build(ARGS; sources_dir)
+
+    config = parse_args(ARGS)
+
+    target_arch = config[:target_arch]
+    target_bundle = config[:target_bundle]
+    build_dir = config[:build_dir]
+    selfsign = config[:selfsign]
+    compress = config[:compress]
+    windowed = config[:windowed]
+    overwrite_target = config[:overwrite_target]
+    password = config[:password]
+
+    bundler = @load_preference("bundler")
+
+    if bundler == "juliaimg"
+
+        if @load_preference("juliaimg_selective_assets")
+            remove_sources = true
+            asset_spec = Resources.extract_asset_spec(sources_dir)
+        else
+            remove_sources = false
+            asset_spec = Dict{Symbol, Vector{String}}()
+        end
+
+        spec = JuliaImgBundle(sources_dir; 
+                              precompile = @load_preference("juliaimg_precompile"), 
+                              incremental = @load_preference("juliaimg_incremental"),
+                              sysimg_packages = @load_preference("juliaimg_sysimg"),
+                              remove_sources,
+                              asset_spec
+                              ) 
+
+    elseif bundler == "juliac"
+
+        asset_spec = Resources.extract_asset_spec(sources_dir)
+        spec = JuliaCBundle(sources_dir; trim = @load_preference("juliac_trim"), asset_spec) 
+
+    else
+
+        error("Got unsupported bundler type $bundler")
+
+    end
+
+    function target_name(parameters)
+        if isnothing(config[:target_name])
+            version = parameters["APP_VERSION"]
+            app_name = parameters["APP_NAME"]
+            return "$(app_name)-$version-$(target_arch)"
+        else
+            return config[:target_name]
+        end
+    end
+
+    if :msix == target_bundle
+
+        msix = MSIX(sources_dir; windowed, selfsign)
+
+        if selfsign
+            password = ""
+        elseif isnothing(msix.pfx_cert)
+            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
+        elseif isnothing(password)
+            print("Type in certificate password:")
+            password = readline() |> strip
+        end
+        
+        target_path = joinpath(build_dir, target_name(msix.parameters))
+        bundle(spec, msix, compress ? "$target_path.msix" : target_path; force = overwrite_target, target_arch, password)
+
+    elseif :dmg == target_bundle
+
+        dmg = DMG(sources_dir; windowed, selfsign)
+
+        if selfsign
+            password = ""
+        elseif isnothing(dmg.pfx_cert)
+            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
+        elseif isnothing(password)
+            print("Type in certificate password:")
+            password = readline() |> strip
+        end
+
+        target_path = joinpath(build_dir, target_name(dmg.parameters))
+        bundle(spec, dmg, compress ? "$target_path.dmg" : target_path; force = overwrite_target, target_arch, password)
+
+    elseif :snap == target_bundle
+
+        snap = Snap(sources_dir; windowed)
+        target_path = joinpath(build_dir, target_name(snap.parameters))
+        bundle(spec, snap, compress ? "$target_path.snap" : target_path; force = overwrite_target, target_arch)
+
+    else
+        error("Got unsupported bundle type $target_bundle")
+    end
+
+    return
+end
+
+
 function get_project_name(project_toml)
 
     toml_dict = TOML.parsefile(project_toml)

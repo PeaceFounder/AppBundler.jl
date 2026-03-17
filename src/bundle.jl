@@ -602,7 +602,7 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
         end
     end
 
-    @info "Staging DMG base"
+    @info "Initializing DMG staging layout..."
     if compress
         #appname = parameters["APP_NAME"]
         appname = parameters["APP_DISPLAY_NAME"]
@@ -613,7 +613,7 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
         stage(dmg, app_stage; dsstore = false, main_redirect, arch, predicate)        
     end
 
-    @info "Installing App into stage"
+    @info "Installing app into staging area..."
     setup(app_stage)
 
     # Remove AppleDouble metadata files (._*) that macOS creates to preserve extended attributes
@@ -635,7 +635,7 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
         pfx_path = dmg.pfx_cert
     end        
 
-    @info "Packing stage into DMG"
+    @info "Packaging staging area into DMG..."
     entitlements = joinpath(mktempdir(), "Entitlements.plist")
     install(dmg.entitlements, entitlements; parameters, predicate)
     
@@ -702,12 +702,11 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
             error("Destination $destination already exists. Use `force = true` argument.")
         end
     end
-
     app_stage = compress ? mktempdir() : destination
 
-    @info "Staging MSIX base"
+    @info "Initializing MSIX staging layout..."
     stage(msix, app_stage; predicate)
-    @info "Installing App into stage"
+    @info "Installing app into staging area..."
     setup(app_stage)
 
     (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
@@ -721,8 +720,7 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
         else
             pfx_path = msix.pfx_cert
         end        
-
-        @info "Packing stage into MSIX"
+        @info "Packaging staging area into MSIX..."
         MSIXPack.pack(app_stage, destination; pfx_path, password)        
     end
     
@@ -780,13 +778,13 @@ function bundle(setup::Function, snap::Snap, destination::String; compress::Bool
 
     app_stage = compress ? mktempdir() : destination
 
-    @info "Staging Snap base"    
+    @info "Initializing Snap staging layout..."
     stage(snap, app_stage; install_configure, predicate)    
-    @info "Installing App into stage"
+    @info "Installing app into staging area..."
     setup(app_stage)
 
     if compress
-        @info "Packing stage into Snap"
+        @info "Packaging staging area into Snap..."
         SnapPack.pack(app_stage, destination)
     end
 

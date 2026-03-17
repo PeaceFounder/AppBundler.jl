@@ -20,8 +20,6 @@ function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; compress
 
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
         install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate)
-
-        #install_config(joinpath(app_stage, "Contents/Libraries/config"), dmg.parameters)
     end
 
     return
@@ -44,13 +42,9 @@ function bundle(product::JuliaImgBundle, snap::Snap, destination::String; compre
         app_name = snap.parameters["APP_NAME"]
         install(main_file, joinpath(app_stage, "bin/$app_name"); parameters = snap.parameters, executable = true)
 
-        # This approach has errors. 
-
         configure_compiled_modules = JuliaImg.get_project_deps(product.source)
-        # push!(configure_compiled_modules, "AppEnv") # won't work as AppEnv is used to bootstrap the DEPOT_PATH
         install(snap.configure_hook, joinpath(app_stage, "meta/hooks/configure"); parameters = Dict("PROJECT_DEPS" => join(configure_compiled_modules, ",")), executable = true)
 
-        #install_config(joinpath(app_stage, "config"), snap.parameters)
     end
 
     return
@@ -85,8 +79,6 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; compre
         touch("$app_stage/bin/julia.exe") # updating timestamp to avoid Invalid Parameter error
 
         install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
-        
-        #install_config(joinpath(app_stage, "config"), msix.parameters)
 
         if msix.windowed
             WinSubsystem.change_subsystem_inplace("$app_stage/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
@@ -96,7 +88,6 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; compre
 
     return
 end
-
 
 function bundle(product::JuliaCBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = "", target_arch = Sys.ARCH)
 
@@ -118,12 +109,8 @@ function bundle(product::JuliaCBundle, dmg::DMG, destination::String; compress::
         mkdir(joinpath(app_stage, "Contents/Libraries"))
         stage(product, joinpath(app_stage, "Contents/Libraries"); runtime_mode = "SANDBOX", app_name, bundle_identifier)
         
-        # main redirect
-        # fixing it may be sufficient here to get the application
         main_file = get_path([joinpath(product.project, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
         install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = :JULIAC_BUNDLE)
-
-        #install_config(joinpath(app_stage, "Contents/Libraries/config"), dmg.parameters)
     end
 
     return
@@ -143,8 +130,6 @@ function bundle(product::JuliaCBundle, snap::Snap, destination::String; compress
         bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
 
         stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)
-
-        #install_config(joinpath(app_stage, "config"), snap.parameters)        
     end
 
     return
@@ -163,11 +148,9 @@ function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password
 
         stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)        
 
-        #install_config(joinpath(app_stage, "config"), msix.parameters)
-
-         if msix.windowed
-             WinSubsystem.change_subsystem_inplace(joinpath(app_stage, "bin", "$app_name.exe"); subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
-         end
+        if msix.windowed
+            WinSubsystem.change_subsystem_inplace(joinpath(app_stage, "bin", "$app_name.exe"); subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
+        end
     end
 
     return

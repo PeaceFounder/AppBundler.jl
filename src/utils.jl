@@ -220,7 +220,6 @@ function ensure_windows_compatability(src_dir::String; path_length_threshold::In
     return
 end
 
-
 function get_path(prefix::Vector, suffix::Vector; dir = false, warn = true)
 
     for i in prefix
