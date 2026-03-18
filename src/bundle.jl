@@ -127,25 +127,6 @@ function normalize_publisher(publisher)
     return join(items, ", ")
 end
 
-# function get_publisher(pfx_cert, selfsign; password="")
-
-#     publisher = @load_preference("publisher", nothing)
-
-#     if !isnothing(publisher)
-#         return publisher |> normalize_publisher
-#     else
-#         if isnothing(pfx_cert) || selfsign
-#             return "O=PeaceFounder,C=XX,CN=AppBundler" |> normalize_publisher # order is important
-#         else
-#             try
-#                 return MSIXPack.extract_subject_from_certificate(pfx_cert) |> normalize_publisher
-#             catch
-#                 error("Extracting publisher from $pfx_cert failed. To sidestep this issue set `publisher` in LocalPrefereces.toml")
-#             end
-#         end
-#     end
-# end
-
 
 """
     Snap(; prefix, icon, snap_config, desktop_launcher, configure_hook, parameters)

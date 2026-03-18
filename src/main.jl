@@ -240,6 +240,9 @@ function normalize_args(args)
             flag, value = split(arg, '=', limit=2)
             push!(normalized, flag)
             push!(normalized, strip(value, ['"', '\'']))
+        elseif startswith(arg, "-D")
+            push!(normalized, "-D")
+            push!(normalized, arg[3:end])
         else
             push!(normalized, arg)
         end
@@ -251,19 +254,9 @@ function parse_args(raw_args)
 
     args = normalize_args(raw_args)
 
-    # Default values
-    config = Dict(
-        :build_dir => mktempdir(),  # Use nothing to distinguish "not set" from ""
-        :compress => @load_preference("compress"),
-        :windowed => @load_preference("windowed"),
-        :selfsign => @load_preference("selfsign"),
-        :target_arch => Sys.ARCH,
-        :target_bundle => Sys.islinux() ? :snap : Sys.isapple() ? :dmg : Sys.iswindows() ? :msix : error("Bundling for current platform is unsupported"),
-        :target_name => nothing,
-        :overwrite_target => @load_preference("overwrite_target"),
-        :password => nothing
-    )
-    
+    config = Dict()
+    preferences = []
+
     i = 1
     while i <= length(args)
         arg = args[i]
@@ -289,6 +282,9 @@ function parse_args(raw_args)
                 end
                 config[:build_dir] = abspath(build_dir)  # Store absolute path
             end
+        elseif arg == "-D"
+            i += 1
+            push!(preferences, args[i])
         elseif arg == "--force"
             config[:overwrite_target] = true
         elseif arg == "--debug"
@@ -321,7 +317,23 @@ function parse_args(raw_args)
         i += 1
     end
 
-    return config
+    preferences_dict = TOML.parse(join(preferences, "\n"))
+    merge!(Base.get_preferences()["AppBundler"], preferences_dict)
+
+    # Default values
+    defaults = Dict(
+        :build_dir => mktempdir(),  # Use nothing to distinguish "not set" from ""
+        :compress => @load_preference("compress"),
+        :windowed => @load_preference("windowed"),
+        :selfsign => @load_preference("selfsign"),
+        :target_arch => Sys.ARCH,
+        :target_bundle => Sys.islinux() ? :snap : Sys.isapple() ? :dmg : Sys.iswindows() ? :msix : error("Bundling for current platform is unsupported"),
+        :target_name => nothing,
+        :overwrite_target => @load_preference("overwrite_target"),
+        :password => nothing
+    )
+
+    return merge(defaults, config)
 end
 
 function print_help()
