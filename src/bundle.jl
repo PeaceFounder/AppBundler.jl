@@ -1,6 +1,7 @@
 import Pkg, Artifacts
 using Pkg.BinaryPlatforms: MacOS
 using AppBundlerUtils_jll
+using Preferences
 import Mustache
 
 """
@@ -57,6 +58,9 @@ struct MSIX
     publisher::String
     pfx_cert::Union{String, Nothing} 
     windowed::Bool
+    compress::Bool
+    arch::Symbol
+    predicate::Symbol
     parameters::Dict{String, Any}
 end
 
@@ -74,10 +78,13 @@ function MSIX(;
               publisher = @load_preference("msix_publisher") |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
               pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
               windowed = true,
+              compress = true,
+              target_arch = Sys.ARCH,
+              predicate = Symbol(""),
               parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher)
               )
     
-    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, parameters)
+    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, target_arch, predicate, parameters)
 end
 
 
@@ -180,8 +187,11 @@ struct Snap # by extensions files could have multiple modes that are set via sta
     icon::String
     snap_config::String
     desktop_launcher::String
-    configure_hook::String # needs to be enabled when staging
+    configure_hook::Union{String, Nothing} # needs to be enabled when staging
     windowed::Bool
+    compress::Bool
+    arch::Symbol
+    predicate::Symbol
     parameters::Dict{String, Any}
 end
 
@@ -192,10 +202,13 @@ function Snap(;
               desktop_launcher = get_path(prefix, "snap/main.desktop"),
               configure_hook = get_path(prefix, "snap/configure.sh"),
               windowed = true,
+              compress = true,
+              arch = Sys.ARCH,
+              predicate = Symbol(""),
               parameters = Dict("WINDOWED" => windowed)
               )
 
-    return Snap(icon, snap_config, desktop_launcher, configure_hook, windowed, parameters)
+    return Snap(icon, snap_config, desktop_launcher, configure_hook, windowed, compress, arch, predicate, parameters)
 end
 
 """
@@ -280,8 +293,13 @@ struct DMG
     shallow_signing::Bool
     hardened_runtime::Bool
     sandboxed_runtime::Bool
+    main_redirect::Bool
     hfsplus::Bool
     windowed::Bool
+    compress::Bool
+    compression::Symbol
+    arch::Symbol
+    predicate::Symbol # Can be a type
     parameters::Dict{String, Any}
 end
 
@@ -297,12 +315,17 @@ function DMG(;
              shallow_signing = @load_preference("dmg_shallow_signing"),
              hardened_runtime = @load_preference("dmg_hardened_runtime"),
              sandboxed_runtime = @load_preference("dmg_sandboxed_runtime"),
+             main_redirect = true,
              hfsplus = false,
              windowed = true,
+             compress = true,
+             compression = :lzma,
+             arch = Sys.ARCH,
+             predicate = Symbol(""),
              parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => string(sandboxed_runtime))
              )
 
-    return DMG(icon, info_config, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, hfsplus, windowed, parameters)
+    return DMG(icon, info_config, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_redirect, hfsplus, windowed, compress, compression, arch, predicate, parameters)
 end
 
 """
@@ -362,7 +385,7 @@ msix = MSIX(app_dir)
 stage(msix, "build/msix_staging")
 ```
 """
-function stage(msix::MSIX, destination::String; predicate = nothing)
+function stage(msix::MSIX, destination::String)
 
     if !isdir(destination)
         mkdir(destination)
@@ -375,7 +398,7 @@ function stage(msix::MSIX, destination::String; predicate = nothing)
         MSIXIcons.generate_app_icons(msix.icon, joinpath(destination, "Assets")) 
     end
 
-    (; parameters) = msix
+    (; predicate, parameters) = msix
     install(msix.appxmanifest, joinpath(destination, "AppxManifest.xml"); parameters, predicate)
     cp(msix.resources_pri, joinpath(destination, "resources.pri"))
     install(msix.msixinstallerdata, joinpath(destination, "Msix.AppInstaller.Data/MSIXAppInstallerData.xml"); parameters)
@@ -466,16 +489,16 @@ dmg = DMG(app_dir)
 stage(dmg, "MyApp.app"; dsstore = true, main_redirect = true, arch = :arm64)
 ```
 """
-function stage(dmg::DMG, destination::String; dsstore = false, main_redirect = false, arch = :x86_64, predicate = nothing) 
+function stage(dmg::DMG, destination::String; dsstore = false) 
 
-    (; parameters) = dmg
+    (; predicate, parameters) = dmg
     app_name = parameters["APP_NAME"]
 
     install(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns"))
     install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)
 
-    if main_redirect
-        launcher = retrieve_macos_launcher(MacOS(arch))
+    if dmg.main_redirect
+        launcher = retrieve_macos_launcher(MacOS(dmg.arch))
         install(launcher, joinpath(destination, "Contents/MacOS/$app_name"); executable = true)
     end
 
@@ -514,16 +537,16 @@ snap = Snap(app_dir)
 stage(snap, "build/snap_staging"; install_configure = true)
 ```
 """
-function stage(snap::Snap, destination::String; install_configure = false, predicate = nothing)
+function stage(snap::Snap, destination::String)
 
-    (; parameters) = snap
+    (; predicate, parameters) = snap
     app_name = parameters["APP_NAME"]
 
     install(snap.icon, joinpath(destination, "meta/icon.png"))
     install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters, predicate)
     install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_name.desktop"); parameters, predicate)
     
-    if install_configure
+    if !isnothing(snap.configure_hook)
         install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters, executable = true, predicate)
     end
 
@@ -584,9 +607,9 @@ bundle(dmg, "MyApp.dmg"; compress = true, compression = :lzma) do staging_dir
 end
 ```
 """
-function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = "", main_redirect = false, arch = :x86_64, predicate = nothing) 
+function bundle(setup::Function, dmg::DMG, destination::String; force = false, password = "") 
 
-    (; parameters) = dmg
+    (; parameters, predicate) = dmg
     
     installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
 
@@ -603,14 +626,14 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     end
 
     @info "Initializing DMG staging layout..."
-    if compress
+    if dmg.compress
         #appname = parameters["APP_NAME"]
         appname = parameters["APP_DISPLAY_NAME"]
         app_stage = joinpath(mktempdir(), "$appname.app")
-        stage(dmg, app_stage; dsstore = true, main_redirect, arch, predicate)        
+        stage(dmg, app_stage; dsstore = true)        
     else
         app_stage = destination
-        stage(dmg, app_stage; dsstore = false, main_redirect, arch, predicate)        
+        stage(dmg, app_stage; dsstore = false)
     end
 
     @info "Installing app into staging area..."
@@ -639,7 +662,7 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress::Bool =
     entitlements = joinpath(mktempdir(), "Entitlements.plist")
     install(dmg.entitlements, entitlements; parameters, predicate)
     
-    DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = compress ? compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, hfsplus = dmg.hfsplus)
+    DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, hfsplus = dmg.hfsplus)
 
     return
 end
@@ -693,7 +716,7 @@ bundle(msix, "MyApp.msix"; compress = true) do staging_dir
 end
 ```
 """
-function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, password = "", predicate = nothing)
+function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "")
 
     if ispath(destination)
         if force
@@ -702,17 +725,17 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress::Bool
             error("Destination $destination already exists. Use `force = true` argument.")
         end
     end
-    app_stage = compress ? mktempdir() : destination
+    app_stage = msix.compress ? mktempdir() : destination
 
     @info "Initializing MSIX staging layout..."
-    stage(msix, app_stage; predicate)
+    stage(msix, app_stage)
     @info "Installing app into staging area..."
     setup(app_stage)
 
     (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
     ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
 
-    if compress
+    if msix.compress
         if msix.selfsign
             @info "Generating self signing certificate"
             pfx_path = joinpath(tempdir(), "certificate.pfx")
@@ -766,7 +789,7 @@ bundle(snap, "MyApp.snap"; compress = true) do staging_dir
 end
 ```
 """
-function bundle(setup::Function, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false, install_configure = false, predicate = nothing)
+function bundle(setup::Function, snap::Snap, destination::String; force = false)
 
     if ispath(destination)
         if force
@@ -776,14 +799,14 @@ function bundle(setup::Function, snap::Snap, destination::String; compress::Bool
         end
     end
 
-    app_stage = compress ? mktempdir() : destination
+    app_stage = snap.compress ? mktempdir() : destination
 
     @info "Initializing Snap staging layout..."
-    stage(snap, app_stage; install_configure, predicate)    
+    stage(snap, app_stage)    
     @info "Installing app into staging area..."
     setup(app_stage)
 
-    if compress
+    if snap.compress
         @info "Packaging staging area into Snap..."
         SnapPack.pack(app_stage, destination)
     end

@@ -30,6 +30,16 @@ function (@main)(ARGS)
     return 0
 end
 
+suffix(::MSIX) = "msix"
+suffix(::DMG) = "dmg"
+suffix(::Snap) = "snap"
+
+function canonical_target_name(spec::Union{MSIX, DMG, Snap})
+    version = spec.parameters["APP_VERSION"]
+    app_name = spec.parameters["APP_NAME"]
+    return "$(app_name)-$version-$(spec.arch)"
+end
+
 function main_build(ARGS; sources_dir)
 
     config = parse_args(ARGS)
@@ -62,31 +72,44 @@ function main_build(ARGS; sources_dir)
                               remove_sources,
                               asset_spec
                               ) 
+        
+        predicate = :JULIA_IMG_BUNDLE
 
     elseif bundler == "juliac"
 
         asset_spec = Resources.extract_asset_spec(sources_dir)
         spec = JuliaCBundle(sources_dir; trim = @load_preference("juliac_trim"), asset_spec) 
 
+        predicate = :JULIA_IMG_BUNDLE
     else
 
         error("Got unsupported bundler type $bundler")
 
     end
 
-    function target_name(parameters)
-        if isnothing(config[:target_name])
-            version = parameters["APP_VERSION"]
-            app_name = parameters["APP_NAME"]
-            return "$(app_name)-$version-$(target_arch)"
+    function target_path(spec)
+        if !isnothing(config[:target_name])
+            name = config[:target_name]
         else
-            return config[:target_name]
+            name = canonical_target_name(spec)
         end
+
+        return joinpath(build_dir, spec.compress ? "$name.$(suffix(spec))" : name)
     end
+
+    # function target_name(parameters)
+    #     if isnothing(config[:target_name])
+    #         version = parameters["APP_VERSION"]
+    #         app_name = parameters["APP_NAME"]
+    #         return "$(app_name)-$version-$(target_arch)"
+    #     else
+    #         return config[:target_name]
+    #     end
+    # end
 
     if :msix == target_bundle
 
-        msix = MSIX(sources_dir; windowed, selfsign)
+        msix = MSIX(sources_dir; windowed, compress, selfsign, predicate, arch = target_arch)
 
         if selfsign
             password = ""
@@ -97,12 +120,11 @@ function main_build(ARGS; sources_dir)
             password = readline() |> strip
         end
         
-        target_path = joinpath(build_dir, target_name(msix.parameters))
-        bundle(spec, msix, compress ? "$target_path.msix" : target_path; force = overwrite_target, target_arch, password)
+        bundle(spec, msix, target_path(msix); force = overwrite_target, target_arch, password)
 
     elseif :dmg == target_bundle
 
-        dmg = DMG(sources_dir; windowed, selfsign)
+        dmg = DMG(sources_dir; windowed, selfsign, predicate, arch = target_arch)
 
         if selfsign
             password = ""
@@ -113,14 +135,12 @@ function main_build(ARGS; sources_dir)
             password = readline() |> strip
         end
 
-        target_path = joinpath(build_dir, target_name(dmg.parameters))
-        bundle(spec, dmg, compress ? "$target_path.dmg" : target_path; force = overwrite_target, target_arch, password)
+        bundle(spec, dmg, target_path(dmg); force = overwrite_target, password)
 
     elseif :snap == target_bundle
 
-        snap = Snap(sources_dir; windowed)
-        target_path = joinpath(build_dir, target_name(snap.parameters))
-        bundle(spec, snap, compress ? "$target_path.snap" : target_path; force = overwrite_target, target_arch)
+        snap = Snap(sources_dir; windowed, predicate, arch = target_arch)
+        bundle(spec, snap, target_path(snap); force = overwrite_target)
 
     else
         error("Got unsupported bundle type $target_bundle")

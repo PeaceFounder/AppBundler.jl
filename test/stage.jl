@@ -35,15 +35,15 @@ end
 src_dir = joinpath(pkgdir(AppBundler), "examples/GLApp")
 
 product_spec = JuliaImgBundle(src_dir; precompile = true)
-stage(product_spec, platform, mktempdir())
+stage(product_spec, mktempdir(); platform)
 
 asset_spec = Dict{Symbol, Vector{String}}(
     :AppEnv => ["LICENSE"]
 )
 
 product_spec = JuliaImgBundle(src_dir; precompile = true, asset_spec, asset_rpath = "assets", remove_sources=true)
-stage(product_spec, platform, mktempdir(); cpu_target="native")
+stage(product_spec, mktempdir(); platform, cpu_target="native")
 
 src_dir = joinpath(pkgdir(AppBundler), "examples/CmdApp")
 product_spec = JuliaImgBundle(src_dir; precompile = true, sysimg_packages = ["CmdApp"], asset_spec, remove_sources=true)
-stage(product_spec, platform, mktempdir(); cpu_target="native")
+stage(product_spec, mktempdir(); platform, cpu_target="native")

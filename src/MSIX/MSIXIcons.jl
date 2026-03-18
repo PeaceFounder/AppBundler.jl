@@ -194,35 +194,35 @@ function create_wide_tile(source_img, target_width::Int, target_height::Int)
     return wide_img
 end
 
-"""
-Generate basic icons with minimal dependencies.
-"""
-function generate_basic_app_icons(source_path::String, output_dir::String="assets"; use_bilinear::Bool=true)
-    mkpath(output_dir)
-    source_img = load(source_path)
+# """
+# Generate basic icons with minimal dependencies.
+# """
+# function generate_basic_app_icons(source_path::String, output_dir::String="assets"; use_bilinear::Bool=true)
+#     mkpath(output_dir)
+#     source_img = load(source_path)
     
-    resize_func = use_bilinear ? bilinear_resize : simple_resize
+#     resize_func = use_bilinear ? bilinear_resize : simple_resize
     
-    basic_specs = [
-        ("Square44x44Logo.png", 44, 44),
-        ("Square71x71Logo.png", 71, 71),
-        ("Square150x150Logo.png", 150, 150),
-        ("Square310x310Logo.png", 310, 310),
-        ("Wide310x150Logo.png", 310, 150),
-        ("logo.png", 512, 512),
-    ]
+#     basic_specs = [
+#         ("Square44x44Logo.png", 44, 44),
+#         ("Square71x71Logo.png", 71, 71),
+#         ("Square150x150Logo.png", 150, 150),
+#         ("Square310x310Logo.png", 310, 310),
+#         ("Wide310x150Logo.png", 310, 150),
+#         ("logo.png", 512, 512),
+#     ]
     
-    #println("Generating basic icon set...")
-    for (filename, width, height) in basic_specs
-        output_path = joinpath(output_dir, filename)
-        if width == height
-            resized_img = resize_func(source_img, (height, width))
-        else
-            resized_img = create_wide_tile(source_img, width, height, resize_func)
-        end
-        save(output_path, resized_img)
-        #println("  ✓ Created $filename ($(width)×$(height))")
-    end
-end
+#     #println("Generating basic icon set...")
+#     for (filename, width, height) in basic_specs
+#         output_path = joinpath(output_dir, filename)
+#         if width == height
+#             resized_img = resize_func(source_img, (height, width))
+#         else
+#             resized_img = create_wide_tile(source_img, width, height, resize_func)
+#         end
+#         save(output_path, resized_img)
+#         #println("  ✓ Created $filename ($(width)×$(height))")
+#     end
+# end
 
 end

@@ -21,8 +21,8 @@ using .SysImgTools
 using ..Resources
 using ..Resources: get_module_name
 
-import Base.BinaryPlatforms: AbstractPlatform, os, arch#, wordsize
-import Pkg.BinaryPlatforms: MacOS, Linux, Windows
+import Base.BinaryPlatforms: AbstractPlatform, HostPlatform, os, arch#, wordsize
+#import Pkg.BinaryPlatforms: MacOS, Linux, Windows
 import Libdl
 
 using UUIDs
@@ -297,34 +297,28 @@ Throws descriptive errors for unsupported combinations.
 function validate_cross_compilation(platform::AbstractPlatform)
     
     # Windows compilation
-    if platform isa Windows
+    if os(platform) == "windows" # isa Windows
         if !Sys.iswindows()
             throw(ArgumentError("Cross-compilation to Windows from $(Sys.KERNEL) is not supported"))
         end
         return true
-    end
-    
-    # macOS compilation
-    if platform isa MacOS
+    elseif os(platform) == "macos"
         if !Sys.isapple()
             throw(ArgumentError("Cross-compilation to macOS from $(Sys.KERNEL) is not supported"))
         end
         
         # Check architecture compatibility on macOS
-        if Sys.ARCH == :x86_64 && arch(platform) == :aarch64
+        if Sys.ARCH == :x86_64 && arch(platform) == "aarch64"
             throw(ArgumentError("Cannot compile aarch64 binaries from x86_64 macOS"))
         end
         return true
-    end
-    
-    # Linux compilation
-    if platform isa Linux
+    elseif os(platform) == "linux"
         if !Sys.islinux()
             throw(ArgumentError("Cross-compilation to Linux from $(Sys.KERNEL) is not supported"))
         end
         
         # Check architecture compatibility on Linux
-        if Sys.ARCH !== arch(platform)
+        if Sys.ARCH !== Symbol(arch(platform))
             throw(ArgumentError("Cross-compilation across architectures not supported ($(Sys.ARCH) -> $(arch(platform)))"))
         end
         return true
@@ -437,7 +431,7 @@ stage(pkg, Linux(:x86_64), "build/linux_staging")
 
 ```
 """
-function stage(product::JuliaImgBundle, platform::AbstractPlatform, destination::String; cpu_target = get_cpu_target(platform), runtime_mode = "MIN", app_name = "", bundle_identifier = "")
+function stage(product::JuliaImgBundle, destination::String; platform::AbstractPlatform = HostPlatform(), cpu_target = get_cpu_target(platform), runtime_mode = "MIN", app_name = "", bundle_identifier = "")
 
     if product.precompile
         validate_cross_compilation(platform)

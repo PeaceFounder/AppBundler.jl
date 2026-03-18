@@ -1,15 +1,18 @@
 using Test
 
-import AppBundler: stage, bundle, MSIX, DMG, Snap
+import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack
 import AppBundler
 
 using osslsigncode_jll
-#using OpenSSL_jll
 using AppBundler.OpenSSLLegacy: openssl
 
 using SHA
 
 include("utils.jl")
+
+if isdir(joinpath(pkgdir(AppBundler), ".git"))
+    @test AppBundler.commit_count(pkgdir(AppBundler)) > 0
+end
 
 # # ------------------------ MSIX -------------------
 
@@ -40,28 +43,28 @@ predicate = :JULIA_IMG_BUNDLE
 
 @time @testset "MSIX bundling tests" begin
 
-    msix = MSIX(joinpath(@__DIR__, "../examples/GtkApp"); selfsign=true)
+    msix = MSIX(joinpath(@__DIR__, "../examples/GtkApp"); selfsign=true, predicate)
 
     @test hash_stage() do dest
-        stage(msix, dest; predicate)
+        stage(msix, dest)
         #AppBundler.MSIXPack.update_publisher_in_manifest(joinpath(dest, "AppxManifest.xml"), "AppBundler")
     end == "f0795381b99cddea7d98b7b52bf9264f82d733ab7443723d1f218ee74ba7f93a" #"2f2422ef39534041f56695e275441ab10835fc5e5d675cd5c40e058b5839cbc7"
 
     @test hash_stage() do stage_dir
 
         dest = joinpath(mktempdir(), "gtkapp.msix")
-        bundle(msix, dest; predicate) do app_stage
+        bundle(msix, dest) do app_stage
             @info "The MSIX app stage is $app_stage"
             touch(joinpath(app_stage, "MRF_signal_Δθ_23_NTRs_500.mrd"))
         end
 
         verify_msix_signature(dest)
 
+        MSIXPack.repack(dest, tempname(); pfx_path = msix.pfx_cert) # useful for debugging MSIX configuration issues
+
         AppBundler.MSIXPack.unpack(dest, stage_dir)
         rm(joinpath(stage_dir, "AppxSignature.p7x")) # Signatures are always nondeterministic
 
-        #AppBundler.MSIXPack.update_publisher_in_manifest(joinpath(stage_dir, "AppxManifest.xml"), "AppBundler")
-        
         # @test hash_file(joinpath(stage_dir, "AppxBlockMap.xml")) == "70ff6695ec913326f645c1cd30e48f75f57545ee4ae546db5843bf0779e6ee7e"
         rm(joinpath(stage_dir, "AppxBlockMap.xml")) # AppxBlockMap.xml has a slight nondeterminism
 
@@ -70,14 +73,14 @@ end
 
 if Sys.isunix()
 
-    # ------------------- DMG -------------
+    # # ------------------- DMG -------------
 
     @time @testset "DMG bundling tests" begin
 
-        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true, selfsign = true)
+        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true, selfsign = true, predicate, main_redirect = true, arch = :x86_64)
 
         @test hash_stage() do dest
-            stage(dmg, joinpath(dest, "GtkApp.app"); dsstore=true, main_redirect=true, predicate)
+            stage(dmg, joinpath(dest, "GtkApp.app"); dsstore=true)
             AppBundler.DMGPack.replace_binary_with_hash(joinpath(dest, "GtkApp.app/Contents/MacOS/gtkapp"))
             rm("$dest/Applications")
         end == "a06201da07a673a2c3c1dbc13d85c3a72334e4b3e479df2322245a98ce14e838"
@@ -85,7 +88,7 @@ if Sys.isunix()
         @test hash_stage() do stage_dir
 
             dest = joinpath(mktempdir(), "gtkapp.dmg")
-            bundle(dmg, dest; main_redirect=true, predicate) do app_stage
+            bundle(dmg, dest) do app_stage
                 @info "The DMG app stage is $app_stage"
             end
             
@@ -119,9 +122,9 @@ if Sys.isunix()
         if Sys.isapple()
             @test hash_stage() do stage_dir
 
-                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false, selfsign = true)
+                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false, selfsign = true, predicate, main_redirect = true, arch = :x86_64)
                 dest = joinpath(mktempdir(), "gtkapp.dmg")
-                bundle(dmg, dest; main_redirect=true, predicate) do app_stage
+                bundle(dmg, dest) do app_stage
                     @info "The DMG app stage is $app_stage"
                 end
                 
@@ -158,16 +161,16 @@ if Sys.isunix()
 
     @time @testset "Snap bundling tests" begin
 
-        snap = Snap(joinpath(@__DIR__, "../examples/GtkApp"))
+        snap = Snap(joinpath(@__DIR__, "../examples/GtkApp"); predicate, configure_hook = nothing)
 
         @test hash_stage() do dest
-            stage(snap, dest; install_configure=false, predicate)
+            stage(snap, dest)
         end == "ed982e260a2dd4f2260d66d1337ad6eb725e42e817bddcb9bd9ed953539b8328"
 
         @test hash_stage() do stage_dir
 
             dest = joinpath(mktempdir(), "gtkapp.snap")
-            bundle(snap, dest; install_configure=false, predicate) do app_stage
+            bundle(snap, dest) do app_stage
                 @info "The Snap app stage is $app_stage"
             end
             

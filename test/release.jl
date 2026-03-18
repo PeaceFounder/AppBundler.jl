@@ -7,7 +7,9 @@ import AppBundler: Snap, MSIX, DMG, bundle, JuliaImgBundle, JuliaCBundle
 build_dir = joinpath(dirname(@__DIR__), "build")
 mkpath(build_dir)
 force = true
+selfsign = true
 
+# Nonprecompiled option is interesting to test on linux
 let
     project = joinpath(dirname(@__DIR__), "examples/modjulia")
     spec = JuliaImgBundle(project; incremental = true, precompile = false)
@@ -20,16 +22,17 @@ let
     end
 
     if Sys.isapple()
-        dmg = DMG(project; windowed)
+        dmg = DMG(project; windowed, selfsign)
         bundle(spec, dmg, joinpath(build_dir, "$target_name.dmg"); force)
     end
 
     if Sys.iswindows()
-        msix = MSIX(project; windowed)
+        msix = MSIX(project; windowed, selfsign)
         bundle(spec, msix, joinpath(build_dir, "$target_name.msix"); force)
     end
 end
 
+# This can be a default
 let
     project = joinpath(dirname(@__DIR__), "examples/modjulia")
     spec = JuliaImgBundle(project; sysimg_packages = ["Mods"])
@@ -42,16 +45,18 @@ let
     end
 
     if Sys.isapple()
-        dmg = DMG(project; windowed)
+        dmg = DMG(project; windowed, selfsign)
         bundle(spec, dmg, joinpath(build_dir, "$target_name.dmg"); force)
     end
 
     if Sys.iswindows()
-        msix = MSIX(project; windowed)
+        msix = MSIX(project; windowed, selfsign)
         bundle(spec, msix, joinpath(build_dir, "$target_name.msix"); force)
     end
 end
 
+# A different framework could suit better
+# ElectronApp or BlinkApp
 let
     asset_spec = Dict{Symbol, Vector{String}}(
         :QMLApp => ["src/App.qml"]
@@ -68,16 +73,17 @@ let
     end
 
     if Sys.isapple()
-        dmg = DMG(project; windowed)
+        dmg = DMG(project; windowed, selfsign)
         bundle(spec, dmg, joinpath(build_dir, "$target_name.dmg"); force)
     end
 
     if Sys.iswindows()
-        msix = MSIX(project; windowed)
+        msix = MSIX(project; windowed, selfsign)
         bundle(spec, msix, joinpath(build_dir, "$target_name.msix"); force)
     end
 end
 
+# default
 let
     project = joinpath(dirname(@__DIR__), "examples/CmdApp")
     spec = JuliaCBundle(project; trim = true)
@@ -90,16 +96,17 @@ let
     end
 
     if Sys.isapple()
-        dmg = DMG(project; windowed)
+        dmg = DMG(project; windowed, selfsign)
         bundle(spec, dmg, joinpath(build_dir, "$target_name.dmg"); force)
     end
 
     if Sys.iswindows()
-        msix = MSIX(project; windowed)
+        msix = MSIX(project; windowed, selfsign)
         bundle(spec, msix, joinpath(build_dir, "$target_name.msix"); force)
     end
 end
 
+# use defualt
 let
 
     asset_spec = Dict{Symbol, Vector{String}}(
@@ -118,11 +125,11 @@ let
 
     if Sys.isapple()
         dmg = DMG(project; windowed) #sandboxed_runtime=true
-        bundle(spec, dmg, joinpath(build_dir, "$target_name.dmg"); force)
+        bundle(spec, dmg, joinpath(build_dir, "$target_name.dmg"); force, selfsign)
     end
 
     if Sys.iswindows()
         msix = MSIX(project; windowed)
-        bundle(spec, msix, joinpath(build_dir, "$target_name.msix"); force)
+        bundle(spec, msix, joinpath(build_dir, "$target_name.msix"); force, selfsign)
     end
 end

@@ -4,37 +4,37 @@ using .JuliaImg: JuliaImgBundle
 using .JuliaC: JuliaCBundle 
 import AppEnv
 
-function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = "", target_arch = Sys.ARCH)
+function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = false, password = "")
 
-    predicate = :JULIA_IMG_BUNDLE
+    #predicate = :JULIA_IMG_BUNDLE
     
-    bundle(dmg, destination; compress, compression, force, password, main_redirect = true, arch = target_arch, predicate) do app_stage
+    bundle(dmg, destination; force, password) do app_stage
         # app_stage always points to app directory
         # app_stage always points to app directory
         app_name = dmg.parameters["APP_NAME"]
         bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
 
-        stage(product, MacOS(target_arch), joinpath(app_stage, "Contents/Libraries"); runtime_mode = "SANDBOX", app_name, bundle_identifier)
+        stage(product, joinpath(app_stage, "Contents/Libraries"); platform = MacOS(dmg.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
 
         install(product.startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters = dmg.parameters, force = true)
 
         main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
-        install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate)
+        install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
     end
 
     return
 end
 
-function bundle(product::JuliaImgBundle, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false, target_arch = Sys.ARCH)
+function bundle(product::JuliaImgBundle, snap::Snap, destination::String; force = false)
 
-    predicate = :JULIA_IMG_BUNDLE
+    #predicate = :JULIA_IMG_BUNDLE
 
-    bundle(snap, destination; compress, force, predicate) do app_stage
+    bundle(snap, destination; force) do app_stage
 
         app_name = snap.parameters["APP_NAME"]
         bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
         
-        stage(product, Linux(target_arch), app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)
+        stage(product, app_stage; platform = Linux(snap.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
 
         install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = snap.parameters, force = true)
         
@@ -59,16 +59,16 @@ function normalize_executable(path::String)
     return
 end
 
-function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; compress::Bool = isext(destination, ".msix"), force = false, target_arch = Sys.ARCH, password = "")
+function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; force = false, password = "")
 
-    predicate = :JULIA_IMG_BUNDLE
+    #predicate = :JULIA_IMG_BUNDLE
 
-    bundle(msix, destination; compress, force, predicate, password) do app_stage
+    bundle(msix, destination; force, password) do app_stage
         
         app_name = msix.parameters["APP_NAME"]
         bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
 
-        stage(product, Windows(target_arch), app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)
+        stage(product, app_stage; platform = Windows(msix.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
         mv("$app_stage/libexec/julia/lld.exe", "$app_stage/bin/lld.exe") # julia.exe can't find shared libraries in UWP
 
         # Executables extracted from tar archives carry Unix-style metadata that causes 
@@ -89,7 +89,7 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; compre
     return
 end
 
-function bundle(product::JuliaCBundle, dmg::DMG, destination::String; compress::Bool = isext(destination, ".dmg"), compression = :lzma, force = false, password = "", target_arch = Sys.ARCH)
+function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = false, password = "")
 
     if !Sys.isapple()
         @warn "The build for the DMG will not work as it is not built on macos"
@@ -99,9 +99,9 @@ function bundle(product::JuliaCBundle, dmg::DMG, destination::String; compress::
         @warn "In hardened runtime mode it is a known bug that GUI terminal won't launch"
     end
 
-    predicate = :JULIAC_BUNDLE
+    #predicate = :JULIAC_BUNDLE
     
-    bundle(dmg, destination; compress, compression, force, password, main_redirect = true, arch = target_arch, predicate) do app_stage
+    bundle(dmg, destination; force, password) do app_stage
         # app_stage always points to app directory
         app_name = dmg.parameters["APP_NAME"]
         bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
@@ -110,21 +110,21 @@ function bundle(product::JuliaCBundle, dmg::DMG, destination::String; compress::
         stage(product, joinpath(app_stage, "Contents/Libraries"); runtime_mode = "SANDBOX", app_name, bundle_identifier)
         
         main_file = get_path([joinpath(product.project, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
-        install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = :JULIAC_BUNDLE)
+        install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
     end
 
     return
 end
 
-function bundle(product::JuliaCBundle, snap::Snap, destination::String; compress::Bool = isext(destination, ".snap"), force = false, target_arch = Sys.ARCH)
+function bundle(product::JuliaCBundle, snap::Snap, destination::String; force = false)
 
     if !Sys.islinux()
         @warn "The build for the snap will not work as it is not built on linux"
     end
 
-    predicate = :JULIAC_BUNDLE
+    #predicate = :JULIAC_BUNDLE
 
-    bundle(snap, destination; compress, force, install_configure=true, predicate) do app_stage
+    bundle(snap, destination; force) do app_stage
 
         app_name = snap.parameters["APP_NAME"]
         bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
@@ -135,13 +135,13 @@ function bundle(product::JuliaCBundle, snap::Snap, destination::String; compress
     return
 end
 
-function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password = "", compress::Bool = isext(destination, ".msix"), force = false, target_arch = Sys.ARCH)
+function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password = "")
 
     if !Sys.iswindows()
         @warn "The build for MSIX will not work as it is not built on Windows"
     end
     # I need to pass down the arguments here somehow for the template
-    bundle(msix, destination; compress, password = "", force, predicate = :JULIAC_BUNDLE) do app_stage
+    bundle(msix, destination; password, force) do app_stage
 
         app_name = msix.parameters["APP_NAME"]
         bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
