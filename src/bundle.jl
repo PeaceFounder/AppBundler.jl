@@ -60,27 +60,28 @@ struct MSIX
     windowed::Bool
     compress::Bool
     arch::Symbol
-    predicate::Symbol
+    predicate::String
     parameters::Dict{String, Any}
 end
 
 function MSIX(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
+              preferences = preferences(),
               icon = get_path(prefix, ["msix/Assets", "msix/icon.png", "icon.png"]; dir = true),
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
               resources_pri = get_path(prefix, "msix/resources.pri"),
               msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml"),
-              path_length_threshold = @load_preference("msix_path_length_threshold"),
-              skip_long_paths = @load_preference("msix_skip_long_paths"),
-              skip_symlinks = @load_preference("msix_skip_symlinks"),
-              skip_unicode_paths = @load_preference("msix_skip_unicode_paths"),
-              selfsign = false,              
-              publisher = @load_preference("msix_publisher") |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
+              path_length_threshold = preferences["msix_path_length_threshold"],
+              skip_long_paths = preferences["msix_skip_long_paths"],
+              skip_symlinks = preferences["msix_skip_symlinks"],
+              skip_unicode_paths = preferences["msix_skip_unicode_paths"],
+              selfsign = preferences["selfsign"],              
+              publisher = preferences["msix_publisher"] |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
               pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
-              windowed = true,
-              compress = true,
+              windowed = preferences["windowed"],
+              compress = preferences["compress"],
               target_arch = Sys.ARCH,
-              predicate = Symbol(""),
+              predicate = preferences["bundler"],
               parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher)
               )
     
@@ -112,11 +113,11 @@ msix = MSIX(app_dir)
 msix = MSIX(app_dir; skip_long_paths = true)
 ```
 """
-function MSIX(overlay; kwargs...)
+function MSIX(overlay; preferences = preferences(), kwargs...)
     
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
-    msix = MSIX(; prefix, kwargs...)
-    get_bundle_parameters!(msix.parameters, joinpath(overlay, "Project.toml"))
+    msix = MSIX(; prefix, preferences, kwargs...)
+    get_bundle_parameters!(msix.parameters, joinpath(overlay, "Project.toml"); preferences)
 
     return msix
 end
@@ -169,27 +170,30 @@ struct Snap # by extensions files could have multiple modes that are set via sta
     snap_config::String
     desktop_launcher::String
     configure_hook::Union{String, Nothing} # needs to be enabled when staging
+    main_launcher::Union{String, Nothing}
     windowed::Bool
     compress::Bool
     arch::Symbol
-    predicate::Symbol
+    predicate::String
     parameters::Dict{String, Any}
 end
 
 function Snap(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
+              preferences = preferences(),
+              predicate = preferences["bundler"],
               icon = get_path(prefix, ["snap/icon.png", "icon.png"]),
               snap_config = get_path(prefix, "snap/snap.yaml"),
               desktop_launcher = get_path(prefix, "snap/main.desktop"),
-              configure_hook = get_path(prefix, "snap/configure.sh"),
-              windowed = true,
-              compress = true,
+              configure_hook = get_path(prefix, hook("snap/configure.sh", predicate); warn = false),
+              main_launcher = get_path(prefix, hook("snap/main.sh", predicate); warn = false),
+              windowed = preferences["windowed"],
+              compress = preferences["compress"],
               arch = Sys.ARCH,
-              predicate = Symbol(""),
               parameters = Dict("WINDOWED" => windowed)
               )
 
-    return Snap(icon, snap_config, desktop_launcher, configure_hook, windowed, compress, arch, predicate, parameters)
+    return Snap(icon, snap_config, desktop_launcher, configure_hook, main_launcher, windowed, compress, arch, predicate, parameters)
 end
 
 """
@@ -216,11 +220,11 @@ snap = Snap(app_dir)
 snap = Snap(app_dir; icon = "custom_icon.png")
 ```
 """
-function Snap(overlay; kwargs...)
+function Snap(overlay; preferences = preferences(), kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     snap = Snap(; prefix, kwargs...)
-    parameters = get_bundle_parameters!(snap.parameters, joinpath(overlay, "Project.toml"))
+    parameters = get_bundle_parameters!(snap.parameters, joinpath(overlay, "Project.toml"); preferences)
 
     return snap
 end
@@ -274,39 +278,42 @@ struct DMG
     shallow_signing::Bool
     hardened_runtime::Bool
     sandboxed_runtime::Bool
-    main_redirect::Bool
+    #main_redirect::Bool
+    main_launcher::Union{String, Nothing}
     hfsplus::Bool
     windowed::Bool
     compress::Bool
     compression::Symbol
     arch::Symbol
-    predicate::Symbol # Can be a type
+    predicate::String
     parameters::Dict{String, Any}
 end
 
 # soft link can be used in case one needs to use png source. The issue here is of communicating intent.
 function DMG(;
              prefix = joinpath(dirname(@__DIR__), "recipes"),
+             preferences = preferences(),
+             predicate = preferences["bundler"],
              icon = get_path(prefix, ["dmg/icon.icns", "dmg/icon.png", "icon.icns"]),
              info_config = get_path(prefix, "dmg/Info.plist"),
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
              dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
-             selfsign = false,
+             selfsign = preferences["selfsign"],
              pfx_cert = get_path(prefix, "dmg/certificate.pfx"),
-             shallow_signing = @load_preference("dmg_shallow_signing"),
-             hardened_runtime = @load_preference("dmg_hardened_runtime"),
-             sandboxed_runtime = @load_preference("dmg_sandboxed_runtime"),
-             main_redirect = true,
+             shallow_signing = preferences["dmg_shallow_signing"],
+             hardened_runtime = preferences["dmg_hardened_runtime"],
+             sandboxed_runtime = preferences["dmg_sandboxed_runtime"],
+             #main_redirect = true,
+             main_launcher = get_path(prefix, hook("dmg/main.sh", predicate); warn = false),
              hfsplus = false,
-             windowed = true,
-             compress = true,
-             compression = :lzma,
+             windowed = preferences["windowed"],
+             compress = preferences["compress"],
+             compression = preferences["dmg_compression"] |> Symbol,
              arch = Sys.ARCH,
-             predicate = Symbol(""),
              parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => string(sandboxed_runtime))
              )
 
-    return DMG(icon, info_config, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_redirect, hfsplus, windowed, compress, compression, arch, predicate, parameters)
+    return DMG(icon, info_config, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, hfsplus, windowed, compress, compression, arch, predicate, parameters)
 end
 
 """
@@ -333,11 +340,11 @@ dmg = DMG(app_dir)
 dmg = DMG(app_dir; icon = "custom_icon.icns")
 ```
 """
-function DMG(overlay; kwargs...)
+function DMG(overlay; preferences = preferences(), kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     dmg = DMG(; prefix, kwargs...)
-    get_bundle_parameters!(dmg.parameters, joinpath(overlay, "Project.toml"))
+    get_bundle_parameters!(dmg.parameters, joinpath(overlay, "Project.toml"); preferences)
     
     return dmg
 end
@@ -478,14 +485,21 @@ function stage(dmg::DMG, destination::String; dsstore = false)
     install(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns"))
     install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)
 
-    if dmg.main_redirect
-        launcher = retrieve_macos_launcher(MacOS(dmg.arch))
-        install(launcher, joinpath(destination, "Contents/MacOS/$app_name"); executable = true)
-    end
+    # if dmg.main_redirect
+    #     launcher = retrieve_macos_launcher(MacOS(dmg.arch))
+    #     install(launcher, joinpath(destination, "Contents/MacOS/$app_name"); executable = true)
+    # end
 
     if dsstore
         symlink("/Applications", joinpath(dirname(destination), "Applications"); dir_target=true)
         install_dsstore(dmg.dsstore, joinpath(dirname(destination), ".DS_Store"); parameters)
+    end
+
+    if !isnothing(dmg.main_launcher)
+        launcher = retrieve_macos_launcher(MacOS(dmg.arch))
+        install(launcher, joinpath(destination, "Contents/MacOS/$app_name"); executable = true)
+
+        install(dmg.main_launcher, joinpath(destination, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
     end
 
     return
@@ -529,6 +543,11 @@ function stage(snap::Snap, destination::String)
     
     if !isnothing(snap.configure_hook)
         install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters, executable = true, predicate)
+    end
+
+    if !isnothing(snap.main_launcher)
+        app_name = snap.parameters["APP_NAME"]
+        install(snap.main_launcher, joinpath(destination, "bin/$app_name"); parameters, executable = true, predicate)
     end
 
     return

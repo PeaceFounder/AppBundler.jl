@@ -18,6 +18,7 @@ msix_publisher = "O=PeaceFounder,C=XX,CN=AppBundler"
 dmg_shallow_signing = true
 dmg_hardened_runtime = true
 dmg_sandboxed_runtime = false
+dmg_compression = "lzma"
 
 bundler = "juliaimg"
 

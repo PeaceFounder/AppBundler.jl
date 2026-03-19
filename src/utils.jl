@@ -18,6 +18,8 @@ using TOML
 #     end
 # end
 
+preferences() = Base.get_preferences()["AppBundler"]
+
 
 function generate_macos_signing_certificate(root; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
     
@@ -241,3 +243,12 @@ end
 get_path(prefix::String, suffix::String; kwargs...) = get_path([prefix], [suffix]; kwargs...)
 get_path(prefix::String, suffix::Vector; kwargs...) = get_path([prefix], suffix; kwargs...)
 get_path(prefix::Vector, suffix::String; kwargs...) = get_path(prefix, [suffix]; kwargs...)
+
+function hook(rpath, predicate)
+    if isempty(predicate)
+        return rpath
+    else
+        predicate_path = joinpath(dirname(rpath), join((lowercase(string(predicate)), basename(rpath)), "_"))
+        return [predicate_path, rpath]
+    end
+end

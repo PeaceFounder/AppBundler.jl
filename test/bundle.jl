@@ -39,11 +39,11 @@ function verify_msix_signature(msix_file)
     return
 end
 
-predicate = :JULIA_IMG_BUNDLE
+predicate = "juliaimg"
 
 @time @testset "MSIX bundling tests" begin
 
-    msix = MSIX(joinpath(@__DIR__, "../examples/GtkApp"); selfsign=true, predicate)
+    msix = MSIX(joinpath(@__DIR__, "../examples/GtkApp"); selfsign=true, predicate, windowed = true)
 
     @test hash_stage() do dest
         stage(msix, dest)
@@ -60,7 +60,7 @@ predicate = :JULIA_IMG_BUNDLE
 
         verify_msix_signature(dest)
 
-        MSIXPack.repack(dest, tempname(); pfx_path = msix.pfx_cert) # useful for debugging MSIX configuration issues
+        MSIXPack.repack(dest, tempname()) # useful for debugging MSIX configuration issues
 
         AppBundler.MSIXPack.unpack(dest, stage_dir)
         rm(joinpath(stage_dir, "AppxSignature.p7x")) # Signatures are always nondeterministic
@@ -73,17 +73,17 @@ end
 
 if Sys.isunix()
 
-    # # ------------------- DMG -------------
+    # ------------------- DMG -------------
 
     @time @testset "DMG bundling tests" begin
 
-        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true, selfsign = true, predicate, main_redirect = true, arch = :x86_64)
+        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true, selfsign = true, predicate, arch = :x86_64)
 
         @test hash_stage() do dest
             stage(dmg, joinpath(dest, "GtkApp.app"); dsstore=true)
             AppBundler.DMGPack.replace_binary_with_hash(joinpath(dest, "GtkApp.app/Contents/MacOS/gtkapp"))
             rm("$dest/Applications")
-        end == "a06201da07a673a2c3c1dbc13d85c3a72334e4b3e479df2322245a98ce14e838"
+        end == "340323df33e9f976003cb5b8e6059f3a09226c6eb93d489a406feae39ef3345d" 
 
         @test hash_stage() do stage_dir
 
@@ -116,13 +116,13 @@ if Sys.isunix()
             @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
             rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
 
-        end == "a06201da07a673a2c3c1dbc13d85c3a72334e4b3e479df2322245a98ce14e838"
+        end == "340323df33e9f976003cb5b8e6059f3a09226c6eb93d489a406feae39ef3345d"
 
 
         if Sys.isapple()
             @test hash_stage() do stage_dir
 
-                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false, selfsign = true, predicate, main_redirect = true, arch = :x86_64)
+                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false, selfsign = true, predicate, arch = :x86_64)
                 dest = joinpath(mktempdir(), "gtkapp.dmg")
                 bundle(dmg, dest) do app_stage
                     @info "The DMG app stage is $app_stage"
@@ -153,19 +153,19 @@ if Sys.isunix()
                 @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
                 rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
 
-            end == "a06201da07a673a2c3c1dbc13d85c3a72334e4b3e479df2322245a98ce14e838"
+            end == "340323df33e9f976003cb5b8e6059f3a09226c6eb93d489a406feae39ef3345d"
         end
     end
 
-    # # -------------------- SNAP -----------------
+    # -------------------- SNAP -----------------
 
     @time @testset "Snap bundling tests" begin
 
-        snap = Snap(joinpath(@__DIR__, "../examples/GtkApp"); predicate, configure_hook = nothing)
+        snap = Snap(joinpath(@__DIR__, "../examples/GtkApp"); predicate, configure_hook = nothing, windowed = true)
 
         @test hash_stage() do dest
             stage(snap, dest)
-        end == "ed982e260a2dd4f2260d66d1337ad6eb725e42e817bddcb9bd9ed953539b8328"
+        end == "f64997788eca9a5d020c4fe73921d4085fc07ea2266b1401276162efd4695678"
 
         @test hash_stage() do stage_dir
 
@@ -176,7 +176,7 @@ if Sys.isunix()
             
             AppBundler.SnapPack.unpack(dest, stage_dir)    
 
-        end == "ed982e260a2dd4f2260d66d1337ad6eb725e42e817bddcb9bd9ed953539b8328"
+        end == "f64997788eca9a5d020c4fe73921d4085fc07ea2266b1401276162efd4695678"
     end
 
 end

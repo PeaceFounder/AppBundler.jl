@@ -19,7 +19,7 @@ apps:
       - x11
       - network
 
-{{#JULIA_IMG_BUNDLE}}
+{{#JULIAIMG}}
 
 hooks:
   configure:
@@ -28,4 +28,4 @@ hooks:
       - opengl
       - wayland
 
-{{/JULIA_IMG_BUNDLE}}
+{{/JULIAIMG}}

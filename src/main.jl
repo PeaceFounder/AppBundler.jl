@@ -42,7 +42,7 @@ end
 
 function main_build(ARGS; sources_dir)
 
-    config = parse_args(ARGS)
+    config, preferences = parse_args(ARGS)
 
     target_arch = config[:target_arch]
     target_bundle = config[:target_bundle]
@@ -53,34 +53,31 @@ function main_build(ARGS; sources_dir)
     overwrite_target = config[:overwrite_target]
     password = config[:password]
 
-    bundler = @load_preference("bundler")
+    bundler = preferences["bundler"]
 
     if bundler == "juliaimg"
 
-        if @load_preference("juliaimg_selective_assets")
+        if preferences["juliaimg_selective_assets"]
             remove_sources = true
-            asset_spec = Resources.extract_asset_spec(sources_dir)
+            asset_spec = Resources.extract_asset_spec(sources_dir) 
         else
             remove_sources = false
             asset_spec = Dict{Symbol, Vector{String}}()
         end
 
         spec = JuliaImgBundle(sources_dir; 
-                              precompile = @load_preference("juliaimg_precompile"), 
-                              incremental = @load_preference("juliaimg_incremental"),
-                              sysimg_packages = @load_preference("juliaimg_sysimg"),
+                              precompile = preferences["juliaimg_precompile"],
+                              incremental = preferences["juliaimg_incremental"],
+                              sysimg_packages = preferences["juliaimg_sysimg"],
                               remove_sources,
                               asset_spec
                               ) 
         
-        predicate = :JULIA_IMG_BUNDLE
-
     elseif bundler == "juliac"
 
         asset_spec = Resources.extract_asset_spec(sources_dir)
-        spec = JuliaCBundle(sources_dir; trim = @load_preference("juliac_trim"), asset_spec) 
+        spec = JuliaCBundle(sources_dir; trim = preferences["juliac_trim"], asset_spec) 
 
-        predicate = :JULIA_IMG_BUNDLE
     else
 
         error("Got unsupported bundler type $bundler")
@@ -97,19 +94,9 @@ function main_build(ARGS; sources_dir)
         return joinpath(build_dir, spec.compress ? "$name.$(suffix(spec))" : name)
     end
 
-    # function target_name(parameters)
-    #     if isnothing(config[:target_name])
-    #         version = parameters["APP_VERSION"]
-    #         app_name = parameters["APP_NAME"]
-    #         return "$(app_name)-$version-$(target_arch)"
-    #     else
-    #         return config[:target_name]
-    #     end
-    # end
-
     if :msix == target_bundle
 
-        msix = MSIX(sources_dir; windowed, compress, selfsign, predicate, arch = target_arch)
+        msix = MSIX(sources_dir; windowed, compress, selfsign, arch = target_arch, preferences)
 
         if selfsign
             password = ""
@@ -124,7 +111,7 @@ function main_build(ARGS; sources_dir)
 
     elseif :dmg == target_bundle
 
-        dmg = DMG(sources_dir; windowed, selfsign, predicate, arch = target_arch)
+        dmg = DMG(sources_dir; windowed, selfsign, arch = target_arch, preferences)
 
         if selfsign
             password = ""
@@ -139,7 +126,7 @@ function main_build(ARGS; sources_dir)
 
     elseif :snap == target_bundle
 
-        snap = Snap(sources_dir; windowed, predicate, arch = target_arch)
+        snap = Snap(sources_dir; windowed, arch = target_arch, preferences)
         bundle(spec, snap, target_path(snap); force = overwrite_target)
 
     else
@@ -200,33 +187,33 @@ end
 
 get_bundle_parameters(project_toml) = get_bundle_parameters!(Dict{String, Any}(), project_toml)
 
-function get_bundle_parameters!(parameters::Dict{String, Any}, project_toml)
+function get_bundle_parameters!(parameters::Dict{String, Any}, project_toml; preferences = preferences())
 
     # The parameter resolution can differ depending on what is being bundled. 
     # For instance MODULE_NAME is Julia specific only.
 
-    if @load_preference("juliaimg_mainless")
+    if preferences["juliaimg_mainless"]
         project_name = get_project_name(project_toml)
-        app_name = @load_preference("app_name", project_name)
+        app_name = get(preferences, "app_name", project_name)
     else
         module_name = get_module_name(project_toml)
         parameters["MODULE_NAME"] = module_name
-        app_name = @load_preference("app_name", module_name) 
+        app_name = get(preferences, "app_name", module_name) 
     end
 
     parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
 
-    parameters["APP_DISPLAY_NAME"] = @load_preference("app_display_name", @load_preference("app_name", app_name))
+    parameters["APP_DISPLAY_NAME"] = get(preferences, "app_display_name", get(preferences, "app_name", app_name))
 
     parameters["APP_VERSION"] = get_project_version(project_toml)
-    parameters["BUILD_NUMBER"] = @load_preference("build_number", commit_count(dirname(project_toml)))
+    parameters["BUILD_NUMBER"] = get(preferences,"build_number", commit_count(dirname(project_toml)))
     
-    parameters["APP_SUMMARY"] = @load_preference("app_summary")
-    parameters["APP_DESCRIPTION"] = @load_preference("app_description")
+    parameters["APP_SUMMARY"] = preferences["app_summary"]
+    parameters["APP_DESCRIPTION"] = preferences["app_description"]
     
-    parameters["BUNDLE_IDENTIFIER"] = @load_preference("bundle_identifier", "org.appbundler." * parameters["APP_NAME"])
+    parameters["BUNDLE_IDENTIFIER"] = get(preferences, "bundle_identifier", "org.appbundler." * parameters["APP_NAME"])
 
-    parameters["PUBLISHER_DISPLAY_NAME"] = @load_preference("publisher_name")
+    parameters["PUBLISHER_DISPLAY_NAME"] = preferences["publisher_name"]
 
     return parameters
 end
@@ -255,7 +242,7 @@ function parse_args(raw_args)
     args = normalize_args(raw_args)
 
     config = Dict()
-    preferences = []
+    preference_overrides = []
 
     i = 1
     while i <= length(args)
@@ -284,7 +271,7 @@ function parse_args(raw_args)
             end
         elseif arg == "-D"
             i += 1
-            push!(preferences, args[i])
+            push!(preference_overrides, args[i])
         elseif arg == "--force"
             config[:overwrite_target] = true
         elseif arg == "--debug"
@@ -317,23 +304,23 @@ function parse_args(raw_args)
         i += 1
     end
 
-    preferences_dict = TOML.parse(join(preferences, "\n"))
-    merge!(Base.get_preferences()["AppBundler"], preferences_dict)
+    preference_overrides_dict = TOML.parse(join(preference_overrides, "\n"))
+    preferences = merge(Base.get_preferences()["AppBundler"], preference_overrides_dict)
 
     # Default values
     defaults = Dict(
         :build_dir => mktempdir(),  # Use nothing to distinguish "not set" from ""
-        :compress => @load_preference("compress"),
-        :windowed => @load_preference("windowed"),
-        :selfsign => @load_preference("selfsign"),
+        :compress => preferences["compress"],
+        :windowed => preferences["windowed"],
+        :selfsign => preferences["selfsign"],
         :target_arch => Sys.ARCH,
         :target_bundle => Sys.islinux() ? :snap : Sys.isapple() ? :dmg : Sys.iswindows() ? :msix : error("Bundling for current platform is unsupported"),
         :target_name => nothing,
-        :overwrite_target => @load_preference("overwrite_target"),
+        :overwrite_target => preferences["overwrite_target"],
         :password => nothing
     )
 
-    return merge(defaults, config)
+    return merge(defaults, config), preferences
 end
 
 function print_help()

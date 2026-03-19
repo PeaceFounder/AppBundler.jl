@@ -18,8 +18,8 @@ function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = 
 
         install(product.startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters = dmg.parameters, force = true)
 
-        main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
-        install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
+        #main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
+        #install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
     end
 
     return
@@ -29,21 +29,26 @@ function bundle(product::JuliaImgBundle, snap::Snap, destination::String; force 
 
     #predicate = :JULIA_IMG_BUNDLE
 
+    configure_compiled_modules = JuliaImg.get_project_deps(product.source)
+    snap.parameters["PROJECT_DEPS"] = join(configure_compiled_modules, ",")
+
+    #install(snap.configure_hook, joinpath(app_stage, "meta/hooks/configure"); parameters = Dict("PROJECT_DEPS" => join(configure_compiled_modules, ",")), executable = true)
+
     bundle(snap, destination; force) do app_stage
 
         app_name = snap.parameters["APP_NAME"]
         bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
         
         stage(product, app_stage; platform = Linux(snap.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
-
+        
         install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = snap.parameters, force = true)
         
-        main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/main.sh")
-        app_name = snap.parameters["APP_NAME"]
-        install(main_file, joinpath(app_stage, "bin/$app_name"); parameters = snap.parameters, executable = true)
+        #main_file = get_path([joinpath(product.source, "meta"), joinpath(dirname(@__DIR__), "recipes")], "snap/main.sh")
+        #app_name = snap.parameters["APP_NAME"]
+        #install(main_file, joinpath(app_stage, "bin/$app_name"); parameters = snap.parameters, executable = true)
 
-        configure_compiled_modules = JuliaImg.get_project_deps(product.source)
-        install(snap.configure_hook, joinpath(app_stage, "meta/hooks/configure"); parameters = Dict("PROJECT_DEPS" => join(configure_compiled_modules, ",")), executable = true)
+        #configure_compiled_modules = JuliaImg.get_project_deps(product.source)
+        #install(snap.configure_hook, joinpath(app_stage, "meta/hooks/configure"); parameters = Dict("PROJECT_DEPS" => join(configure_compiled_modules, ",")), executable = true)
 
     end
 
@@ -106,11 +111,11 @@ function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = fa
         app_name = dmg.parameters["APP_NAME"]
         bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
 
-        mkdir(joinpath(app_stage, "Contents/Libraries"))
+        #mkdir(joinpath(app_stage, "Contents/Libraries"))
         stage(product, joinpath(app_stage, "Contents/Libraries"); runtime_mode = "SANDBOX", app_name, bundle_identifier)
         
-        main_file = get_path([joinpath(product.project, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
-        install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
+        #main_file = get_path([joinpath(product.project, "meta"), joinpath(dirname(@__DIR__), "recipes")], "dmg/main.sh")
+        #install(main_file, joinpath(app_stage, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
     end
 
     return

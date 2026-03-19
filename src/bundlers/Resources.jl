@@ -159,8 +159,6 @@ function collect_pkgorigins!(pkgorigins::Dict{PkgId, PkgOrigin}, project)
         #source_path = pkgentry.path
         source_path = Pkg.Operations.source_path(ctx.env.project_file, pkgentry)
 
-        #@infiltrate
-        
         if isnothing(source_path)
             @warn "Skipping $(pkgentry.name): source path not found"
             continue

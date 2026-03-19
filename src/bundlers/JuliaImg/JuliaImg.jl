@@ -151,7 +151,7 @@ function get_template(source, target)
 end
 
 
-function install(source, destination; parameters = Dict(), force = false, executable = false, predicate::Union{Symbol, Nothing} = nothing)
+function install(source, destination; parameters = Dict(), force = false, executable = false, predicate::Union{String, Nothing} = nothing)
 
     if isfile(destination) 
         if force
@@ -166,14 +166,22 @@ function install(source, destination; parameters = Dict(), force = false, execut
     total_parameters = copy(parameters)
 
     if !isnothing(predicate)
-        total_parameters[string(predicate)] = true
+        total_parameters[uppercase(predicate)] = true
     end
 
+    # Need to test that it is what I was intended
     if !isempty(total_parameters)
         template = Mustache.load(source)
-        open(destination, "w") do file
-            Mustache.render(file, template, total_parameters)
+        rendered = Mustache.render(template, total_parameters)
+        if !isempty(strip(rendered))
+            open(destination, "w") do file
+                write(file, rendered)
+            end
         end
+    #     template = Mustache.load(source)
+    #     open(destination, "w") do file
+    #         Mustache.render(file, template, total_parameters)
+    #     end
     else
         cp(source, destination)
     end
