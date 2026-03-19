@@ -140,7 +140,7 @@ function bundle(product::JuliaCBundle, snap::Snap, destination::String; force = 
     return
 end
 
-function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password = "")
+function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password = "", force = false)
 
     if !Sys.iswindows()
         @warn "The build for MSIX will not work as it is not built on Windows"

@@ -79,7 +79,10 @@ function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force 
     mkpath(joinpath(root, ".github/workflows"))
 
     cp(joinpath(dirname(@__DIR__), "recipes/workflows/GitHub.yml"), joinpath(root, ".github/workflows/Release.yml"); force)
-    chmod(joinpath(root, ".github/workflows/Release.yml"), 0o666)
+
+    if Sys.isunix() # chmod on windows can segfault
+        chmod(joinpath(root, ".github/workflows/Release.yml"), 0o666)
+    end
 
     #install(joinpath(dirname(@__DIR__), "recipes/workflows/build.jl"), joinpath(root, "meta/build.jl"); parameters, force)
     #chmod(joinpath(root, "meta/build.jl"), 0o444)

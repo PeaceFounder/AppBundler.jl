@@ -186,7 +186,7 @@ function install(source, destination; parameters = Dict(), force = false, execut
         cp(source, destination)
     end
 
-    if executable
+    if executable && Sys.isunix()
         chmod(destination, 0o755)
     end
 

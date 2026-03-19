@@ -10,7 +10,7 @@ using SHA
 
 include("utils.jl")
 
-if isdir(joinpath(pkgdir(AppBundler), ".git"))
+if isdir(joinpath(pkgdir(AppBundler), ".git")) && Sys.isunix()
     @test AppBundler.commit_count(pkgdir(AppBundler)) > 0
 end
 

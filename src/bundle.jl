@@ -80,12 +80,12 @@ function MSIX(;
               pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
               windowed = preferences["windowed"],
               compress = preferences["compress"],
-              target_arch = Sys.ARCH,
+              arch = Sys.ARCH,
               predicate = preferences["bundler"],
               parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher)
               )
     
-    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, target_arch, predicate, parameters)
+    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
 end
 
 

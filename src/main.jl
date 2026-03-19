@@ -107,7 +107,7 @@ function main_build(ARGS; sources_dir)
             password = readline() |> strip
         end
         
-        bundle(spec, msix, target_path(msix); force = overwrite_target, target_arch, password)
+        bundle(spec, msix, target_path(msix); force = overwrite_target, password)
 
     elseif :dmg == target_bundle
 
