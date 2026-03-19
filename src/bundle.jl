@@ -123,7 +123,7 @@ function MSIX(overlay; preferences = preferences(), kwargs...)
 end
 
 function normalize_publisher(publisher)
-    items = split(publisher, ",")
+    items = split(replace(publisher, " "=>""), ",")
     stripped_items = strip.(items)
     return join(items, ", ")
 end
@@ -178,6 +178,7 @@ struct Snap # by extensions files could have multiple modes that are set via sta
     parameters::Dict{String, Any}
 end
 
+
 function Snap(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
               preferences = preferences(),
@@ -223,7 +224,7 @@ snap = Snap(app_dir; icon = "custom_icon.png")
 function Snap(overlay; preferences = preferences(), kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
-    snap = Snap(; prefix, kwargs...)
+    snap = Snap(; prefix, preferences, kwargs...)
     parameters = get_bundle_parameters!(snap.parameters, joinpath(overlay, "Project.toml"); preferences)
 
     return snap
@@ -343,7 +344,7 @@ dmg = DMG(app_dir; icon = "custom_icon.icns")
 function DMG(overlay; preferences = preferences(), kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
-    dmg = DMG(; prefix, kwargs...)
+    dmg = DMG(; prefix, preferences, kwargs...)
     get_bundle_parameters!(dmg.parameters, joinpath(overlay, "Project.toml"); preferences)
     
     return dmg

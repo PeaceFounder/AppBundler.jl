@@ -8,7 +8,7 @@ grade: devel
 confinement: classic 
 
 apps:
-  {{APP_NAME_LOWERCASE}}:
+  {{APP_NAME}}:
     command: bin/{{APP_NAME}}
     desktop: meta/gui/{{APP_NAME}}.desktop
     plugs:

@@ -77,9 +77,8 @@ pkg = JuliaImgBundle(app_dir; julia_version = v"1.10.0", incremental = false)
     sysimg_packages::Vector{String} = []
     sysimg_args::Cmd = ``
     remove_sources::Bool = false # ToDo: It only makes sense to remove sources for packages baked in the sysimg
-    asset_rpath::Union{String, Nothing} = nothing
+    asset_rpath::String = "assets"
     asset_spec::Dict{Symbol, Vector{String}} = Dict{Symbol, Vector{String}}()
-
     precompile::Bool = true
     precompiled_modules::Vector{Symbol} = precompile ? get_project_deps(source) : []
     incremental::Bool = isempty(sysimg_packages) #true
@@ -450,13 +449,6 @@ function stage(product::JuliaImgBundle, destination::String; platform::AbstractP
     println("Fetching sources for julia-$(get_julia_version(product))-$platform")
     Resources.fetch(product.source, destination; platform, stdlib_dir, include_lazy_artifacts)
 
-    if isnothing(product.asset_rpath)
-        Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.stdlib_dir)
-    else
-        Resources.install_assets(product.source, joinpath(destination, product.asset_rpath), product.asset_spec)
-        Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.asset_rpath)
-    end
-
     configure(destination, product; runtime_mode, app_name, bundle_identifier)
 
     if !isempty(product.sysimg_packages)
@@ -484,6 +476,13 @@ function stage(product::JuliaImgBundle, destination::String; platform::AbstractP
         stdlib_project_name = isnothing(module_name) ? "MainEnv" : module_name
         mkdir(joinpath(packages_dir, stdlib_project_name))
         cp(joinpath(product.source, "Project.toml"), joinpath(packages_dir, stdlib_project_name, "Project.toml"))
+    end
+
+    if isempty(product.asset_spec)
+        Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.stdlib_dir)
+    else
+        Resources.install_assets(product.source, joinpath(destination, product.asset_rpath), product.asset_spec)
+        Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.asset_rpath)
     end
 
     println("App staging completed successfully")

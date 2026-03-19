@@ -13,7 +13,7 @@ msix_path_length_threshold = 260
 msix_skip_long_paths = false
 msix_skip_symlinks = true
 msix_skip_unicode_paths = true
-msix_publisher = "O=PeaceFounder,C=XX,CN=AppBundler"
+msix_publisher = "CN=AppBundler, C=XX, O=PeaceFounder"
 
 dmg_shallow_signing = true
 dmg_hardened_runtime = true

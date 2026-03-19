@@ -6,8 +6,10 @@ using rcodesign_jll: rcodesign
 #using OpenSSL_jll: openssl
 using ..OpenSSLLegacy: openssl
 
-function generate_self_signed_certificate(pfx_path; password = "", publisher = "O=PeaceFounder, C=XX, CN=AppBundler", validity_days = 365)
+function generate_self_signed_certificate(pfx_path; password = "", publisher = "CN=AppBundler, C=XX, O=PeaceFounder", validity_days = 365)
     
+    publisher_lined = join(reverse(split(publisher, ",")), '\n')
+
     code_sign_conf = """
     [ req ]
     default_bits = 2048
@@ -17,12 +19,13 @@ function generate_self_signed_certificate(pfx_path; password = "", publisher = "
     req_extensions = req_ext
 
     [ dn ]
-    $publisher
+    $publisher_lined
 
     [ req_ext ]
     keyUsage = digitalSignature
     extendedKeyUsage = codeSigning
     """
+
     conf = joinpath(tempdir(), "code_sign.conf")
     rm(conf; force=true)
     write(conf, code_sign_conf)
@@ -49,10 +52,12 @@ function extract_subject_from_certificate(cert_path; password = "")
     
     # Extract just the subject part
     if occursin("subject=", output)
-        return replace(replace(output, r"subject= *" => "") |> strip, "\\,"=>",")
+        subject = replace(replace(output, r"subject= *" => "") |> strip, "\\,"=>",")
     else
-        return replace(output |> strip, "\\,"=>",")
+        subject = replace(output |> strip, "\\,"=>",")
     end
+
+    return replace(replace(subject, " "=>""), ","=>", ")
 end
 
 # function extract_publisher_from_manifest(appxmanifest_path)
