@@ -15,7 +15,7 @@ try
     AppBundler.install_github_workflow(; root = app_dir, force = true)
     (; password_macos, password_windows) = AppBundler.generate_signing_certificates(; root = app_dir, force = true)
 
-    args = ["build", app_dir, "--build-dir=$build_dir", "--target-name=glapp", "--target-bundle=$target_bundle", "-Djuliaimg_precompile=false"]
+    args = ["build", app_dir, "--build-dir=$build_dir", "--target-name=glapp", "--target-bundle=$target_bundle", "-Djuliaimg_precompile=false", "-Dwindowed=true"]
 
     if target_bundle == "dmg"
         push!(args, "--password=$password_macos") # ToDo: add quates here becuase password may incidentally generate `--` Although base64 encoding may protect from such situation here. Still relevant.
