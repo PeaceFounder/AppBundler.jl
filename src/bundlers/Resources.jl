@@ -278,6 +278,7 @@ end
 
 function install_project_toml(uuid, pkgentry, destination)
     # Extract information from pkginfo
+
     project_dict = Dict(
         "name" => pkgentry.name,
         "uuid" => string(uuid),  # or use the package UUID if you have it
@@ -379,7 +380,6 @@ function install_packages(project, packages_dir)
                 cp(source_path, pkg_dir)
 
                 if !isfile(joinpath(pkg_dir, "Project.toml"))
-                    # We need to make a Project.toml from pkginfo
                     @warn "$(pkgentry.name) uses the legacy REQUIRE format. As a courtesy to AppBundler developers, please update it to use Project.toml."
                     install_project_toml(uuid, pkgentry, joinpath(pkg_dir, "Project.toml"))
                 end

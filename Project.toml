@@ -77,3 +77,6 @@ test = ["Test", "SafeTestsets", "SHA"]
 
 [apps]
 appbundler = {}
+
+[workspace]
+projects = ["docs"]
