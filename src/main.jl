@@ -30,9 +30,9 @@ function (@main)(ARGS)
     return 0
 end
 
-suffix(::MSIX) = "msix"
-suffix(::DMG) = "dmg"
-suffix(::Snap) = "snap"
+suffix(msix::MSIX) = msix.compress ? ".msix" : ""
+suffix(dmg::DMG) = dmg.compress ? ".dmg" : ""
+suffix(snap::Snap) = snap.compress ? ".snap" : ""
 
 function canonical_target_name(spec::Union{MSIX, DMG, Snap})
     version = spec.parameters["APP_VERSION"]
@@ -90,8 +90,7 @@ function main_build(ARGS; sources_dir)
         else
             name = canonical_target_name(spec)
         end
-
-        return joinpath(build_dir, spec.compress ? "$name.$(suffix(spec))" : name)
+        joinpath(build_dir, name * suffix(spec))
     end
 
     if :msix == target_bundle
@@ -149,9 +148,10 @@ end
 
 function get_module_name(project_toml)
 
-    toml_dict = TOML.parsefile(project_toml)
-    if haskey(toml_dict, "name") && isfile(joinpath(dirname(project_toml), "src", toml_dict["name"] * ".jl"))
-        return toml_dict["name"]
+    project_name = get_project_name(project_toml)
+
+    if !isnothing(project_name) && isfile(joinpath(dirname(project_toml), "src", project_name * ".jl"))
+        return project_name
     else
         error("Main module name can't be infered from the project. In case thats intentiional use `juliaimg_mainless = true` in LocalPrefereces.toml")
     end
