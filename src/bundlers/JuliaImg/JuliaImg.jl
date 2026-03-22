@@ -496,6 +496,6 @@ function stage(product::JuliaImgBundle, destination::String; platform::AbstractP
     return
 end
 
-export stage
+export stage, JuliaImgBundle
 
 end

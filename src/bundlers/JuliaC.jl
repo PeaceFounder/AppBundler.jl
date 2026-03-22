@@ -29,6 +29,11 @@ function juliac()
     error("Commmadn juliac not found")
 end
 
+"""
+    JuliaCBundle
+
+Some docstring needs to be here
+"""
 @kwdef struct JuliaCBundle <: BuildSpec
     project::String
     juliac_cmd::Cmd = Cmd([juliac()])
@@ -59,6 +64,6 @@ function stage(spec::JuliaCBundle, destination::String; runtime_mode = "MIN", ap
     return
 end
 
-export stage
+export stage, JuliaCBundle
 
 end

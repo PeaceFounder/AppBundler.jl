@@ -50,7 +50,7 @@ jobs:
         env: 
           PASSWORD: ${{ matrix.os == 'macos' && secrets.MACOS_PFX_PASSWORD || matrix.os == 'windows' && secrets.WINDOWS_PFX_PASSWORD || '' }}
         run: |
-          ${{ matrix.xvfb && 'xvfb-run -s ''-screen 0 1024x768x24''' || '' }} julia --project=meta -m AppBundler build .. --build-dir=../build --target-arch=${{ matrix.arch }} --password=${{ env.PASSWORD }}
+          ${{ matrix.xvfb && 'xvfb-run -s ''-screen 0 1024x768x24''' || '' }} julia --project=meta -m AppBundler build . --build-dir=build --target-arch=${{ matrix.arch }} --password=${{ env.PASSWORD }}
       
       - uses: actions/upload-artifact@v4
         with:
