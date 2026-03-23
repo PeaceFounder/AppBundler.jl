@@ -30,9 +30,38 @@ function juliac()
 end
 
 """
-    JuliaCBundle
-
-Some docstring needs to be here
+    JuliaCBundle(project; kwargs...)
+ 
+Build specification for compiling a Julia application into a native executable via `juliac`.
+ 
+Unlike `JuliaImgBundle`, which stages a full Julia runtime alongside precompiled package
+images, `JuliaCBundle` ahead-of-time compiles the application into a standalone native
+executable. The `juliac` tool must be installed and is looked up in `bin/juliac` under each
+entry of `DEPOT_PATH`, with `~/.julia/bin` as a final fallback.
+ 
+# Arguments
+- `project::String`: Path to the application directory containing `Project.toml`
+ 
+# Keyword Arguments
+- `juliac_cmd::Cmd = Cmd([juliac()])`: Command used to invoke `juliac`. Defaults to the
+  first `juliac` executable found on `DEPOT_PATH`
+- `executable_name::String`: Name of the produced executable. Defaults to the lowercase
+  module name derived from `Project.toml`
+- `trim::Bool = false`: When `true`, passes `--trim=safe` to `juliac`, removing unreachable
+  code from the output binary
+- `args::Cmd = \`\``: Additional arguments forwarded verbatim to `juliac`
+- `asset_spec::Dict{Symbol,Vector{String}} = Dict()`: Selective asset inclusion rules.
+  When empty, no assets are copied into the bundle
+- `asset_rpath::String = "assets"`: Destination subdirectory for assets inside `destination`
+ 
+# Examples
+```julia
+# Minimal: compile with defaults
+pkg = JuliaCBundle("path/to/app")
+ 
+# Enable dead-code trimming and a custom executable name
+pkg = JuliaCBundle("path/to/app"; executable_name = "myapp", trim = true)
+```
 """
 @kwdef struct JuliaCBundle <: BuildSpec
     project::String
@@ -46,6 +75,44 @@ end
 
 JuliaCBundle(project; kwargs...) = JuliaCBundle(; project, kwargs...)
 
+"""
+    stage(spec::JuliaCBundle, destination::String;
+          runtime_mode = "MIN",
+          app_name = get_module_name(spec.project),
+          bundle_identifier = "")
+ 
+Compile a Julia application into a native executable and assemble it in `destination`.
+ 
+The staging process:
+1. Saves an AppEnv config to `destination/config` with runtime identity and load-path settings
+2. Installs assets from `spec.asset_spec` into `destination/<asset_rpath>`
+3. Writes a pkgorigin index to `destination/index` for asset resolution at runtime
+4. Invokes `juliac` to AOT-compile the application and bundle the result into `destination`
+ 
+Unlike `JuliaImgBundle`, no Julia runtime tarball is downloaded — `juliac` produces a
+self-contained native binary. The host toolchain must be compatible with the target.
+ 
+# Arguments
+- `spec::JuliaCBundle`: Compilation and asset configuration
+- `destination::String`: Directory in which the compiled application is assembled
+ 
+# Keyword Arguments
+- `runtime_mode`: AppEnv runtime mode string passed to `AppEnv.save_config`
+- `app_name`: Application name embedded in the AppEnv config; defaults to the module name
+- `bundle_identifier`: Bundle identifier embedded in the AppEnv config (e.g. reverse-DNS on macOS)
+ 
+# Examples
+```julia
+pkg = JuliaCBundle("src/MyApp")
+ 
+# Stage into a macOS app bundle
+stage(pkg, "build/MyApp.app/Contents/MacOS";
+      app_name = "MyApp", bundle_identifier = "com.example.myapp")
+ 
+# Stage with a custom runtime mode
+stage(pkg, "build/staging"; runtime_mode = "SANDBOX")
+```
+"""
 function stage(spec::JuliaCBundle, destination::String; runtime_mode = "MIN", app_name = get_module_name(spec.project), bundle_identifier = "")
 
     (; project, juliac_cmd) = spec
