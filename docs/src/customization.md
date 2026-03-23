@@ -14,6 +14,11 @@ Maintaining all these configuration nuances is hard. AppBundler resolves these i
 
 The main customization for what happens onece user runs `appbundler build . --build-dir=build` happens though `LocalPreferences.toml` file few passed commmand line arguments like `--target-arch` determining the target arhitecure for which the bundle is created, `--target-bundle` which is `msix|snap|dmg`. `--target-name` enables to set a custom name of the darget which by default is `{{app_name}}-{{version}}-{{arch}}`. The command line arguments also offer `--selfsign` flag for self signing of the resulting bundle and `--password` that is a password for certificate file which is used for signing. A `--debug` build creates an uncompressed bundle with console window that is selfsigned enabling quick debugging workflow. `--force` flag overwrites the destination if present. In addition `-D` options is supported to override default parameters read from `LocalPreferences.toml`. 
 
+```@example
+using AppBundler # hide
+AppBundler.print_help() # hide
+```
+
 ## Preferences
 
 The main parameters are read from `LocalPreferences.toml` and in addition from `Project.toml` reading the module name and application version from there (`LocalPreferences` can be used to override thoose parameters). The full list of available parameters can be seen within `joinpath(pkgdir(AppBundler), "LocalPreferences.toml")`. To use the preferences it is important to add in the application `Project.toml`:
