@@ -323,26 +323,42 @@ function parse_args(raw_args)
     return merge(defaults, config), preferences
 end
 
+
 function print_help()
     println("""
-    Usage: julia --project=meta meta/build.jl [OPTIONS]
-    
+    Usage: appbundler build <project_dir> [OPTIONS]
+ 
+    Arguments:
+      <project_dir>                     Path to the Julia project to bundle
+ 
     Options:
-      --build-dir DIR                   Build directory (default: ./build)
-                                        Use '@temp' for temporary directory
-      --selfsign                        Enable self signing (macOS/Windows)
-      --target-arch ARCH                Target architecture (default: current system)
-      --target-bundle={dmg|snap|msix|all}
-                                        Build for specific platform(s) (default: current)
-                                        Can be specified multiple times
+      --build-dir DIR                   Output directory for the bundle
+                                        (default: temporary directory)
+                                        Use '@temp' to explicitly request a temp dir
+      --target-bundle {dmg|snap|msix}   Package format to produce
+                                        (default: platform native — dmg on macOS,
+                                        snap on Linux, msix on Windows)
+      --target-arch {x86_64|aarch64}    Target CPU architecture
+                                        (default: current system architecture)
+      --target-name NAME                Override the output file/directory name
+                                        (default: derived from app name and version)
+      --selfsign                        Sign the bundle with a self-signed certificate
+                                        (macOS / Windows; skips password prompt)
+      --password PASS                   Password for the signing certificate
+                                        (prompted interactively if omitted)
+      --force                           Overwrite an existing bundle at the target path
+      --debug                           Shorthand for --selfsign + uncompressed,
+                                        console-visible build; useful for quick iteration
+      -DKEY=VALUE                       Override a LocalPreferences.toml preference,
+                                        e.g. -Dbundler="juliac"
       -h, --help                        Show this help message
-    
+ 
     Examples:
-      julia --project=meta meta/build.jl --target-bundle=all
-      julia --project=meta meta/build.jl --build-dir=@temp 
-      julia --project=meta meta/build.jl --target-bundle=snap --target-bundle=msix
-      julia --project=meta meta/build.jl --target-arch=aarch64 --target-bundle=dmg
-    
-    Note: Options marked with * indicate the default value.
+      appbundler build .
+      appbundler build . --build-dir=build --force
+      appbundler build . --build-dir=@temp --debug
+      appbundler build . --target-bundle=snap --target-arch=aarch64
+      appbundler build . --selfsign --password=secret
+      appbundler build . -Dbundler="juliac" -Djuliac_trim=true
     """)
 end
