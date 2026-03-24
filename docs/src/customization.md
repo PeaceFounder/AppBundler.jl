@@ -1,18 +1,34 @@
 # Customization
 
-Every operating system is different and has made unique design choices. On macOS, applications are simply put within the Applications folder from DMG containers. Windows uses many formats, with MSIX being the most modern approach, and Linux uses Snap and Flatpak for external software distribution. To create an installer on each of these platforms, there is a list of common tasks that one needs to perform individually:
+Every operating system has made unique design choices for application distribution. On macOS, applications are placed in the Applications folder via DMG containers. Windows supports many installer formats, with MSIX being the most modern. Linux uses Snap and Flatpak for distributing external software. Creating an installer on each platform involves a common set of tasks:
 
-- Make icon assets in a form that the installer/operating system understands
-- Specify the needed capabilities for the application
-- Set the launching endpoint, whether it is a GUI or a terminal application
-- Bundle all configuration files with the application into the installer
-- Perform code signing of the installer and possibly the application
+- Producing icon assets in the format the installer or operating system expects
+- Declaring the capabilities required by the application
+- Specifying the launch entry point, whether GUI or terminal
+- Bundling all configuration files with the application
+- Code-signing the installer and, where required, the application itself
 
-Maintaining all these configuration nuances is hard. AppBundler resolves these issues with defaults that enable shipping GUI applications effortlessly while also enabling developers to simply configure the installer with their own configuration overlay in places where they need it, making the process much easier to debug and communicate about.
+Maintaining these platform-specific details is burdensome. AppBundler addresses this with sensible defaults that make shipping GUI applications straightforward. Where customization is needed, developers can apply a configuration overlay, keeping the process easy to debug and reason about.
 
-## Command line parameters
+## How It Works
 
-The main customization for what happens onece user runs `appbundler build . --build-dir=build` happens though `LocalPreferences.toml` file few passed commmand line arguments like `--target-arch` determining the target arhitecure for which the bundle is created, `--target-bundle` which is `msix|snap|dmg`. `--target-name` enables to set a custom name of the darget which by default is `{{app_name}}-{{version}}-{{arch}}`. The command line arguments also offer `--selfsign` flag for self signing of the resulting bundle and `--password` that is a password for certificate file which is used for signing. A `--debug` build creates an uncompressed bundle with console window that is selfsigned enabling quick debugging workflow. `--force` flag overwrites the destination if present. In addition `-D` options is supported to override default parameters read from `LocalPreferences.toml`. 
+A build follows this pipeline:
+
+```
+Project.toml          ← app name, version
+LocalPreferences.toml ← all build parameters
+meta/                 ← optional file overrides
+        ↓
+appbundler build . --build-dir=build
+        ↓
+build/<name>.{msix,snap,dmg}
+```
+
+Most builds require only a short `LocalPreferences.toml`. Build customization is done by placing files in `meta/` that override AppBundler's built-in bundle templates — no changes to the core tool needed.
+
+> **Iterating quickly:** Use `--debug` for faster iteration when troubleshooting packaging or sandboxing issues — see [Surgical Overrides](#surgical-overrides).
+
+## Command-Line Parameters
 
 ```@example
 using AppBundler # hide
@@ -21,77 +37,89 @@ AppBundler.print_help() # hide
 
 ## Preferences
 
-The main parameters are read from `LocalPreferences.toml` and in addition from `Project.toml` reading the module name and application version from there (`LocalPreferences` can be used to override thoose parameters). The full list of available parameters can be seen within `joinpath(pkgdir(AppBundler), "LocalPreferences.toml")`. To use the preferences it is important to add in the application `Project.toml`:
-```
+Parameters are read from `LocalPreferences.toml` and from `Project.toml` (for the module name and application version; `LocalPreferences.toml` can override these). The full list of available parameters is in `joinpath(pkgdir(AppBundler), "LocalPreferences.toml")`.
+
+To enable AppBundler preferences, add the following to your application's `Project.toml`; otherwise the preferences for `AppBundler` will not be registered:
+
+```toml
 [extras]
 AppBundler = "40eb83ae-c93a-480c-8f39-f018b568f472"
 ```
-as otherwise the preferences for `AppBundler` are not registered. A typical `LocalPreferences.toml` is generally short like:
-```
+
+A typical `LocalPreferences.toml` is short:
+
+```toml
 [AppBundler]
 windowed = false
 bundler = "juliac"
 juliac_trim = true
 ```
-A generic metedata infomation of the bundle (Theese are all the parameters which does not affect runtime behaviour of the bundle):
-- `app_name` application name (by default taken as package version from `Project.toml`)
-- `version` application version (by default taken as package name from `Project.toml`)
-- `app_summary` summary of the application which is placed in releavnt contexts for MSIX and Snap installers.
-- `app_description` a longer description of the application used for Snap installer.
-- `publisher_name` name of the publisher
-- `bundle_identifier` publisher identifier for DMG in the for of (by default `org.appbundler.{{app_name}}`)
-- `build_number` is by default set as commit count of application git repostiory and uses 0 if that fails.
 
-The next set of the parameters is a common set of parameters applied accroos the bundles:
-- `windowed` determines whether application diesplays a console at the runtime. 
-- `compress` whether resulting application shall be compressed in the bundle or left as directory
-- `selfsign` whether resulting aplication shall be signed with self signed certificate
-- `overwrite_target` whetehr the resulting bundle shall overwrite already present bundle.
+### Quick Reference
 
-The next set of parameters configures the MSIX and DMG bundles. We have parameters:
-- `msix_path_length_threshold` configures the maximum allowed length within the bundle. This is important when one uses AppBundler on windows as bundling long paths is not supported.
-- `msix_skip_long_paths` if long paths are present whether to error the bundiling or skip them
-- `msix_skip_symlinks` whether to skip symlinks. (default true)
-- `msix_skip_unicode_paths` whether to skip unicode paths or let the bundle to error (default true)
-- `msix_publisher` this is a publisher string that one can specify manually that is used as metadata for self signing certifcate generation which is included in `AppxManifest.xml`. Because the publisher needs to match exactly with the certificate it is read from the certificate at the bundling time and inlined into `AppxManifest.xml` automatically (default "CN=AppBundler, C=XX, O=PeaceFounder"). 
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| **Metadata** | | |
+| `app_name` | from `Project.toml` | Application name |
+| `version` | from `Project.toml` | Application version |
+| `app_summary` | — | Short description for MSIX and Snap |
+| `app_description` | — | Longer description for Snap |
+| `publisher_name` | — | Publisher name |
+| `bundle_identifier` | `org.appbundler.{{app_name}}` | Bundle identifier for DMG |
+| `build_number` | git commit count | Falls back to `0` if git is unavailable |
+| **Common** | | |
+| `windowed` | `false` | Hide a console window at runtime |
+| `compress` | `true` | Compress the application inside the bundle |
+| `selfsign` | `false` | Sign with a self-signed certificate |
+| `overwrite_target` | `false` | Overwrite target path (`--force`) |
+| **Bundler** | | |
+| `bundler` | `juliaimg` | Bundler to use: `juliaimg` or `juliac` |
+| `juliaimg_mainless` | `false` | Launch `bin/julia` directly without calling `main` |
+| `juliaimg_precompile` | `true` | Precompile project modules |
+| `juliaimg_incremental` | `false` | Build cache on top of Julia's own rather than starting fresh |
+| `juliaimg_sysimg` | `[]` | Packages to bake into the system image |
+| `juliaimg_selective_assets` | `false` | Enable selective asset inclusion (see [AppEnv](#appenv)) |
+| `juliac_trim` | `false` | Enable trimming when compiling with `juliac` |
+| **MSIX** | | |
+| `msix_path_length_threshold` | `260` | Maximum allowed path length within the bundle |
+| `msix_skip_long_paths` | `false` | Skip paths exceeding the threshold instead of erroring |
+| `msix_skip_symlinks` | `true` | Skip symlinks |
+| `msix_skip_unicode_paths` | `true` | Skip Unicode paths instead of erroring |
+| `msix_publisher` | `"CN=AppBundler, C=XX, O=PeaceFounder"` | Publisher string for `AppxManifest.xml` |
+| **DMG** | | |
+| `dmg_shallow_signing` | `true` | Sign only the top-level binary |
+| `dmg_hardened_runtime` | `true` | Enable hardened runtime during signing |
+| `dmg_sandboxed_runtime` | `false` | Restrict access to peripherals and system directories |
+| `dmg_compression` | `lzma` | Compression algorithm: `bzip2`, `zlib`, `lzma`, or `lzfse` |
 
-Fof DMGs we have:
-- `dmg_shallow_signing` whether to sign only the topmost binary. This must be disabled in deployment when one is willing to notarize their application with apple (default true)
-- `dmg_hardened_runtime` whether hardened runtime is enabled during the signing. (default true)
-- `dmg_sandboxed_runtime` sandboxed runtime that limits access to peripheries, system directories and etc (default false).
-- `dmg_compression` compression algorithm that is used for compressing the DMG bundle available `bzip2|zlib|lzma|lzfse` (default `lzma`)
+**Bundler.** The `bundler` choice determines which recipe files are applied and which `juliaimg_*` or `juliac_*` parameters are relevant. `juliaimg_mainless` is intended for Julia distributions that launch `bin/julia` directly rather than calling an application `main`. `juliaimg_sysimg` only needs top-level packages — dependencies are baked in automatically. `juliaimg_selective_assets` requires modules to be in the sysimage, since it removes all source files from the bundle; with the `juliac` bundler, selective assets are always used.
 
-The next set of preferences concerns the bundling of the source code into self contained applications. 
-- `bundler` selects the bundler which will bundle the source code availabel options `juliaimg|juliac` (default `juliaimg`)
-- `juliaimg_mainless` whether launcher shall launch `bin/julia` directly without calling main function of the packaged application. This option is used for making Julia distributions where (default `false`)
-- `juliaimg_precompile` option allows to choose whether perform application precompilation of the project modules or deffer that to the client when it first initializes the code (default `true`)
-- `juliaimg_incremental` whether precompilation cache from Julia itself is removed or added on top of it which makes compilation quicker. (default `false`)
-- `juliaimg_sysimg` a list of packages that shall be baked into system image. Note that only top package needs to be specified as dependencies are baked in automatically (default `[]`)
-- `juliaimg_selective_assets` whether enable selective assets. See AppEnv for details. This option works only when modules are baked into sysimg as it removes all sources (default `false`)
-- `juliac_trim` whether enable trimming when compiling with `juliac`. (default `false`)
+**MSIX.** Windows does not support long paths inside bundles, so `msix_path_length_threshold` and `msix_skip_long_paths` exist to either warn or skip offending paths rather than erroring out. The `msix_publisher` string must match the signing certificate exactly; AppBundler reads it from the certificate at bundle time and inlines it into `AppxManifest.xml` automatically, so manual edits are rarely needed.
+
+**DMG.** `dmg_shallow_signing` must be set to `false` when submitting for Apple notarization, as all binaries must be signed individually. `dmg_sandboxed_runtime` restricts access to peripherals and system directories and should only be enabled if your application is designed to run in a sandbox.
 
 ## AppEnv
 
-AppEnv is essential ingridient for starting Julia application and is the first module that is imported in for juliaimg bundles. At runtime it sets up `LOAD_PATH`, `DEPOT_PATH` so that application uses it's compiled precompilation cache proerly. For `Snap` applications the precompilation cache can be gneratd during installation via `configure` hook, which is also included here. AppEnv also sets up `AppEnv.USER_DATA` directory where applications can store theri settings. 
+AppEnv is a small runtime support library that bridges the gap between a bundled Julia application and the host operating system. It handles three concerns that every bundled Julia app needs: environment setup, user data directories, and asset location.
 
-Once applications are launched they define a `USER_DATA` environment variable where apps can store their data. On Linux and Windows, those are designated application locations which get removed with the uninstallation of the app, whereas on macOS, apps use `~/.config/myapp` and `~/.cache/myapp` folders unless run from a sandbox, in which case the `$HOME/Library/Application Support/Local` folder will be used.
+AppEnv is the first module loaded in `juliaimg` bundles. At runtime it configures `LOAD_PATH` and `DEPOT_PATH` so the application uses its compiled precompilation cache correctly. For Snap applications, the precompilation cache can be generated during installation via a `configure` hook, which AppEnv also provides.
 
-AppEnv also offers asset managment by initializing `pkgorigins` from an index created during compilation step. This enables to place assets within the package directories and reference them via `pkgdir(@__MODULE__)` in a relocatable way while only including selected list of assets. When JuliaC is used it is expected that one structures the main application as:
+### User Data Directory
 
-```
-using AppEnv
+At launch, AppEnv sets the `AppEnv.USER_DATA` variable to a platform-appropriate writable location where the application can store settings, caches, and other persistent data. On Snap and MSIX the directory is managed by the operating system and is removed automatically when the application is uninstalled. The location can always be overridden by setting the `USER_DATA` environment variable before launch.
 
-function (@main)(ARGS)
-    AppEnv.init()
-    # Do the rest; Optionally also reffer to user data directory via AppEnv.USER_DATA
-end
-```
-which loads pkgorigins from a stored index within compiled application so the runtime can locate the assets. Note that `AppEnv.init()` does compile with JuliaC with triming enabled and is added part of the tests. 
+- **DMG** — `~/.config/<app_name>` (the depot goes to `~/.cache/<app_name>`)
+- **DMG (sandboxed)** — `~/Library/Application Support/Local` (detected via `APP_SANDBOX_CONTAINER_ID`)
+- **MSIX** — `%LOCALAPPDATA%\Packages\<bundle_identifier>_<hash>\LocalState`
+- **Snap** — `$SNAP_USER_DATA` (set directly from the Snap environment variable)
 
-Selective assets for `juliaimg` are optional can be enabled via `juliaimg_selective_assets` which removes all source code whereas with `juliac` bundler selective assets are the only option.
+### Asset Management
 
-Selective assets are listed for each module and coresponding dependecy within Preferences via `assets` variabnle in `LocalPreferences.toml`:
-```
+AppEnv initializes `pkgorigins` from an index created at compile time. This allows assets to be placed within package directories and referenced via `pkgdir(@__MODULE__)` in a relocatable way, while only including a selected subset of files.
+
+Assets are declared per-module in `LocalPreferences.toml` using the `assets` key:
+
+```toml
 [AppEnv]
 assets = ["LICENSE"]
 
@@ -101,16 +129,50 @@ assets = ["src/App.qml"]
 [AppBundler]
 # AppBundler options
 ```
-which includes all source code files and etc. Such syntax also enables package developers to list their runtime assets while the users to oevrride them in noninvasive way. In this case the assets would be stored in the main directory in `assets/AppEnv` and `assets/QMLApp`.
+
+Assets are stored under `assets/AppEnv` and `assets/QMLApp` in the main directory. Package developers can declare their runtime assets here, while application developers can override them non-invasively.
+
+Selective assets are optional with `juliaimg` (enabled via `juliaimg_selective_assets`, which removes all source code from the bundle), but are the only mode available with the `juliac` bundler.
+
+### Application Structure
+
+When using JuliaC, the recommended entry point is:
+
+```julia
+using AppEnv
+
+function (@main)(ARGS)
+    AppEnv.init()
+    # Application logic; optionally reference AppEnv.USER_DATA
+end
+```
+
+`AppEnv.init()` loads `pkgorigins` from a stored index within the compiled application so the runtime can locate assets and sets up `USER_DATA`. In `juliaimg` bundles it is called implicitly via `etc/julia/startup.jl`, so `USER_DATA` is available without any explicit call. With `juliac`, it must be called explicitly as shown above. In an interactive Julia session it does nothing, so it can be left in place during development without affecting application behaviour. It compiles correctly with JuliaC when trimming is enabled and is covered by the test suite.
 
 ## Surgical Overrides
 
-The Appbundler is designed with surgical customization via native file overrides in mind. The files placed in the application `meta` directory are overriding files that are listed in `joinpath(pkgdir(AppBundler), "recipes")`. Common customization scenarios include sandboxing configuration (adding specific capabilities or interfaces your application needs), custom launchers (defining alternative entry points), and icon overrides (providing platform-specific icon assets in various sizes). By keeping templates simple and encouraging users to copy and modify complete configuration files rather than creating complex nested templates, AppBundler makes platform-specific customization straightforward and debuggable.
+AppBundler is designed for surgical customization through native file overrides. Files placed in the application's `meta/` directory override AppBundler's built-in defaults. Templates are kept intentionally simple — rather than providing complex nested templates, AppBundler encourages copying and modifying complete configuration files, which keeps platform-specific customization straightforward to debug and communicate about.
 
-To get a glimpse on how it works consider a common situation where you would like to use a custom icon for you application. To do so you need to provide `icon.png` and `icon.icns` and place that within `meta` directory of you application. During application bundling AppBundler looks first whether an icon `meta/icon.png` or `meta/icon.icns` exists within the built application. If so it uses thoose as the paths. However, if they don't exist it reverst to defaults which are `joinpath(pkgdir(AppBundler), "recipes/icon.png")` and `joinpath(pkgdir(AppBundler), "recipes/icon.icns")` respecitvelly. 
+> **Tip:** Use `--debug` when working through override changes. It produces an uncompressed, self-signed bundle quickly and opens a console window so you can observe runtime behaviour without waiting for a full release build.
 
-If we look in the configuration files like for instance `recipes/snap/main.desktop` we see that
-```
+### Override Locations
+
+| Format | Directory | Files |
+|--------|-----------|-------|
+| DMG | `meta/dmg/` | `Entitlements.plist`, `Info.plist`, `DS_Store.toml`, `juliac_main.sh`, `juliaimg_main.sh` |
+| MSIX | `meta/msix/` | `AppxManifest.xml`, `MSIXAppInstallerData.xml`, `resources.pri` |
+| Snap | `meta/snap/` | `snap.yaml`, `main.desktop`, `juliaimg_main.sh`, `juliaimg_configure.sh` |
+| All | `meta/` | `icon.png`, `icon.icns`, `startup.jl` (juliaimg only) |
+
+### Icons
+
+To use a custom application icon, place `icon.png` and `icon.icns` in the `meta/` directory. During bundling, AppBundler checks for these files first and falls back to its built-in defaults if they are not present.
+
+### Template Variables
+
+Configuration files are Mustache templates. Variables are inlined at bundle time as capitalized versions of the preference names. For example, `meta/snap/main.desktop`:
+
+```desktop
 [Desktop Entry]
 Name={{APP_DISPLAY_NAME}}
 Exec={{APP_NAME}}
@@ -121,10 +183,16 @@ Terminal={{#WINDOWED}}false{{/WINDOWED}}{{^WINDOWED}}true{{/WINDOWED}}
 Type=Application
 Categories=Utility;
 ```
-the configuration file iteldf is a template of the parameters which get inlined at the bundling stage. As a general rule the available variables are capitalized versions of what is specified with preferences. In this example for instance we also see how the conditional logic on whether showing a terminal is implemented via `{{#WINDOWED}}false{{/WINDOWED}}{{^WINDOWED}}true{{/WINDOWED}}` which is controlled with `windowed` preference in `LocalPreferences.toml`. When overriding one may or may not keep the variables and can set the poarameters directly in the configuration files. 
 
-Some of the configuration files are specific to the bundler. For instance `juliaimg` bundler requires a special `main` launcher wheras `juliac` bundler can point to the resulting application directly. This is exampliifided with `recipes/snap/juliaimg_main.sh`:
-```
+The `{{#WINDOWED}}...{{/WINDOWED}}` / `{{^WINDOWED}}...{{/WINDOWED}}` pattern implements conditional logic driven by the `windowed` preference. When overriding a template, variables may be kept or replaced with static values.
+
+Some files are not installed directly into the bundle but are used as inputs during the build. `meta/dmg/Entitlements.plist` configures the sandbox baked into the signature of the main launcher, and `meta/dmg/DS_Store.toml` is a user-editable TOML representation of `.DS_Store` that is compiled into a binary `.DS_Store` before being placed in the DMG.
+
+### Bundler-Specific Files
+
+Some files only apply to a specific bundler, indicated by a `juliac_` or `juliaimg_` prefix. For instance, `meta/snap/juliaimg_main.sh` is picked up only when using `juliaimg`:
+
+```bash
 #!/bin/bash
 
 SCRIPT_DIR=$(dirname "$0")
@@ -132,13 +200,9 @@ SCRIPT_DIR=$(dirname "$0")
 JULIA="$SCRIPT_DIR/julia"
 $JULIA {{#MODULE_NAME}}--eval="using {{MODULE_NAME}}" -- {{/MODULE_NAME}} $@
 ```
-which gets picked up in the bundling only for `juliaimg` bundling. In the configuration files `juliaimg` is the predicate. Furthermore to override it one may either provide `meta/snap/juliaimg_main.sh` or `meta/snap/main.sh` (but at the cost that it would also be picked up for `juliac` bundler). 
 
-Some of the configuration files are not installed directly in the bundle but are essential ingirdients. Such ones are `recipes/dmg/Entitlements.plsit` which are insputs in the codesigning that determies varios snadboxing permissions and `recipes/dmg/DS_Store.toml` that sepcifies `.DS_Store` file as a TOML file of user editing wheras only compiled `.DS_Store` is instaled in the DMG. 
+The equivalent for `juliac` is `meta/snap/juliac_main.sh` (and `meta/dmg/juliac_main.sh` on macOS), which can point directly to the compiled binary. To override a launcher, place a replacement at the prefixed path (e.g. `meta/snap/juliaimg_main.sh`) to target only that bundler, or at the unprefixed path (e.g. `meta/snap/main.sh`) to apply to both. `meta/startup.jl` is specific to `juliaimg` bundles — it is placed in `etc/julia/` inside the bundle and is responsible for calling `AppEnv.init()` implicitly.
 
-The sandboxing of the application is controlled (such as accessing hardware, networking capabilities, or custom launchers), you can override defaults by placing custom configuration files in your `meta` folder: `meta/snap/snap.yaml` for Linux, `meta/msix/AppxManifest.xml` for Windows, or `meta/dmg/Entitlements.plist` for macOS. Figuring which configurations work and which does not work is up to the user. AppBundler offer `--debug` flag which enables [quicker troubleshooting](troubleshooting.md).
+### Sandboxing and Capabilities
 
-
-
-
-
+To customize sandboxing — such as granting access to hardware, networking, or custom launchers — override the relevant configuration file in your `meta/` folder: `Entitlements.plist` for DMG, `AppxManifest.xml` for MSIX, and `snap.yaml` for Snap. Use `--debug` to iterate quickly when working through capability changes, and refer to the [troubleshooting guide](troubleshooting.md) if the application does not behave as expected.
