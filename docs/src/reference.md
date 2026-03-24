@@ -1,57 +1,64 @@
 # Reference
 
-AppBundler is structured around two methods `stage` that stages the specified artifiact into destinations and `bundle` that performs bundling of compilation product into bundles. The API is fairly simple to use manually:
-```
-spec = JuliaImgBundle(project; kwargs...)
-```
-which specifies that the bundle is to be created from the project located at `app_dir` and kwargs specify varios overrides for the defauts. 
+AppBundler is structured around two concepts: a **product spec**, which describes how to build a Julia application, and a **bundle format**, which describes how to package it for distribution on a target platform. These are combined through the `bundle` function:
 
-The product specification can be staged manually in platform agnostic way via `stage(spec, destination; platform = HostPlatform())` where the platform denotes the target platofrm for which the artifact is staged. It is possible to stage the artifact accross platofrms as long as one does not need to compile it by setting `precompile=false` and `sysimg_packages = []`. The result of staging `spec` is a julia image that contains all project dependencies.
+```julia
+bundle(spec, format, destination; password = "")
+```
 
-An alternative application staging strategy is with JuliaC. That can be accomplished with:
-```
-spec = JuliaCBundle(project; kwargs...)
-```
-This one can be staged sthe same platform agnostic way via `stage(spec, destination)` where the platform here is fixed to the host platform fixed by `juliac` platform in the path. 
+This is also the function exposed to the command-line API, where command-line parameters configure the `spec` and format fields.
 
-To deploy thoose applications we can bundle them into `DMG`, `MSIX` and `Snap` formats. The bundles can be instantiated with:
-```
-dmg = DMG(project; arch = Sys.ARCH, kwargs...)
-```
-where from the project it reads out overrides that shall be used from the `project/meta/dmg` directory. The bundle format also contains arhitecture information where the resoning behind that is that the bundle spec decides the destination platform. 
+## Product Specs
 
-The bundle can be staged in an application direcotory as `stage(dmg, destination)` which creates a an bundle directory structure before it is being compressed where application is staged. The main API however is through the bundle methods, being:
+A product spec defines how the application is compiled or staged. There are two kinds:
+
+```julia
+spec = JuliaImgBundle(project; kwargs...)  # stages a self-contained Julia image
+spec = JuliaCBundle(project; kwargs...)    # compiles a native executable via juliac
 ```
-bundle(dmg; password = "") do app_stage
-    # install application in the app_stage
+
+Both specs can be staged directly into a directory for inspection before packaging via `stage(spec, destination)`. For `JuliaImgBundle`, staging is platform-agnostic as long as compilation is not required — cross-platform staging is possible by setting `precompile=false` and `sysimg_packages = []`, with the target platform specified via the `platform` keyword (defaults to `HostPlatform()`). For `JuliaCBundle`, the platform is fixed to the host, as determined by the `juliac` executable on `PATH`.
+
+## Bundle Formats
+
+A bundle format defines the packaging target. The three supported formats are `DMG` (macOS), `MSIX` (Windows), and `Snap` (Linux). They are instantiated from a project directory:
+
+```julia
+dmg  = DMG(project; arch = Sys.ARCH, kwargs...)
+msix = MSIX(project; arch = Sys.ARCH, kwargs...)
+snap = Snap(project; arch = Sys.ARCH, kwargs...)
+```
+
+Each format reads configuration file overrides from the corresponding `project/meta/<format>` directory and carries architecture information that determines the destination platform. Bundle formats can also be staged independently via `stage(format, destination)` to produce the directory structure before compression and signing.
+
+### Low-Level Bundle API
+
+For packaging non-Julia applications, or when you need full control over what goes into the bundle, the lower-level `bundle` do-block API can be used directly:
+
+```julia
+bundle(format, destination; password = "") do staging_dir
+    # copy or compile application files into staging_dir
 end
 ```
-where the password is the certifacte password `dmg.pfx_cert` that is used to decrypt the ceritifactae and perform codesigning. This API can be used agnostically packageing also non-julia applications given that the user takes care of building the code project themselves. 
 
-The `bundle` API is then abstracted on top with method:
-```
-bundle(spec, dmg, destination; password = "")
-```
-which is specilaized on each bundle type in this case `JuliaImgBundle` and `JuliaCBundle`. This function is one that is exposed to the command line API where command line parameters simply configure the `spec` and `dmg` fields. 
+The `password` argument is the certificate password used to decrypt the signing certificate and perform code signing during the pack step. Non-Julia applications can be bundled this way as well, as long as the user takes care of building and installing the application files in the setup callback.
 
 ## Types
+
 ```@docs
+AppBundler.JuliaImg.JuliaImgBundle
+AppBundler.JuliaC.JuliaCBundle
 AppBundler.DMG
 AppBundler.MSIX
 AppBundler.Snap
-AppBundler.JuliaImgBundle
-AppBundler.JuliaCBundle
 ```
 
 ## Functions
 
-```@autodocs
-Modules = [AppBundler]
-Order = [:function]
-Public  = true
-Private = false
-```
-
 ```@docs
+AppBundler.bundle(::AppBundler.JuliaImgBundle, ::AppBundler.DMG, ::String)
 AppBundler.stage(::AppBundler.JuliaImg.JuliaImgBundle, ::String)
+AppBundler.stage(::AppBundler.JuliaC.JuliaCBundle, ::String)
+AppBundler.bundle(::Function, ::AppBundler.DMG, ::String)
+AppBundler.stage(::AppBundler.MSIX, ::String)
 ```

@@ -63,7 +63,7 @@ invalidates all existing pkgimage caches.
   When empty, all artifacts are included and indexed via `pkgorigin`
 - `asset_rpath::String = "assets"`: Destination subdirectory for assets when `asset_spec` is set
 - `startup_file::String`: Path to the `startup.jl` template. Resolved from `meta/startup.jl`
-  inside `project`, falling back to `$(pkgdir(AppBundler))/recipes/startup.jl`
+  inside `project`, falling back to `\$(pkgdir(AppBundler))/recipes/startup.jl`
  
 # Examples
 ```julia
