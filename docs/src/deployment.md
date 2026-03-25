@@ -1,41 +1,71 @@
 # Deployment
 
-The deployment consists of compiling the application and distributing codesigned binaries that users can install. Although AppBundler offers cross compilaed tooling compilation of Julia does not support crss compilation and hence needs to be done on the host system operating ssytem and arhitecutre. That can become a significant burned for indie developers and hence CI worklwos comes at play to save us.
+Deploying an application involves compiling it for each target platform and distributing codesigned binaries that users can install. AppBundler supports cross-platform *bundling* — meaning a UNIX host can produce installers for multiple platforms — but Julia itself does not support cross-compilation. As a result, compilation must be performed natively on each target OS and architecture. This can be a significant burden for indie developers, which is where CI workflows become essential.
 
-Currently, Julia does not cross-compile, except for macOS where `:aarch64` can also run `:x86_64` applications. Hence, one needs to have the host as a target, which nowadays can be easy to get via continuous integration infrastructure like GitHub, GitLab, etc. The bundling, however, is cross-platform compatible, where UNIX hosts can generate all compatible installers, which may be relevant for other programming language projects. 
+The one exception is macOS: because Apple Silicon Macs support Rosetta 2, an `:aarch64` host can run `:x86_64` binaries, so both architectures can be tested on a single machine. For all other platforms, you need a matching host, which is straightforward to obtain through GitHub Actions or similar CI infrastructure.
 
-## Codesiging
+## Code Signing
 
-The DMG and MSIX bundles need to be codesigned for them to be installed. Selfsigning is an option however the users needs to jump through the hoops to install the applications. To avoid that the producer needs to geta code signing certificates. For DMG's it means to enroll into Apple developer program wheras for MSIX it means to buy one of the available codesigning certificates it can be Azure codesigning or [CERTUM](https://shop.certum.eu/code-signing.html) which offers best deal for codesigning of open source projects that I have found so far. 
+Both DMG (macOS) and MSIX (Windows) bundles must be codesigned before users can install them. Self-signed certificates are possible but require users to manually trust the certificate, which creates friction. To distribute without that friction, you need a certificate from a trusted provider.
 
-AppBundler implements codesigning with provider issued certifiacte in `.pfx` format which is placed in `meta/dmg/certificate.pfx` and `meta/msix/certificate.pfx` accordingly. To test the deployment setup before comitting buying one we shall use a self signing certtificates as substitute that can be generated running from application directory:
+- **macOS:** Requires enrollment in the [Apple Developer Program](https://developer.apple.com/programs/).
+- **Windows:** Requires a commercial codesigning certificate. [CERTUM](https://shop.certum.eu/code-signing.html) currently offers the best value for open-source projects.
+
+AppBundler expects provider-issued certificates in `.pfx` format, placed at:
+
 ```
+meta/dmg/certificate.pfx   # macOS
+meta/msix/certificate.pfx  # Windows
+```
+
+### Testing with Self-Signed Certificates
+
+Before purchasing a certificate, you can generate self-signed certificates to test the full signing workflow:
+
+```julia
 AppBundler.generate_signing_certificates()
 ```
-This will show two passwords on the screen `MACOS_PFX_PASSWORD` and `WINDOWS_PFX_PASSWORD`. 
 
-To sign an application the password can be passed in as standart input which get asked automatically or alternativelly set as command line argument `--password` like:
+This prints two passwords to the terminal: `MACOS_PFX_PASSWORD` and `WINDOWS_PFX_PASSWORD`. You can then pass the password when building:
+
 ```
 appbundler build . --build-dir=build --password="{{MACOS_PFX_PASSWORD}}"
 ```
 
-It expected that MSIX codesigning with trusted prover issued certificate shall work with no issues. A difficulet part though may be getting the `.pfx` certificate as some provioders puts the codesigning within some secure hardware tokens. Integration with them is planed in the future though it is currently speculative on how the API could look like. For custom signing solutions currently users are advised to use lower level api as as shown in the [reference](reference.md). 
+Alternatively, omitting `--password` will prompt for it interactively.
 
-MacOS codesigning happens to be a more cursed than simply signing the with the certificate in that it needs to be notarized by the apple where you send the bundle to the apple who checks whether it is properly formed and does not contain malware or such. Two of the requirements need to be enabled that can be specified via `LocalPreferences.toml`:
-```
+### macOS Notarization
+
+macOS codesigning has an additional requirement beyond certificate signing: Apple requires all distributed applications to be *notarized*. Notarization means submitting the bundle to Apple's servers, where it is checked for proper structure and the absence of malware. Two settings must be enabled in `LocalPreferences.toml` for a bundle to pass notarization:
+
+```toml
 dmg_shallow_signing = false
 dmg_hardened_runtime = true
 ```
-Note that the shallow signing is enabled becauwse deep signing for Julia applications takes noticable time. Furthermrore deep signing as implemented `rcodesign` does fail for Julia projects and hence artifact signing needs to be performed manually. Unfortunatelly there is no way to verify whether deep signing is performed correctly as `codesign --verify --deep --verbose=4 myapp.app` with shallow signing suceeds appart from sending bundles to Apple notary to see what their repply is. Hence DMG codesigning needs more investigation which the first time users need to account for.
 
-## GitHub Workflow
+> **Note on shallow vs. deep signing:** Deep signing is disabled by default because it takes considerable time for Julia applications and currently tends to fail with `rcodesign` deep signing. Unfortunately, `codesign --verify --deep --verbose=4 myapp.app` passes even with shallow signing, so the only reliable way to verify that deep signing is correct is to submit the bundle to Apple's notary service and inspect the response. Budget some time for this when setting up notarization for the first time.
 
-![](assets/github.png)
+### Custom Signing Solutions
 
-GitHub is convineint place to cross compile applications as it offers runners accross all platofrms including Windows, MacOS and Linxu with all available arhitectrures. This enables to go through actions tab and on a press of button compile application accross all platofrsms as well as attach thoose artifacts to compile and attach them to new releases. For an example see [Release.yml](https://github.com/JanisErdmanis/Jumbo/blob/main/.github/workflows/Release.yml) which shall be placed within `.github/workflows/Release.yml` folder where GitHub picks it up. This action file can also be installed in the application project via running `AppBundler.install_github_workflow()`.To make the action to work it is necessary to increase permissions for GitHub actions:
+Some certificate providers deliver keys inside secure hardware tokens rather than as a `.pfx` file. Hardware token integration is planned for a future release. In the meantime, users needing custom signing workflows can use the lower-level signing API described in [reference.md](reference.md).
 
-![](assets/github_permissions.png)
+## GitHub Actions Workflow
 
-## Gitlab Workflow
+GitHub Actions is the recommended CI solution for cross-platform Julia application deployment. It provides hosted runners for Windows, macOS, and Linux across all common architectures, making it straightforward to build and sign for every platform from a single workflow.
 
-Gitlab offers only linux runners, hence it is not really suitable for Julia application deployment. Some deployments may offer macxos and windows rnnners as extra service. The GiLab CI that offers similar deployment experience as Giuthub is available in [crypto-julia example repository](https://gitlab.com/JanisErdmanis/crypto-julia/-/blob/main/.gitlab-ci.yml?ref_type=heads).
+An example workflow is available at [Release.yml](https://github.com/JanisErdmanis/Jumbo/blob/main/.github/workflows/Release.yml). It can be installed into your project automatically by running:
+
+```julia
+AppBundler.install_github_workflow()
+```
+
+This places the workflow file at `.github/workflows/Release.yml`, where GitHub picks it up. The workflow can be triggered manually from the Actions tab and will compile the application for all platforms, then attach the resulting installers to a new GitHub Release.
+
+One configuration step is required: you must increase the default permissions granted to GitHub Actions so that the workflow can create releases and upload artifacts. This setting is found under **Settings → Actions → General → Workflow permissions** in your repository.
+
+![GitHub Actions permissions](assets/github_permissions.png)
+
+## GitLab CI Workflow
+
+GitLab's shared runners are Linux-only, which limits its usefulness for Julia application deployment — macOS and Windows runners are available only as a paid add-on from some GitLab instances. If your project is already hosted on GitLab, a CI configuration that provides a similar deployment experience to the GitHub workflow above is available in the [crypto-julia example repository](https://gitlab.com/JanisErdmanis/crypto-julia/-/blob/main/.gitlab-ci.yml?ref_type=heads).
+
