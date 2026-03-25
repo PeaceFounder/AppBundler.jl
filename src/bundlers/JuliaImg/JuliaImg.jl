@@ -1,4 +1,4 @@
-module Stage
+module JuliaImg
 
 # NOTE: AppEnv coupling required for cache validity
 #
@@ -10,15 +10,19 @@ module Stage
 # Until extension loading can be decoupled from LOAD_PATH, AppEnv must remain
 # integrated to ensure consistent LOAD_PATH across compilation and runtime.
 
-using ..AppBundler: julia_tarballs, artifacts_cache, BuildSpec
-import ..AppBundler: stage
+# Need to look 
+using ..AppBundler: BuildSpec
+import ..AppBundler: stage, julia_tarballs, artifacts_cache
 
-using ..SysImgTools
+include("TerminalSpinners.jl")
+include("SysImgTools.jl")
+
+using .SysImgTools
 using ..Resources
 using ..Resources: get_module_name
 
-import Base.BinaryPlatforms: AbstractPlatform, os, arch#, wordsize
-import Pkg.BinaryPlatforms: MacOS, Linux, Windows
+import Base.BinaryPlatforms: AbstractPlatform, HostPlatform, os, arch#, wordsize
+#import Pkg.BinaryPlatforms: MacOS, Linux, Windows
 import Libdl
 
 using UUIDs
@@ -33,66 +37,73 @@ function stdlib_default_dir(project)
 end
 
 """
-    JuliaAppBundle(source; precompile = true, incremental = true, julia_version = get_julia_version(source))
-
-Create a package image configuration for Julia application compilation.
-
-This constructor initializes a JuliaAppBundle configuration that controls how a Julia application
-is compiled and packaged, including precompilation settings and target Julia version.
-
+    JuliaImgBundle(project; sysimg_packages = [], incremental = isempty(sysimg_packages), kwargs...)
+ 
+Build specification for staging a Julia application as a self-contained image.
+ 
+The Julia version is read from `Manifest.toml` in `project` (falling back to the running
+Julia version). Incremental compilation defaults to `true` when no sysimage packages are
+requested; building a sysimage forces `incremental = false` because a new sysimage
+invalidates all existing pkgimage caches.
+ 
 # Arguments
-- `source::String`: Path to the application source directory containing Project.toml and Manifest.toml
-
+- `project::String`: Path to the application directory containing `Project.toml` and `Manifest.toml`
+ 
 # Keyword Arguments
-- `precompile = true`: If `true`, precompile the application during staging. If `false`, precompilation 
-  will occur on the target system at first launch
-- `incremental = true`: If `true`, use incremental compilation (faster). If `false`, perform clean 
-  compilation by removing existing compiled artifacts
-- `julia_version = get_julia_version(source)`: Target Julia version for the application. Defaults to 
-  the version specified in Manifest.toml, or current Julia version if not found
-
+- `precompile::Bool = true`: Precompile packages during staging. When `false`, precompilation
+  is deferred to the first launch on the target system
+- `incremental::Bool = isempty(sysimg_packages)`: Whether to reuse existing pkgimage caches.
+  Automatically set to `false` when `sysimg_packages` is non-empty
+- `sysimg_packages::Vector{String} = []`: Packages to bake into the system image. Triggers a
+  full sysimage rebuild, which invalidates all pkgimage caches
+- `sysimg_args::Cmd = \`\``: Extra command-line arguments forwarded to the sysimage compiler
+- `remove_sources::Bool = false`: Strip `.jl` source files from the staged package tree
+  (only meaningful when all relevant packages are baked into the sysimage)
+- `asset_spec::Dict{Symbol,Vector{String}} = Dict()`: Selective asset inclusion rules.
+  When empty, all artifacts are included and indexed via `pkgorigin`
+- `asset_rpath::String = "assets"`: Destination subdirectory for assets when `asset_spec` is set
+- `startup_file::String`: Path to the `startup.jl` template. Resolved from `meta/startup.jl`
+  inside `project`, falling back to `\$(pkgdir(AppBundler))/recipes/startup.jl`
+ 
 # Examples
 ```julia
-# Create package image with default settings
-pkg = JuliaAppBundle(app_dir)
-
-# Create without precompilation (compile on target system)
-pkg = JuliaAppBundle(app_dir; precompile = false)
-
-# Create with specific Julia version and clean compilation
-pkg = JuliaAppBundle(app_dir; julia_version = v"1.10.0", incremental = false)
+# Default: precompile everything, incremental caches
+pkg = JuliaImgBundle("path/to/app")
+ 
+# Skip precompilation — compile on first launch instead
+pkg = JuliaImgBundle("path/to/app"; precompile = false)
+ 
+# Bake heavy dependencies into a sysimage (forces non-incremental rebuild)
+pkg = JuliaImgBundle("path/to/app"; sysimg_packages = ["Plots", "DifferentialEquations"])
 ```
 """
-@kwdef struct JuliaAppBundle <: BuildSpec
+@kwdef struct JuliaImgBundle <: BuildSpec
     source::String
     include_lazy_artifacts::Bool = true
     stdlib_dir = stdlib_default_dir(source) # STDLIB directory relative to Sys.BINDIR
-
     startup_file::String = get_template(source, "startup.jl")
-
     sysimg_packages::Vector{String} = []
     sysimg_args::Cmd = ``
-    remove_sources::Bool = false
-    asset_rpath::Union{String, Nothing} = nothing
+    remove_sources::Bool = false # ToDo: It only makes sense to remove sources for packages baked in the sysimg
+    asset_rpath::String = "assets"
     asset_spec::Dict{Symbol, Vector{String}} = Dict{Symbol, Vector{String}}()
-
     precompile::Bool = true
     precompiled_modules::Vector{Symbol} = precompile ? get_project_deps(source) : []
     incremental::Bool = isempty(sysimg_packages) #true
     parallel_precompilation::Bool = (incremental || :Pkg in precompiled_modules) && !haskey(ENV, "CI")
 end
 
-function JuliaAppBundle(source; sysimg_packages = [], incremental = isempty(sysimg_packages), kwargs...) 
+function JuliaImgBundle(source; sysimg_packages = [], incremental = isempty(sysimg_packages), kwargs...) 
 
     if !isempty(sysimg_packages) && incremental
         @warn "All pkgimage cache needs to be rebuilt when new sysimage is built. To remove this warning set incremental=false"
         incremental = false
     end
 
-   return JuliaAppBundle(; source, sysimg_packages, incremental, kwargs...)
+   return JuliaImgBundle(; source, sysimg_packages, incremental, kwargs...)
 end
 
-get_julia_version(spec::JuliaAppBundle) = get_julia_version(spec.source)
+get_julia_version(spec::JuliaImgBundle) = get_julia_version(spec.source)
 
 """
     get_julia_version(source::String) -> VersionNumber
@@ -140,14 +151,14 @@ function get_template(source, target)
     if isfile(joinpath(source, "meta", target))
         return joinpath(source, "meta", target)
     else
-        path = joinpath(dirname(dirname(@__DIR__)), "recipes", target)
+        path = joinpath(dirname(dirname(dirname(@__DIR__))), "recipes", target)
         isfile(path) || error("$target is not defined in recipes")
         return path
     end
 end
 
 
-function install(source, destination; parameters = Dict(), force = false, executable = false, predicate::Union{Symbol, Nothing} = nothing)
+function install(source, destination; parameters = Dict(), force = false, executable = false, predicate::Union{String, Nothing} = nothing)
 
     if isfile(destination) 
         if force
@@ -162,19 +173,27 @@ function install(source, destination; parameters = Dict(), force = false, execut
     total_parameters = copy(parameters)
 
     if !isnothing(predicate)
-        total_parameters[string(predicate)] = true
+        total_parameters[uppercase(predicate)] = true
     end
 
+    # Need to test that it is what I was intended
     if !isempty(total_parameters)
         template = Mustache.load(source)
-        open(destination, "w") do file
-            Mustache.render(file, template, total_parameters)
+        rendered = Mustache.render(template, total_parameters)
+        if !isempty(strip(rendered))
+            open(destination, "w") do file
+                write(file, rendered)
+            end
         end
+    #     template = Mustache.load(source)
+    #     open(destination, "w") do file
+    #         Mustache.render(file, template, total_parameters)
+    #     end
     else
         cp(source, destination)
     end
 
-    if executable
+    if executable && Sys.isunix()
         chmod(destination, 0o755)
     end
 
@@ -230,9 +249,7 @@ function compile_sysimg(destination, project;
 
     compilation_script = sysimg_compilation_script(project, sysimg_packages)
 
-    #withenv("DEFAULT_RUNTIME_MODE" => "MIN", "MODULE_NAME" => isnothing(module_name) ? "MainEnv" : module_name) do
     SysImgTools.compile_sysimage(compilation_script, tmp_sysimg; base_sysimg, julia_cmd, cpu_target, sysimg_args, project)
-    #end
 
     mv(tmp_sysimg, base_sysimg; force=true)
 
@@ -263,8 +280,6 @@ function compile_pkgimgs(destination, project;
         empty!(DEPOT_PATH)
         push!(LOAD_PATH, "@stdlib", joinpath(Sys.STDLIB, $(repr(stdlib_project_name))))
         push!(DEPOT_PATH, joinpath(dirname(Sys.BINDIR), "share/julia"))
-        @show DEPOT_PATH
-        @show LOAD_PATH
     """
     withenv("JULIA_PROJECT" => project, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => cpu_target) do
         if use_pkg
@@ -279,13 +294,13 @@ end
 
 
 """
-    validate_cross_compilation(product::JuliaAppBundle, platform::AbstractPlatform) -> Bool
+    validate_cross_compilation(product::JuliaImgBundle, platform::AbstractPlatform) -> Bool
 
 Validate whether cross-compilation is supported for the given platform combination.
 Throws descriptive errors for unsupported combinations.
 
 # Arguments
-- `product::JuliaAppBundle`: The package configuration
+- `product::JuliaImgBundle`: The package configuration
 - `platform::AbstractPlatform`: Target platform
 
 # Returns
@@ -297,34 +312,28 @@ Throws descriptive errors for unsupported combinations.
 function validate_cross_compilation(platform::AbstractPlatform)
     
     # Windows compilation
-    if platform isa Windows
+    if os(platform) == "windows" # isa Windows
         if !Sys.iswindows()
             throw(ArgumentError("Cross-compilation to Windows from $(Sys.KERNEL) is not supported"))
         end
         return true
-    end
-    
-    # macOS compilation
-    if platform isa MacOS
+    elseif os(platform) == "macos"
         if !Sys.isapple()
             throw(ArgumentError("Cross-compilation to macOS from $(Sys.KERNEL) is not supported"))
         end
         
         # Check architecture compatibility on macOS
-        if Sys.ARCH == :x86_64 && arch(platform) == :aarch64
+        if Sys.ARCH == :x86_64 && arch(platform) == "aarch64"
             throw(ArgumentError("Cannot compile aarch64 binaries from x86_64 macOS"))
         end
         return true
-    end
-    
-    # Linux compilation
-    if platform isa Linux
+    elseif os(platform) == "linux"
         if !Sys.islinux()
             throw(ArgumentError("Cross-compilation to Linux from $(Sys.KERNEL) is not supported"))
         end
         
         # Check architecture compatibility on Linux
-        if Sys.ARCH !== arch(platform)
+        if Sys.ARCH !== Symbol(arch(platform))
             throw(ArgumentError("Cross-compilation across architectures not supported ($(Sys.ARCH) -> $(arch(platform)))"))
         end
         return true
@@ -364,10 +373,7 @@ function sysimg_compilation_script(project, packages)
             @eval Module() begin
                 push!(LOAD_PATH, $(repr(pkgdir(AppEnv))))
                 import AppEnv
-
-                println("Executing precompilation with modules: $(join(packages, ", "))...")
                 import $(join(packages, ','))
-                println("Precompilation executed successfully.")
             end
         """
     end
@@ -395,52 +401,63 @@ function remove_jl_sources!(dir)
     return
 end
 
-
 """
-    stage(product::JuliaAppBundle, platform::AbstractPlatform, destination::String)
-
-Stage a Julia application by downloading Julia runtime, copying packages, and optionally precompiling.
-
-This function performs the complete staging process for a Julia application, preparing it for
-distribution on the target platform. The process includes downloading the appropriate Julia runtime,
-copying application dependencies, retrieving artifacts, configuring startup files, and optionally
-precompiling the application.
-
+    stage(product::JuliaImgBundle, destination::String;
+          platform::AbstractPlatform = HostPlatform(),
+          cpu_target = get_cpu_target(platform),
+          runtime_mode = "MIN",
+          app_name = "",
+          bundle_identifier = "")
+ 
+Stage a Julia application into `destination`, ready for packaging and distribution.
+ 
+The staging process:
+1. Downloads and extracts the Julia runtime for `platform` (version from `Manifest.toml`)
+2. Copies all non-stdlib packages and artifacts into the stdlib tree
+3. Configures `startup.jl`, `DEPOT_PATH`, and `LOAD_PATH` via `AppEnv`
+4. Optionally compiles a system image from `product.sysimg_packages`
+5. Optionally precompiles pkgimages for all project dependencies
+ 
+When `product.precompile` is `true`, `platform` must match the host OS and architecture
+(see cross-compilation constraints below).
+ 
 # Arguments
-- `product::JuliaAppBundle`: Package image configuration specifying source, precompilation settings, and Julia version
-- `platform::AbstractPlatform`: Target platform (e.g., `MacOS(:arm64)`, `Windows(:x86_64)`, `Linux(:x86_64)`)
-- `destination::String`: Target directory where the staged application will be created
-
-# Staging Process
-
-The function performs the following steps in order:
-1. **Validation**: Checks cross-compilation support if precompilation is enabled
-2. **Julia Runtime**: Downloads and extracts the appropriate Julia version for the target platform
-3. **Dependencies**: Copies all non-stdlib packages from the application's Project.toml
-4. **Application**: Copies the application source code to the packages directory
-5. **Artifacts**: Downloads and installs platform-specific binary artifacts
-6. **Configuration**: Sets up startup.jl with appropriate DEPOT_PATH and LOAD_PATH configuration
-7. **Precompilation** (optional): Precompiles the application if `product.precompile = true`
-
-# Cross-Compilation Limitations
-
-- **Windows**: Can only compile on Windows systems
-- **macOS**: Can only compile on macOS systems. Cannot compile arm64 binaries from x86_64 Macs
-- **Linux**: Can only compile on Linux systems with matching architecture
-
+- `product::JuliaImgBundle`: Staging configuration
+- `destination::String`: Directory in which the staged application is assembled
+ 
+# Keyword Arguments
+- `platform::AbstractPlatform`: Target platform; defaults to the current host
+- `cpu_target`: LLVM CPU target string; derived from `platform` by default
+- `runtime_mode`: AppEnv runtime mode string passed to `AppEnv.save_config`
+- `app_name`: Application name embedded in the AppEnv config
+- `bundle_identifier`: Bundle identifier embedded in the AppEnv config (e.g. reverse-DNS on macOS)
+ 
+# Cross-Compilation Constraints
+ 
+Precompilation runs native code, so cross-OS and cross-architecture compilation is not
+supported when `product.precompile = true`:
+- **Windows**: host must be Windows
+- **macOS**: host must be macOS; `x86_64 → aarch64` is not supported
+- **Linux**: host must be Linux with a matching architecture
+ 
+Set `precompile = false` and `sysimg_packages = []` in `JuliaImgBundle` to stage for a different platform without compilation.
+ 
 # Examples
 ```julia
-# Stage application for macOS arm64
-pkg = JuliaAppBundle("src/")
-stage(pkg, MacOS(:arm64), "build/MyApp.app/Contents/Resources/julia")
-
-# Stage without precompilation for faster builds
-pkg = JuliaAppBundle(app_dir; precompile = false)
-stage(pkg, Linux(:x86_64), "build/linux_staging")
-
+pkg = JuliaImgBundle("src/MyApp")
+ 
+# Stage for the current machine
+stage(pkg, "build/staging")
+ 
+# Stage for macOS arm64 (must run on Apple Silicon with precompile=false, or natively)
+stage(pkg, "build/MyApp.app/Contents/Resources/julia";
+      platform = Platform("aarch64", "macos"))
+ 
+# Embed app identity in the AppEnv config
+stage(pkg, "build/staging"; app_name = "MyApp", bundle_identifier = "com.example.myapp")
 ```
 """
-function stage(product::JuliaAppBundle, platform::AbstractPlatform, destination::String; cpu_target = get_cpu_target(platform), runtime_mode = "MIN", app_name = "", bundle_identifier = "")
+function stage(product::JuliaImgBundle, destination::String; platform::AbstractPlatform = HostPlatform(), cpu_target = get_cpu_target(platform), runtime_mode = "MIN", app_name = "", bundle_identifier = "")
 
     if product.precompile
         validate_cross_compilation(platform)
@@ -448,40 +465,29 @@ function stage(product::JuliaAppBundle, platform::AbstractPlatform, destination:
 
     (; stdlib_dir, include_lazy_artifacts, sysimg_packages, sysimg_args, precompiled_modules) = product
 
-    @info "Fetching sources for Julia $(get_julia_version(product)) for $platform"
+    println("Fetching sources for julia-$(get_julia_version(product))-$platform")
     Resources.fetch(product.source, destination; platform, stdlib_dir, include_lazy_artifacts)
 
-    if isnothing(product.asset_rpath)
-        Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.stdlib_dir)
-    else
-        Resources.install_assets(product.source, joinpath(destination, product.asset_rpath), product.asset_spec)
-        Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.asset_rpath)
-    end
-    
-    @info "Configuring stage"
     configure(destination, product; runtime_mode, app_name, bundle_identifier)
 
     if !isempty(product.sysimg_packages)
-        @info "Compiling sysimage for $(product.sysimg_packages)..."
+        println("Compiling sysimage for $(product.sysimg_packages)...")
         compile_sysimg(destination, product.source; sysimg_packages, sysimg_args, cpu_target)
     end
 
     if product.precompile && !isempty(product.precompiled_modules)
 
-        @info "Precompiling pkgimgs for $(product.precompiled_modules)..."
+        println("Precompiling pkgimgs for $(product.precompiled_modules)...")
         compile_pkgimgs(destination, product.source; precompiled_modules, cpu_target, use_pkg = product.parallel_precompilation, incremental = product.incremental)
 
     else
-        @info "Precompilation disabled. Precompilation will occur on target system at first launch."
+        @warn "Precompilation disabled. Precompilation will occur on target system at first launch."
     end
-
-    @info "Installing pkgorigins index"
 
     # remove_sources
     module_name = get_module_name(product.source)
     packages_dir = joinpath(destination, product.stdlib_dir)
     if product.remove_sources 
-        @info "Removing sources from stdlib"
         rm(packages_dir; recursive = true)
         mkdir(packages_dir)
         cp(joinpath(pkgdir(AppEnv), "Project.toml"), joinpath(packages_dir, "Project.toml"))
@@ -491,17 +497,24 @@ function stage(product::JuliaAppBundle, platform::AbstractPlatform, destination:
         cp(joinpath(product.source, "Project.toml"), joinpath(packages_dir, stdlib_project_name, "Project.toml"))
     end
 
-    @info "App staging completed successfully"
-    @info "Staged app available at: $destination"
-    if !isnothing(module_name)
-        @info "Launch it with bin/julia -e \"using $module_name\""
+    if isempty(product.asset_spec)
+        Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.stdlib_dir)
     else
-        @info "Launch it with bin/julia"
+        Resources.install_assets(product.source, joinpath(destination, product.asset_rpath), product.asset_spec)
+        Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.asset_rpath)
+    end
+
+    println("App staging completed successfully")
+    println("Staged app available at: $destination")
+    if !isnothing(module_name)
+        println("Launch it with bin/julia -m $module_name")
+    else
+        println("Launch it with bin/julia")
     end
 
     return
 end
 
-export stage
+export stage, JuliaImgBundle
 
 end

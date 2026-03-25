@@ -6,6 +6,7 @@ using TOML
 import Pkg
 import Artifacts
 import Downloads
+import Preferences
 
 import Base.BinaryPlatforms: AbstractPlatform, arch, wordsize
 import Pkg.BinaryPlatforms: MacOS, Linux, Windows
@@ -93,7 +94,6 @@ function copy_assets(source, destination, assets::Vector{String})
     return
 end
 
-
 function install_assets(project, asset_dir, asset_spec::Dict{Symbol, Vector{String}})
 
     ctx = create_pkg_context(project)
@@ -125,6 +125,20 @@ function install_assets(project, asset_dir, asset_spec::Dict{Symbol, Vector{Stri
     return
 end
 
+function extract_asset_spec(project)
+
+    asset_spec = Dict{Symbol, Vector{String}}()
+    ctx = create_pkg_context(project)
+    
+    for (uuid, pkgentry) in ctx.env.manifest
+        if Preferences.has_preference(uuid, "assets")
+            asset_spec[Symbol(pkgentry.name)] = Preferences.load_preference(uuid, "assets")
+        end
+    end
+
+    return asset_spec
+end
+
 function install_pkgorigin_index(project, index_path, asset_dir)
 
     pkgorigins = collect_pkgorigins(project)
@@ -145,8 +159,6 @@ function collect_pkgorigins!(pkgorigins::Dict{PkgId, PkgOrigin}, project)
         #source_path = pkgentry.path
         source_path = Pkg.Operations.source_path(ctx.env.project_file, pkgentry)
 
-        #@infiltrate
-        
         if isnothing(source_path)
             @warn "Skipping $(pkgentry.name): source path not found"
             continue
@@ -225,47 +237,48 @@ function create_pkg_context(project)
     return ctx
 end
 
-function get_transitive_dependencies(ctx, packages)
+# function get_transitive_dependencies(ctx, packages)
 
-    packages_sysimg = Set{Base.PkgId}()
+#     packages_sysimg = Set{Base.PkgId}()
 
-    frontier = Set{Base.PkgId}()
-    deps = ctx.env.project.deps
-    for pkg in packages
-        # Add all dependencies of the package
-        if ctx.env.pkg !== nothing && pkg == ctx.env.pkg.name
-            push!(frontier, Base.PkgId(ctx.env.pkg.uuid, pkg))
-        else
-            uuid = ctx.env.project.deps[pkg]
-            push!(frontier, Base.PkgId(uuid, pkg))
-        end
-    end
-    copy!(packages_sysimg, frontier)
-    new_frontier = Set{Base.PkgId}()
-    while !(isempty(frontier))
-        for pkgid in frontier
-            deps = if ctx.env.pkg !== nothing && pkgid.uuid == ctx.env.pkg.uuid
-                ctx.env.project.deps
-            else
-                ctx.env.manifest[pkgid.uuid].deps
-            end
-            pkgid_deps = [Base.PkgId(uuid, name) for (name, uuid) in deps]
-            for pkgid_dep in pkgid_deps
-                if !(pkgid_dep in packages_sysimg) #
-                    push!(packages_sysimg, pkgid_dep)
-                    push!(new_frontier, pkgid_dep)
-                end
-            end
-        end
-        copy!(frontier, new_frontier)
-        empty!(new_frontier)
-    end
+#     frontier = Set{Base.PkgId}()
+#     deps = ctx.env.project.deps
+#     for pkg in packages
+#         # Add all dependencies of the package
+#         if ctx.env.pkg !== nothing && pkg == ctx.env.pkg.name
+#             push!(frontier, Base.PkgId(ctx.env.pkg.uuid, pkg))
+#         else
+#             uuid = ctx.env.project.deps[pkg]
+#             push!(frontier, Base.PkgId(uuid, pkg))
+#         end
+#     end
+#     copy!(packages_sysimg, frontier)
+#     new_frontier = Set{Base.PkgId}()
+#     while !(isempty(frontier))
+#         for pkgid in frontier
+#             deps = if ctx.env.pkg !== nothing && pkgid.uuid == ctx.env.pkg.uuid
+#                 ctx.env.project.deps
+#             else
+#                 ctx.env.manifest[pkgid.uuid].deps
+#             end
+#             pkgid_deps = [Base.PkgId(uuid, name) for (name, uuid) in deps]
+#             for pkgid_dep in pkgid_deps
+#                 if !(pkgid_dep in packages_sysimg) #
+#                     push!(packages_sysimg, pkgid_dep)
+#                     push!(new_frontier, pkgid_dep)
+#                 end
+#             end
+#         end
+#         copy!(frontier, new_frontier)
+#         empty!(new_frontier)
+#     end
 
-    return packages_sysimg
-end
+#     return packages_sysimg
+# end
 
 function install_project_toml(uuid, pkgentry, destination)
     # Extract information from pkginfo
+
     project_dict = Dict(
         "name" => pkgentry.name,
         "uuid" => string(uuid),  # or use the package UUID if you have it
@@ -367,7 +380,6 @@ function install_packages(project, packages_dir)
                 cp(source_path, pkg_dir)
 
                 if !isfile(joinpath(pkg_dir, "Project.toml"))
-                    # We need to make a Project.toml from pkginfo
                     @warn "$(pkgentry.name) uses the legacy REQUIRE format. As a courtesy to AppBundler developers, please update it to use Project.toml."
                     install_project_toml(uuid, pkgentry, joinpath(pkg_dir, "Project.toml"))
                 end
@@ -494,7 +506,7 @@ function install_julia(platform::AbstractPlatform, julia_dir; version = julia_ve
     tarball = joinpath(julia_tarballs(), basename(url))
 
     if !isfile(tarball) # Hashing would be much better here
-        download("$base_url/$url", tarball)
+        Downloads.download("$base_url/$url", tarball)
     end
 
     source = extract_tar_gz(tarball)

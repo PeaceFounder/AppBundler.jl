@@ -1,0 +1,4 @@
+build/
+site/
+src/generated/
+src/index.md

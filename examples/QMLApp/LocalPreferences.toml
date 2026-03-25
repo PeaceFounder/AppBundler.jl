@@ -1,0 +1,11 @@
+[QMLApp]
+assets = ["src/App.qml"]
+
+[AppBundler]
+windowed = true
+bundler = "juliac"
+
+juliac_trim = false
+
+juliaimg_selective_assets = true
+juliaimg_sysimg = ["QMLApp"]

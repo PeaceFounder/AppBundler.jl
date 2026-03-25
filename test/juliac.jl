@@ -16,16 +16,14 @@ if isfile(spec.juliac_cmd.exec[1])
     if Sys.islinux()
         snap = Snap(project; windowed = false)
         bundle(spec, snap, joinpath(build_dir, "cmdapp.snap"); force=true)
-    end
-
-    if Sys.isapple()
-        dmg = DMG(project; windowed = false)
-        bundle(spec, dmg, joinpath(build_dir, "cmdapp"); force=true)
-    end
-
-    if Sys.iswindows()
-        msix = MSIX(project; windowed = false)
+    elseif Sys.isapple()
+        dmg = DMG(project; windowed = false, selfsign = true)
+        bundle(spec, dmg, joinpath(build_dir, "cmdapp.dmg"); force=true)
+    elseif Sys.iswindows()
+        msix = MSIX(project; windowed = false, selfsign = true)
         bundle(spec, msix, joinpath(build_dir, "cmdappwin.msix"); force=true)
+    else
+        @warn "Nothing tested for JuliaC on this platform"
     end
 
 else

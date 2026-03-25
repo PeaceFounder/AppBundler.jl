@@ -1,0 +1,31 @@
+[AppBundler]
+# app_name, app_display_name, bundle_identifier
+publisher_name = "AppBundler"
+app_summary = "This is a default app summary"
+app_description = "A longer description of the app"
+
+windowed = false
+compress = true
+selfsign = false
+overwrite_target = false
+
+msix_path_length_threshold = 260
+msix_skip_long_paths = false
+msix_skip_symlinks = true
+msix_skip_unicode_paths = true
+msix_publisher = "CN=AppBundler, C=XX, O=PeaceFounder"
+
+dmg_shallow_signing = true
+dmg_hardened_runtime = true
+dmg_sandboxed_runtime = false
+dmg_compression = "lzma"
+
+bundler = "juliaimg"
+
+juliaimg_mainless = false
+juliaimg_precompile = true
+juliaimg_incremental = false
+juliaimg_sysimg = []
+juliaimg_selective_assets = false
+
+juliac_trim = false

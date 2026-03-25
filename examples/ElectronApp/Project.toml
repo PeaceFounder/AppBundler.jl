@@ -8,3 +8,6 @@ Electron = "a1bb12fb-d4d1-54b4-b10a-ee7951ef7ad3"
 
 [compat]
 Electron = "6.0.0"
+
+[extras]
+AppBundler = "40eb83ae-c93a-480c-8f39-f018b568f472"

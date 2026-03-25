@@ -1,7 +1,9 @@
+
 module AppBundler
 
 using Scratch
 import Pkg.BinaryPlatforms: Linux, MacOS, Windows
+import Pkg
 
 DOWNLOAD_CACHE = ""
 
@@ -14,42 +16,37 @@ artifacts_cache() = joinpath(DOWNLOAD_CACHE, "artifacts")
 Abstract specification for building and packaging applications.
 
 Concrete subtypes:
-- [`JuliaAppBundle`](@ref): Julia application with full runtime
-- [`JuliacBundle`](@ref): Standalone executable compiled with JuliaC
+- [`JuliaImg.JuliaImgBundle`](@ref): Julia application with full runtime
+- [`JuliaC.JuliacBundle`](@ref): Standalone executable compiled with JuliaC
 """
 abstract type BuildSpec end
 
 function stage end
 
+include("DMG/DSStore.jl")
+include("DMG/HFS.jl")
+include("DMG/DMGPack.jl")
 
-include("Utils/DSStore.jl")
-include("Utils/HFS.jl")
-include("Utils/DMGPack.jl")
-include("Utils/SnapPack.jl")
-include("Utils/MSIXPack.jl")
-include("Utils/MSIXIcons.jl")
-include("Utils/WinSubsystem.jl")
+include("Snap/SnapPack.jl")
 
-include("Utils/Resources.jl")
-include("Utils/TerminalSpinners.jl")
-include("Utils/SysImgTools.jl")
-include("Utils/Stage.jl")
+include("MSIX/OpenSSLLegacy.jl")
+include("MSIX/MSIXPack.jl")
+include("MSIX/MSIXIcons.jl")
+include("MSIX/WinSubsystem.jl")
 
-include("Utils/JuliaC.jl")
+include("bundlers/Resources.jl") # JuliaC needs assets and pkgorigins_index which is shared between JuliaImg and JuliaC
+include("bundlers/JuliaImg/JuliaImg.jl") 
+include("bundlers/JuliaC.jl")
 
-include("Utils/ArgParser.jl")
-
-import .ArgParser: parse_args
-#import .Stage: stage # 
-#using .Stage: merge_directories, install
-using .Stage: install
-using .Resources: merge_directories#, install
+using .JuliaImg: install
+using .JuliaImg.Resources: merge_directories#, install
 
 include("utils.jl")
 include("bundle.jl")
 include("recipes.jl") 
+include("main.jl")
 
-bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)
+#bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)
 
 function __init__()
     if Sys.iswindows()
@@ -63,6 +60,13 @@ function __init__()
 
 end
 
-export JuliaAppBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
+#import .JuliaImg: JuliaImgBundle
+
+@doc (@doc JuliaImg.JuliaImgBundle) JuliaImgBundle
+@doc (@doc JuliaC.JuliaCBundle) JuliaCBundle
+
+export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
+export main 
+
 
 end

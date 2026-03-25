@@ -3,20 +3,22 @@ using Base64
 using rcodesign_jll: rcodesign
 using TOML
 
-function get_version(app_dir)
+# function get_version(app_dir)
     
-    project = joinpath(app_dir, "Project.toml")
+#     project = joinpath(app_dir, "Project.toml")
 
-    if isfile(project)
-        try
-            return TOML.parsefile(project)["version"] 
-        catch
-            error("Parsing of $project file failed")
-        end
-    else
-        error("App project file does not exist at $project")
-    end
-end
+#     if isfile(project)
+#         try
+#             return TOML.parsefile(project)["version"] 
+#         catch
+#             error("Parsing of $project file failed")
+#         end
+#     else
+#         error("App project file does not exist at $project")
+#     end
+# end
+
+preferences() = Base.get_preferences()["AppBundler"]
 
 
 function generate_macos_signing_certificate(root; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
@@ -34,14 +36,12 @@ function generate_macos_signing_certificate(root; person_name = "AppBundler", co
     run(`$(rcodesign()) generate-self-signed-certificate --person-name="$person_name" --p12-file="$destination" --p12-password="$password" --country-name=$country --validity-days="$validity_days"`)
 
     println("""
-    The certificate is encrypted with a strong encryption algorithm and stored at meta/macos/certificate.pfx; To use certificate set certificate password with environment variable:
-
-        export MACOS_PFX_PASSWORD="$password"
+    The certificate is encrypted with a strong encryption algorithm and stored at meta/macos/certificate.pfx; To use certificate set certificate password "$password"
     """)
 
-    ENV["MACOS_PFX_PASSWORD"] = password
+    #ENV["MACOS_PFX_PASSWORD"] = password
 
-    return
+    return password
 end
 
 function generate_windows_signing_certificate(root; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
@@ -56,17 +56,15 @@ function generate_windows_signing_certificate(root; person_name = "AppBundler", 
 
     mkpath(dirname(destination))
     
-    MSIXPack.generate_self_signed_certificate(destination; password, name = person_name, country, validity_days)
+    MSIXPack.generate_self_signed_certificate(destination; password, publisher="O=AppBundler, C=$country, CN=$person_name", validity_days)
 
     println("""
-    The certificate is encrypted with a strong encryption algorithm and stored at meta/windows/certificate.pfx; To use certificate set certificate password with environment variable:
-
-        export WINDOWS_PFX_PASSWORD="$password"
+    The certificate is encrypted with a strong encryption algorithm and stored at meta/windows/certificate.pfx; To use certificate set certificate password "$password"
     """)
     
-    ENV["WINDOWS_PFX_PASSWORD"] = password
+    #ENV["WINDOWS_PFX_PASSWORD"] = password
 
-    return
+    return password
 end
 
 # instantiation of self signed keys could be done at a seperate command!
@@ -81,11 +79,14 @@ function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force 
     mkpath(joinpath(root, ".github/workflows"))
 
     cp(joinpath(dirname(@__DIR__), "recipes/workflows/GitHub.yml"), joinpath(root, ".github/workflows/Release.yml"); force)
-    chmod(joinpath(root, ".github/workflows/Release.yml"), 0o666)
 
-    install(joinpath(dirname(@__DIR__), "recipes/workflows/build.jl"), joinpath(root, "meta/build.jl"); parameters, force)
+    if Sys.isunix() # chmod on windows can segfault
+        chmod(joinpath(root, ".github/workflows/Release.yml"), 0o666)
+    end
+
+    #install(joinpath(dirname(@__DIR__), "recipes/workflows/build.jl"), joinpath(root, "meta/build.jl"); parameters, force)
     #chmod(joinpath(root, "meta/build.jl"), 0o444)
-    chmod(joinpath(root, "meta/build.jl"), 0o666)
+    #chmod(joinpath(root, "meta/build.jl"), 0o666)
    
     println("""
     Setup done. You may now commit the workflow to the repo that will automatically build artifiacts and attach for new GitHub releases. You can also test builds before releasing. See documentation for more.
@@ -101,10 +102,10 @@ end
 
 function generate_signing_certificates(; root = dirname(Base.ACTIVE_PROJECT[]), person_name = "AppBundler", country = "XX", validity_days = 365, force = false)
 
-    generate_macos_signing_certificate(root; person_name, country, validity_days, force)
-    generate_windows_signing_certificate(root; person_name, country, validity_days, force)
+    password_macos = generate_macos_signing_certificate(root; person_name, country, validity_days, force)
+    password_windows = generate_windows_signing_certificate(root; person_name, country, validity_days, force)
 
-    return
+    return (; password_macos, password_windows)
 end
 
 function isext(filename::String, ext::String)
@@ -224,7 +225,6 @@ function ensure_windows_compatability(src_dir::String; path_length_threshold::In
     return
 end
 
-
 function get_path(prefix::Vector, suffix::Vector; dir = false, warn = true)
 
     for i in prefix
@@ -246,3 +246,12 @@ end
 get_path(prefix::String, suffix::String; kwargs...) = get_path([prefix], [suffix]; kwargs...)
 get_path(prefix::String, suffix::Vector; kwargs...) = get_path([prefix], suffix; kwargs...)
 get_path(prefix::Vector, suffix::String; kwargs...) = get_path(prefix, [suffix]; kwargs...)
+
+function hook(rpath, predicate)
+    if isempty(predicate)
+        return rpath
+    else
+        predicate_path = joinpath(dirname(rpath), join((lowercase(string(predicate)), basename(rpath)), "_"))
+        return [predicate_path, rpath]
+    end
+end

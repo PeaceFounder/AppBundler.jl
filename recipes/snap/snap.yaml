@@ -1,4 +1,4 @@
-name: {{APP_NAME_LOWERCASE}}
+name: {{APP_NAME}}
 title: {{APP_DISPLAY_NAME}}
 base: core22
 version: '{{APP_VERSION}}'
@@ -8,8 +8,8 @@ grade: devel
 confinement: classic 
 
 apps:
-  {{APP_NAME_LOWERCASE}}:
-    command: bin/{{APP_NAME_LOWERCASE}}
+  {{APP_NAME}}:
+    command: bin/{{APP_NAME}}
     desktop: meta/gui/{{APP_NAME}}.desktop
     plugs:
       - opengl
@@ -19,7 +19,7 @@ apps:
       - x11
       - network
 
-{{#JULIA_APP_BUNDLE}}
+{{#JULIAIMG}}
 
 hooks:
   configure:
@@ -28,4 +28,4 @@ hooks:
       - opengl
       - wayland
 
-{{/JULIA_APP_BUNDLE}}
+{{/JULIAIMG}}

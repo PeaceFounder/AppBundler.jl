@@ -19,7 +19,7 @@ for file_key in keys(dsstore_dict)
     end
 end
 
-dsstore_dict["{{APP_NAME}}.app"]["Iloc"] = tuple(dsstore_dict["{{APP_NAME}}.app"]["Iloc"]...)
+dsstore_dict["{{APP_DISPLAY_NAME}}.app"]["Iloc"] = tuple(dsstore_dict["{{APP_DISPLAY_NAME}}.app"]["Iloc"]...)
 dsstore_dict["Applications"]["Iloc"] = tuple(dsstore_dict["Applications"]["Iloc"]...)
 
 @test dsstore_dict == convert(Dict, dst) 

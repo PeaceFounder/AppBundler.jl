@@ -16,7 +16,7 @@ end
     include("juliac.jl")
 end
 
-@time @safetestset "GLApp example" begin
+@time @safetestset "CLI API example" begin
     include("integrity.jl")
 end
 

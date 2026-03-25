@@ -1,0 +1,15 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)" # $0 can also be a relative path
+
+CMD="$SCRIPT_DIR/bin/{{APP_NAME}}"
+{{^WINDOWED}}
+if [ $# -eq 0 ]; then
+    osascript -e 'tell application "Terminal" to activate' \
+              -e 'tell application "Terminal" to do script "clear && '"$CMD"'; exit"'
+    exit 0
+fi
+{{/WINDOWED}}
+
+# Arguments provided: Execute in current shell
+"$CMD" $@
