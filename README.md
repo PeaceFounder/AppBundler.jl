@@ -1,6 +1,6 @@
 # AppBundler.jl
 
-[![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](DOCS_URL_HERE)
+[![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://peacefounder.org/AppBundler.jl/)
 [![codecov](https://codecov.io/gh/PeaceFounder/AppBundler.jl/graph/badge.svg?token=JE3S7HBN9X)](https://codecov.io/gh/PeaceFounder/AppBundler.jl)
 
 ![](docs/src/assets/appbundler.png)
@@ -9,9 +9,7 @@ AppBundler.jl is a Julia package for building native installers — Snap, MSIX, 
 
 The package provides a clean API for bundling any Julia application exposing `@main`, with support for icons, configuration files, and native customization. GitHub Actions workflows allow multi-platform installer builds to be triggered with a single click, making continuous delivery of native installers practical for open-source Julia projects. AppBundler can also bundle applications written in other build systems (see docs).
 
-📖 **[Read the full documentation](DOCS_URL_HERE)**
-
----
+📖 **[Read the full documentation](https://peacefounder.org/AppBundler.jl/)**
 
 ## Showcase
 
@@ -22,8 +20,6 @@ The following videos demonstrate the DMG and MSIX installers produced via AppBun
 | DMG | MSIX |
 
 > **Note:** The bundling API has evolved since these videos were recorded, but the pipeline structure and the resulting installers look just the same.
-
----
 
 ## Quickstart
 
@@ -57,8 +53,6 @@ Your installer will be in the `build/` directory, ready to distribute. AppBundle
 
 To build for all three platforms at once, check out the included GitHub Actions workflow templates — they run each platform's build in parallel with a single push.
 
----
-
 ## Compilation & Customization
 
 AppBundler offers a lot of room to grow as your project matures:
@@ -70,9 +64,7 @@ AppBundler offers a lot of room to grow as your project matures:
 
 AppBundler can also bundle applications written in other build systems, and can build full Julia distributions — as demonstrated by [Jumbo Julia](https://github.com/JanisErdmanis/Jumbo).
 
-➡️ See the **[full documentation](DOCS_URL_HERE)** for all options and platform-specific configuration.
-
----
+➡️ See the **[full documentation](https://peacefounder.org/AppBundler.jl/)** for all options and platform-specific configuration.
 
 ## Supported GUI Frameworks
 
@@ -87,8 +79,6 @@ These frameworks have been tested with AppBundler. Minimal example applications 
 | Makie | ⚠ All platforms | [GLMakie may not work on Windows](https://github.com/MakieOrg/Makie.jl/issues/5342) | [ImageColorThresholderApp](https://github.com/rakeshksr/ImageColorThresholderApp.jl/pull/4) |
 | Blink | ⚠ All platforms | Requires heavy patching for relocatability | [KomaMRI](https://github.com/JuliaHealth/KomaMRI.jl/pull/640) |
 
----
-
 ## Installing Built Applications
 
 *Sharing your app with end users? Here's what they need to know.*
@@ -98,8 +88,6 @@ These frameworks have been tested with AppBundler. Minimal example applications 
 - **DMG (macOS):** For self-signed builds, click the app, then go to **Settings → Privacy & Security** to approve the launch request. Drag it to **Applications**, launch it, and approve once more in Privacy & Security if prompted.
 
 These extra steps are only needed for self-signed builds. Purchasing Windows and macOS code signing certificates eliminates them entirely. For Snap, submitting to the Snap Store enables one-click GUI installation.
-
----
 
 ## Acknowledgments
 

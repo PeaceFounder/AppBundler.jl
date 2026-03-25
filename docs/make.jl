@@ -20,7 +20,7 @@ index_content = join([
 
 index_content = replace(index_content, r"!\[\]\(docs/src/([^)]+)\)" => s"![](\1)")
 
-if String(read(index_path)) != index_content
+if !isfile(index_path) || String(read(index_path)) != index_content
     rm(index_path, force=true)
     write(index_path, index_content)
 end

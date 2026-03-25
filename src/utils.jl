@@ -108,21 +108,21 @@ function generate_signing_certificates(; root = dirname(Base.ACTIVE_PROJECT[]), 
     return (; password_macos, password_windows)
 end
 
-function isext(filename::String, ext::String)
-    # Base case: if the filename is empty or doesn't have the extension, return false.
-    if isempty(filename) || !endswith(filename, ext)
-        return false
-    end
+# function isext(filename::String, ext::String)
+#     # Base case: if the filename is empty or doesn't have the extension, return false.
+#     if isempty(filename) || !endswith(filename, ext)
+#         return false
+#     end
     
-    # If the current filename ends with the desired extension, return true.
-    if endswith(filename, ext)
-        return true
-    end
+#     # If the current filename ends with the desired extension, return true.
+#     if endswith(filename, ext)
+#         return true
+#     end
     
-    # Otherwise, recurse after stripping the current extension.
-    root, _ = splitext(filename)
-    return isext(root, ext)
-end
+#     # Otherwise, recurse after stripping the current extension.
+#     root, _ = splitext(filename)
+#     return isext(root, ext)
+# end
 
 function is_windows_compatible(filename::String; path_length_threshold)
     # Check for invalid characters
