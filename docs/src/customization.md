@@ -151,7 +151,7 @@ end
 
 ## Surgical Overrides
 
-AppBundler is designed for surgical customization through native file overrides. Files placed in the application's `meta/` directory override AppBundler's built-in defaults. Templates are kept intentionally simple — rather than providing complex nested templates, AppBundler encourages copying and modifying complete configuration files, which keeps platform-specific customization straightforward to debug and communicate about.
+AppBundler is designed for surgical customization through native file overrides. Files placed in the application's `meta/` directory override AppBundler's default templates located at `$(pkgdir(AppBundler))/recipes/`. Templates are kept intentionally simple — rather than providing complex nested templates, AppBundler encourages copying and modifying complete configuration files, which keeps platform-specific customization straightforward to debug and communicate about.
 
 > **Tip:** Use `--debug` when working through override changes. It produces an uncompressed, self-signed bundle quickly and opens a console window so you can observe runtime behaviour without waiting for a full release build.
 
