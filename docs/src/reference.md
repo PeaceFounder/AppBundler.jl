@@ -46,8 +46,8 @@ The `password` argument is the certificate password used to decrypt the signing 
 ## Types
 
 ```@docs
-AppBundler.JuliaImg.JuliaImgBundle
-AppBundler.JuliaC.JuliaCBundle
+AppBundler.JuliaImgBundle
+AppBundler.JuliaCBundle
 AppBundler.DMG
 AppBundler.MSIX
 AppBundler.Snap
@@ -56,9 +56,9 @@ AppBundler.Snap
 ## Functions
 
 ```@docs
-AppBundler.bundle(::AppBundler.JuliaImgBundle, ::AppBundler.DMG, ::String)
 AppBundler.stage(::AppBundler.JuliaImg.JuliaImgBundle, ::String)
 AppBundler.stage(::AppBundler.JuliaC.JuliaCBundle, ::String)
-AppBundler.bundle(::Function, ::AppBundler.DMG, ::String)
 AppBundler.stage(::AppBundler.MSIX, ::String)
+AppBundler.bundle(::Function, ::AppBundler.DMG, ::String)
+AppBundler.bundle(::AppBundler.JuliaImgBundle, ::AppBundler.DMG, ::String)
 ```

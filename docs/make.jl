@@ -31,7 +31,7 @@ makedocs(
     format = Documenter.HTML(),
     warnonly = true,
     checkdocs = :public,
-    modules = [AppBundler, AppBundler.JuliaC, AppBundler.JuliaImg],
+    modules = [AppBundler],
     checkdocs_ignored_modules = [AppBundler.DSStore, AppBundler.HFS],
     pages = [
         "Overview" => "index.md",

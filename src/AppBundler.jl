@@ -62,8 +62,8 @@ end
 
 #import .JuliaImg: JuliaImgBundle
 
-@doc (@doc JuliaImg.JuliaImgBundle) JuliaImgBundle
-@doc (@doc JuliaC.JuliaCBundle) JuliaCBundle
+#@doc (@doc JuliaImg.JuliaImgBundle) JuliaImgBundle
+#@doc (@doc JuliaC.JuliaCBundle) JuliaCBundle
 
 export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
 export main 

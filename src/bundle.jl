@@ -258,7 +258,6 @@ function DMG(;
              shallow_signing = preferences["dmg_shallow_signing"],
              hardened_runtime = preferences["dmg_hardened_runtime"],
              sandboxed_runtime = preferences["dmg_sandboxed_runtime"],
-             #main_redirect = true,
              main_launcher = get_path(prefix, hook("dmg/main.sh", predicate); warn = false),
              hfsplus = false,
              windowed = preferences["windowed"],
@@ -282,7 +281,7 @@ end
 
 
 """
-    stage(config, destination::String; kwargs...)
+    stage(config, destination::String; [dsstore=false])
  
 Stage package metadata and directory structure into `destination` in preparation for bundling.
  
@@ -295,13 +294,13 @@ to inspect or modify the staging directory before compression and signing.
  
 ## Staged layout by format
  
-**MSIX** (`stage(msix::MSIX, destination)`)
+**MSIX**
 - `Assets/` — application icons (generated from source or copied verbatim if already a directory)
 - `AppxManifest.xml` — rendered package manifest
 - `resources.pri` — package resource index
 - `Msix.AppInstaller.Data/MSIXAppInstallerData.xml` — rendered installer configuration
  
-**DMG** (`stage(dmg::DMG, destination; dsstore = false)`)
+**DMG**
 - `Contents/Resources/icon.icns` — application icon
 - `Contents/Info.plist` — rendered application metadata
 - `Contents/MacOS/<app-name>` (optional) — native launcher when `main_launcher` is set
@@ -310,7 +309,7 @@ to inspect or modify the staging directory before compression and signing.
   - `Applications` — symlink to `/Applications` for drag-and-drop installation
   - `.DS_Store` — custom Finder window appearance
  
-**Snap** (`stage(snap::Snap, destination)`)
+**Snap**
 - `meta/icon.png` — application icon
 - `meta/snap.yaml` — rendered Snap package metadata
 - `meta/gui/<app-name>.desktop` — rendered desktop launcher
@@ -446,7 +445,7 @@ end
 
 
 """
-    bundle(setup::Function, config, destination::String; force = false, kwargs...)
+    bundle(setup::Function, config, destination::String; force=false, [password=""])
  
 Stage, populate, and optionally compress an application bundle for distribution.
  

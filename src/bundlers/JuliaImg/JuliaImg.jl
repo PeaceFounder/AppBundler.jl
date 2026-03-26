@@ -37,7 +37,7 @@ function stdlib_default_dir(project)
 end
 
 """
-    JuliaImgBundle(project; sysimg_packages = [], incremental = isempty(sysimg_packages), kwargs...)
+    JuliaImgBundle(project; kwargs...)
  
 Build specification for staging a Julia application as a self-contained image.
  
