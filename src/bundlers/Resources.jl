@@ -6,7 +6,6 @@ using TOML
 import Pkg
 import Artifacts
 import Downloads
-import Preferences
 
 import Base.BinaryPlatforms: AbstractPlatform, arch, wordsize
 import Pkg.BinaryPlatforms: MacOS, Linux, Windows
@@ -125,14 +124,28 @@ function install_assets(project, asset_dir, asset_spec::Dict{Symbol, Vector{Stri
     return
 end
 
-function extract_asset_spec(project)
+# This is a bit of a hack but shall work fine
+function get_project_preferences(project)
+
+    push!(Base.LOAD_PATH, pkgdir(@__MODULE__))
+    pushfirst!(Base.LOAD_PATH, project)
+    try
+        return Base.get_preferences()
+    finally
+        popfirst!(Base.LOAD_PATH)
+        pop!(Base.LOAD_PATH)
+    end
+end
+
+function extract_asset_spec(project; project_preferences = get_project_preferences(project))
 
     asset_spec = Dict{Symbol, Vector{String}}()
     ctx = create_pkg_context(project)
     
     for (uuid, pkgentry) in ctx.env.manifest
-        if Preferences.has_preference(uuid, "assets")
-            asset_spec[Symbol(pkgentry.name)] = Preferences.load_preference(uuid, "assets")
+
+        if haskey(project_preferences, pkgentry.name) && haskey(project_preferences[pkgentry.name], "assets")
+            asset_spec[Symbol(pkgentry.name)] = project_preferences[pkgentry.name]["assets"]
         end
     end
 

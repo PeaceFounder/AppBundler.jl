@@ -6,7 +6,7 @@ import Mustache
 
 
 """
-    MSIX([overlay]; prefix, icon, appxmanifest, resources_pri, msixinstallerdata, path_length_threshold, skip_long_paths, pfx_cert, parameters)
+    MSIX([overlay]; arch, compress, windowed, kwargs...)
  
 Create an MSIX configuration object for Windows application packaging.
  
@@ -105,7 +105,7 @@ function normalize_publisher(publisher)
 end
 
 """
-    Snap([overlay]; prefix, icon, snap_config, desktop_launcher, configure_hook, main_launcher, windowed, compress, arch, predicate, parameters)
+    Snap([overlay]; arch, compress, windowed, kwargs...)
  
 Create a Snap configuration object for Linux application packaging.
  
@@ -183,7 +183,7 @@ end
 # TODO: mention that application needs to be notarized by Apple. That can be done outside the build process by stapling already signed DMG archive. 
 
 """
-    DMG([overlay]; prefix, icon, info_config, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, hfsplus, windowed, compress, compression, arch, predicate, parameters)
+    DMG([overlay]; arch, compress, windowed, kwargs...)
  
 Create a DMG configuration object for macOS application packaging.
  

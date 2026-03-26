@@ -66,7 +66,7 @@ pkg = JuliaCBundle("path/to/app"; executable_name = "myapp", trim = true)
 @kwdef struct JuliaCBundle <: BuildSpec
     project::String
     juliac_cmd::Cmd = Cmd([juliac()])
-    executable_name::String = lowercase(get_module_name(project))
+#    executable_name::String = lowercase(get_module_name(project))
     trim::Bool = false
     args::Cmd = ``
     asset_rpath::String = "assets"
@@ -105,8 +105,8 @@ self-contained native binary. The host toolchain must be compatible with the tar
 ```julia
 pkg = JuliaCBundle("src/MyApp")
  
-# Stage into a macOS app bundle
-stage(pkg, "build/MyApp.app/Contents/MacOS";
+# Stage into a directory
+stage(pkg, "build/myapp";
       app_name = "MyApp", bundle_identifier = "com.example.myapp")
  
 # Stage with a custom runtime mode
@@ -126,7 +126,7 @@ function stage(spec::JuliaCBundle, destination::String; runtime_mode = "MIN", ap
     Resources.install_assets(project, joinpath(destination, spec.asset_rpath), spec.asset_spec)
     Resources.install_pkgorigin_index(project, joinpath(destination, "index"), spec.asset_rpath)
 
-    run(`$juliac_cmd --output-exe $(spec.executable_name) $project --bundle $destination $trim_arg $(spec.args)`)
+    run(`$juliac_cmd --output-exe $(app_name) $project --bundle $destination $trim_arg $(spec.args)`)
     
     return
 end

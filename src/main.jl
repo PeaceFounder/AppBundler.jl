@@ -4,27 +4,30 @@ import LibGit2
 using Preferences
 
 function (@main)(ARGS)
+    
+    if length(ARGS) == 0 
+        error("No command provided. See `--help` for available commands.")
+    end
 
-    if ARGS[1] == "build"
+    command = ARGS[1]
 
-        old_project = Base.ACTIVE_PROJECT[]
-        push!(Base.LOAD_PATH, pkgdir(AppBundler)) # needed for reading LocalPreferences.toml when AppBundler is loaded as project
+    if command in ["--help", "-h"]
 
-        try
-            Base.ACTIVE_PROJECT[] = joinpath(realpath(ARGS[2]))
-            main_build(ARGS[3:end]; sources_dir = realpath(ARGS[2]))
-        finally
-            pop!(Base.LOAD_PATH)
-            Base.ACTIVE_PROJECT[] = old_project
+        print_help()
+
+    elseif command == "build"
+
+        if length(ARGS) < 2
+            error("No project path provided for `build` command. See `build --help` for usage.")
         end
 
-    elseif ARGS[1] == "--help"
-        println("Use the command as `appbundler [build|instantiate] [args]`.")
+        main_build(ARGS[3:end]; sources_dir = realpath(ARGS[2]))
+
+    # elseif command == "init"
+    #     ...
 
     else
-
-        error("Got unsupported command $(ARGS[1]). See `--help` for available commands.")
-
+        error("Unsupported command `$command`. See `--help` for available commands.")
     end
 
     return 0
@@ -42,7 +45,8 @@ end
 
 function main_build(ARGS; sources_dir)
 
-    config, preferences = parse_args(ARGS)
+    project_preferences = Resources.get_project_preferences(sources_dir)
+    config, preferences = parse_args(ARGS; preferences = project_preferences["AppBundler"])
 
     target_arch = config[:target_arch]
     target_bundle = config[:target_bundle]
@@ -59,7 +63,7 @@ function main_build(ARGS; sources_dir)
 
         if preferences["juliaimg_selective_assets"]
             remove_sources = true
-            asset_spec = Resources.extract_asset_spec(sources_dir) 
+            asset_spec = Resources.extract_asset_spec(sources_dir; project_preferences) 
         else
             remove_sources = false
             asset_spec = Dict{Symbol, Vector{String}}()
@@ -75,13 +79,11 @@ function main_build(ARGS; sources_dir)
         
     elseif bundler == "juliac"
 
-        asset_spec = Resources.extract_asset_spec(sources_dir)
+        asset_spec = Resources.extract_asset_spec(sources_dir; project_preferences)
         spec = JuliaCBundle(sources_dir; trim = preferences["juliac_trim"], asset_spec) 
 
     else
-
         error("Got unsupported bundler type $bundler")
-
     end
 
     function target_path(spec)
@@ -110,7 +112,7 @@ function main_build(ARGS; sources_dir)
 
     elseif :dmg == target_bundle
 
-        dmg = DMG(sources_dir; windowed, selfsign, arch = target_arch, preferences)
+        dmg = DMG(sources_dir; windowed, compress, selfsign, arch = target_arch, preferences)
 
         if selfsign
             password = ""
@@ -125,7 +127,7 @@ function main_build(ARGS; sources_dir)
 
     elseif :snap == target_bundle
 
-        snap = Snap(sources_dir; windowed, arch = target_arch, preferences)
+        snap = Snap(sources_dir; windowed, compress, arch = target_arch, preferences)
         bundle(spec, snap, target_path(snap); force = overwrite_target)
 
     else
@@ -134,7 +136,6 @@ function main_build(ARGS; sources_dir)
 
     return
 end
-
 
 function get_project_name(project_toml)
 
@@ -237,7 +238,7 @@ function normalize_args(args)
     return normalized
 end
 
-function parse_args(raw_args)
+function parse_args(raw_args; preferences = Base.get_preferences()["AppBundler"])
 
     args = normalize_args(raw_args)
 
@@ -305,22 +306,22 @@ function parse_args(raw_args)
     end
 
     preference_overrides_dict = TOML.parse(join(preference_overrides, "\n"))
-    preferences = merge(Base.get_preferences()["AppBundler"], preference_overrides_dict)
+    merged_preferences = merge(preferences, preference_overrides_dict)
 
     # Default values
     defaults = Dict(
         :build_dir => mktempdir(),  # Use nothing to distinguish "not set" from ""
-        :compress => preferences["compress"],
-        :windowed => preferences["windowed"],
-        :selfsign => preferences["selfsign"],
+        :compress => merged_preferences["compress"],
+        :windowed => merged_preferences["windowed"],
+        :selfsign => merged_preferences["selfsign"],
         :target_arch => Sys.ARCH,
         :target_bundle => Sys.islinux() ? :snap : Sys.isapple() ? :dmg : Sys.iswindows() ? :msix : error("Bundling for current platform is unsupported"),
         :target_name => nothing,
-        :overwrite_target => preferences["overwrite_target"],
+        :overwrite_target => merged_preferences["overwrite_target"],
         :password => nothing
     )
 
-    return merge(defaults, config), preferences
+    return merge(defaults, config), merged_preferences
 end
 
 
