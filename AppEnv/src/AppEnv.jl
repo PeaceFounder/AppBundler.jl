@@ -4,25 +4,7 @@ import Base: PkgId, PkgOrigin, UUID
 
 const RUNTIME_MODE_OPTIONS = ["MIN", "INTERACTIVE", "COMPILATION", "SANDBOX"]
 
-# Compilation can be done in one mode
-#const DEFAULT_RUNTIME_MODE = get(ENV, "DEFAULT_RUNTIME_MODE", get(ENV, "RUNTIME_MODE", "INTERACTIVE"))
-
-#get(ENV, "JULIA_RUNTIME_MODE", "INTERACTIVE") # We set it at compilation
-
-#const DEFAULT_MODULE_NAME = get(ENV, "MODULE_NAME", "MainEnv")
-#const DEFAULT_APP_NAME = get(ENV, "APP_NAME", "")
-#const DEFAULT_BUNDLE_IDENTIFIER = get(ENV, "BUNDLE_IDENTIFIER", "")
-
-#const DEFAULT_STDLIB = get(ENV, "STDLIB", relpath(Sys.STDLIB, dirname(Sys.BINDIR)))
-
-# println("Compilation is about to happen with the following parameters:")
-# println("\tDEFAULT_RUNTIME_MODE=" * DEFAULT_RUNTIME_MODE)
-# println("\tDEFAULT_MODULE_NAME=" * DEFAULT_MODULE_NAME)
-# println("\tDEFAULT_APP_NAME=" * DEFAULT_APP_NAME)
-# println("\tDEFAULT_BUNDLE_IDENTIFIER=" * DEFAULT_BUNDLE_IDENTIFIER)
-
 global USER_DATA::String # This is set by the startup macro itself
-
 
 # Theese constants must be present at compilation time as otherwise it does not make sense
 
@@ -114,7 +96,6 @@ function load_pkgorigins!(pkgorigins, path; root_dir = dirname(path))
     
     return pkgorigins
 end
-
 
 function collect_pkgorigins!(pkgorigins::Dict{PkgId, PkgOrigin}; root_dir = Sys.STDLIB)
     
@@ -219,15 +200,15 @@ end
 function set_depot_path_macos!(DEPOT_PATH::Vector{String}; app_name)
 
     if haskey(ENV, "USER_DATA")
-        @info "Using USER_DATA environment variable to run in custom location"
+        @debug "Using USER_DATA environment variable to run in custom location"
         global USER_DATA = ENV["USER_DATA"]
         user_depot = joinpath(USER_DATA, "depot")
     elseif haskey(ENV, "APP_SANDBOX_CONTAINER_ID")
-        @info "Running in a SandBox environment"
+        @debug "Running in a SandBox environment"
         user_depot = joinpath(homedir(), "Library", "Caches", "depot")
         global USER_DATA = joinpath(homedir(), "Library", "Application Support", "Local")
     else
-        @info "Running outside SandBox environment"
+        @debug "Running outside SandBox environment"
         user_depot = joinpath(homedir(), ".cache", app_name)
         global USER_DATA = joinpath(homedir(), ".config", app_name)
     end
@@ -243,7 +224,7 @@ function set_depot_path_snap!(DEPOT_PATH)
     empty!(DEPOT_PATH)
 
     if haskey(ENV, "SNAP")
-        @info "Application running as SNAP"
+        @debug "Application running as SNAP"
 
         global USER_DATA = ENV["SNAP_USER_DATA"]
 
@@ -251,7 +232,7 @@ function set_depot_path_snap!(DEPOT_PATH)
         push!(DEPOT_PATH, ENV["SNAP_DATA"])
 
     else
-        @info "Application running in bare host environment."
+        @debug "Application running in bare host environment."
 
         if haskey(ENV, "USER_DATA")
             global USER_DATA = ENV["USER_DATA"]
@@ -290,16 +271,16 @@ end
 function set_depot_path_msix!(DEPOT_PATH; bundle_identifier)
 
     if haskey(ENV, "USER_DATA")
-        @info "Using USER_DATA environment variable to run in custom location"
+        @debug "Using USER_DATA environment variable to run in custom location"
         global USER_DATA = ENV["USER_DATA"]
     else 
         _basename = get_basename(bundle_identifier)
         if !isnothing(_basename)
-            @info "Using USER_DATA asigned by sandbox environment"    
+            @debug "Using USER_DATA asigned by sandbox environment"    
             base_dir = joinpath(ENV["LOCALAPPDATA"], "Packages", _basename)
             global USER_DATA = joinpath(base_dir, "LocalState")
         else
-            @info "Could not infer USER_DATA directory, presumably running out of sanbdox. Using temporary directory..."
+            @debug "Could not infer USER_DATA directory, presumably running out of sanbdox. Using temporary directory..."
             path = joinpath(tempdir(), "app_user_data")
             rm(path; recursive=true, force=true)
             mkpath(path)
@@ -368,15 +349,6 @@ function save_config(config_path; stdlib_project_name, app_name = "", bundle_ide
     return
 end
 
-
-# function init(; 
-#               runtime_mode::String = get(ENV, "RUNTIME_MODE", DEFAULT_RUNTIME_MODE),
-#               module_name::String = get(ENV, "MODULE_NAME", DEFAULT_MODULE_NAME),
-#               app_name::String = get(ENV, "APP_NAME", DEFAULT_APP_NAME),
-#               bundle_identifier::String = get(ENV, "BUNDLE_IDENTIFIER", DEFAULT_BUNDLE_IDENTIFIER)
-#               )
-
-
 function init(; config_path = joinpath(dirname(Sys.BINDIR), "config"),
               index_path = joinpath(dirname(Sys.BINDIR), "index"))
 
@@ -405,19 +377,5 @@ function init(; config_path = joinpath(dirname(Sys.BINDIR), "config"),
 
     return
 end
-
-
-# function reset_cache()
-
-#     pkg = Base.PkgId(Base.UUID("9f11263e-cf0d-4932-bae6-807953dbea74"), "AppEnv")
-#     cache_dir = Base.compilecache_path(pkg)
-
-#     if !isnothing(cache_dir)
-#         @info "Removing the cache"
-#         rm(cache_dir; recursive=true)
-#     end
-    
-# end
-
 
 end # module AppEnv
