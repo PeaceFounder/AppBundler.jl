@@ -15,11 +15,11 @@ The package provides a clean API for bundling any Julia application exposing `@m
 
 The following videos demonstrate the DMG and MSIX installers produced via AppBundler.
 
-| [![DMG demo](https://img.youtube.com/vi/plVW30qU9SQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=plVW30qU9SQ) | [![MSIX demo](https://img.youtube.com/vi/cjGV5itF4TE/maxresdefault.jpg)](https://www.youtube.com/watch?v=cjGV5itF4TE&t=144s) |
+| [![DMG demo](https://img.youtube.com/vi/x-3RUXw15tc/maxresdefault.jpg)](https://www.youtube.com/watch?v=x-3RUXw15tc) | [![MSIX demo](https://img.youtube.com/vi/cjGV5itF4TE/maxresdefault.jpg)](https://www.youtube.com/watch?v=cjGV5itF4TE&t=144s) |
 |:---:|:---:|
 | DMG | MSIX |
 
-> **Note:** The bundling API has evolved since these videos were recorded, but the pipeline structure and the resulting installers look just the same.
+> **Note:** The bundling API has evolved and since MSIX video were recorded, but the pipeline structure and the resulting installer looks just the same.
 
 ## Quickstart
 
