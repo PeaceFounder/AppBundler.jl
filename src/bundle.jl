@@ -1,9 +1,7 @@
 import Pkg, Artifacts
 using Pkg.BinaryPlatforms: MacOS
 using AppBundlerUtils_jll
-using Preferences
 import Mustache
-
 
 """
     MSIX([overlay]; arch, compress, windowed, kwargs...)
@@ -583,7 +581,6 @@ function bundle(setup::Function, msix::MSIX, destination::String; force = false,
     
     return
 end
-
 
 function bundle(setup::Function, snap::Snap, destination::String; force = false)
 

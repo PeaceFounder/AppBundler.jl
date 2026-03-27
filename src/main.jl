@@ -1,7 +1,5 @@
 import TOML
-
 import LibGit2
-using Preferences
 
 function (@main)(ARGS)
     
@@ -45,17 +43,20 @@ end
 
 function main_build(ARGS; sources_dir)
 
+    config, preference_overrides = parse_args(ARGS)
     project_preferences = Resources.get_project_preferences(sources_dir)
-    config, preferences = parse_args(ARGS; preferences = project_preferences["AppBundler"])
+    preferences = merge(project_preferences["AppBundler"], preference_overrides)
 
     target_arch = config[:target_arch]
     target_bundle = config[:target_bundle]
     build_dir = config[:build_dir]
-    selfsign = config[:selfsign]
-    compress = config[:compress]
-    windowed = config[:windowed]
-    overwrite_target = config[:overwrite_target]
     password = config[:password]
+
+    # Theese could be substituted with preferences
+    #compress = config[:compress]
+    #windowed = config[:windowed]
+    selfsign = preferences["selfsign"]
+    overwrite_target = preferences["overwrite_target"]
 
     bundler = preferences["bundler"]
 
@@ -97,7 +98,7 @@ function main_build(ARGS; sources_dir)
 
     if :msix == target_bundle
 
-        msix = MSIX(sources_dir; windowed, compress, selfsign, arch = target_arch, preferences)
+        msix = MSIX(sources_dir; arch = target_arch, preferences)
 
         if selfsign
             password = ""
@@ -112,7 +113,7 @@ function main_build(ARGS; sources_dir)
 
     elseif :dmg == target_bundle
 
-        dmg = DMG(sources_dir; windowed, compress, selfsign, arch = target_arch, preferences)
+        dmg = DMG(sources_dir; arch = target_arch, preferences)
 
         if selfsign
             password = ""
@@ -127,7 +128,7 @@ function main_build(ARGS; sources_dir)
 
     elseif :snap == target_bundle
 
-        snap = Snap(sources_dir; windowed, compress, arch = target_arch, preferences)
+        snap = Snap(sources_dir; arch = target_arch, preferences)
         bundle(spec, snap, target_path(snap); force = overwrite_target)
 
     else
@@ -238,12 +239,22 @@ function normalize_args(args)
     return normalized
 end
 
-function parse_args(raw_args; preferences = Base.get_preferences()["AppBundler"])
+#function parse_args(raw_args; preferences = Base.get_preferences()["AppBundler"])
+function parse_args(raw_args) #; preferences = Base.get_preferences()["AppBundler"])
 
     args = normalize_args(raw_args)
 
-    config = Dict()
+    # Default values
+    config = Dict(
+        :build_dir => mktempdir(),  # Use nothing to distinguish "not set" from ""
+        :target_arch => Sys.ARCH,
+        :target_bundle => Sys.islinux() ? :snap : Sys.isapple() ? :dmg : Sys.iswindows() ? :msix : error("Bundling for current platform is unsupported"),
+        :target_name => nothing,
+        :password => nothing
+    )
+
     preference_overrides = []
+    preferences = Dict()
 
     i = 1
     while i <= length(args)
@@ -274,16 +285,16 @@ function parse_args(raw_args; preferences = Base.get_preferences()["AppBundler"]
             i += 1
             push!(preference_overrides, args[i])
         elseif arg == "--force"
-            config[:overwrite_target] = true
+            preferences["overwrite_target"] = true
         elseif arg == "--debug"
-            config[:compress] = false
-            config[:selfsign] = true
-            config[:windowed] = false
+            preferences["compress"] = false
+            preferences["selfsign"] = true
+            preferences["windowed"] = false
         elseif arg == "--target-name"
             i += 1
             config[:target_name] = args[i]
         elseif arg == "--selfsign"
-            config[:selfsign] = true
+            preferences["selfsign"] = true
         elseif arg == "--password"
             i += 1
             config[:password] = args[i] |> strip
@@ -308,20 +319,7 @@ function parse_args(raw_args; preferences = Base.get_preferences()["AppBundler"]
     preference_overrides_dict = TOML.parse(join(preference_overrides, "\n"))
     merged_preferences = merge(preferences, preference_overrides_dict)
 
-    # Default values
-    defaults = Dict(
-        :build_dir => mktempdir(),  # Use nothing to distinguish "not set" from ""
-        :compress => merged_preferences["compress"],
-        :windowed => merged_preferences["windowed"],
-        :selfsign => merged_preferences["selfsign"],
-        :target_arch => Sys.ARCH,
-        :target_bundle => Sys.islinux() ? :snap : Sys.isapple() ? :dmg : Sys.iswindows() ? :msix : error("Bundling for current platform is unsupported"),
-        :target_name => nothing,
-        :overwrite_target => merged_preferences["overwrite_target"],
-        :password => nothing
-    )
-
-    return merge(defaults, config), merged_preferences
+    return config, merged_preferences
 end
 
 
