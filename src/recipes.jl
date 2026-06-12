@@ -65,6 +65,22 @@ function bundle(product::JuliaImgBundle, snap::Snap, destination::String; force 
     return
 end
 
+function bundle(product::JuliaImgBundle, tarball::Tarball, destination::String; force = false)
+
+    bundle(tarball, destination; force) do app_stage
+
+        app_name = tarball.parameters["APP_NAME"]
+        bundle_identifier = tarball.parameters["BUNDLE_IDENTIFIER"]
+
+        stage(product, app_stage; platform = Linux(tarball.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
+
+        install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = tarball.parameters, force = true)
+
+    end
+
+    return
+end
+
 function normalize_executable(path::String)
 
     tempfile = joinpath(mktempdir(), basename(path))
