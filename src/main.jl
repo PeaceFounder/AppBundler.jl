@@ -34,8 +34,9 @@ end
 suffix(msix::MSIX) = msix.compress ? ".msix" : ""
 suffix(dmg::DMG) = dmg.compress ? ".dmg" : ""
 suffix(snap::Snap) = snap.compress ? ".snap" : ""
+suffix(tarball::Tarball) = tarball.compress ? ".tar.gz" : ""
 
-function canonical_target_name(spec::Union{MSIX, DMG, Snap})
+function canonical_target_name(spec::Union{MSIX, DMG, Snap, Tarball})
     version = spec.parameters["APP_VERSION"]
     app_name = spec.parameters["APP_NAME"]
     return "$(app_name)-$version-$(spec.arch)"
@@ -130,6 +131,11 @@ function main_build(ARGS; sources_dir)
 
         snap = Snap(sources_dir; arch = target_arch, preferences)
         bundle(spec, snap, target_path(snap); force = overwrite_target)
+
+    elseif :tarball == target_bundle
+
+        tarball = Tarball(sources_dir; arch = target_arch, preferences)
+        bundle(spec, tarball, target_path(tarball); force = overwrite_target)
 
     else
         error("Got unsupported bundle type $target_bundle")
@@ -333,9 +339,12 @@ Options:
   --build-dir DIR                   Output directory for the bundle
                                     (default: temporary directory)
                                     Use '@temp' to explicitly request a temp dir
-  --target-bundle {dmg|snap|msix}   Package format to produce
+  --target-bundle {dmg|snap|tarball|msix}
+                                    Package format to produce
                                     (default: platform native — dmg on macOS,
-                                    snap on Linux, msix on Windows)
+                                    snap on Linux, msix on Windows). `tarball`
+                                    (Linux) produces a relocatable .tar.gz with
+                                    an install.sh (no snapd required).
   --target-arch {x86_64|aarch64}    Target CPU architecture
                                     (default: current system architecture)
   --target-name NAME                Override the output file/directory name

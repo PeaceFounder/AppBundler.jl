@@ -178,6 +178,48 @@ function Snap(overlay; preferences = preferences(), kwargs...)
     return snap
 end
 
+# Plain relocatable directory tree, shipped as a .tar.gz with an install.sh.
+# Unlike Snap it carries no sandbox runtime: it runs from wherever it is
+# unpacked (e.g. /opt), relying on the launcher to set USER_DATA and on packages
+# resolving their assets relocatably (pkgdir, not @__DIR__).
+struct Tarball
+    icon::String
+    desktop_launcher::String
+    install_script::String
+    main_launcher::Union{String, Nothing}
+    windowed::Bool
+    compress::Bool
+    arch::Symbol
+    predicate::String
+    parameters::Dict{String, Any}
+end
+
+function Tarball(;
+                 prefix = joinpath(dirname(@__DIR__), "recipes"),
+                 preferences = preferences(),
+                 predicate = preferences["bundler"],
+                 icon = get_path(prefix, ["tarball/icon.png", "icon.png"]),
+                 desktop_launcher = get_path(prefix, ["tarball/main.desktop", "snap/main.desktop"]),
+                 install_script = get_path(prefix, "tarball/install.sh"),
+                 main_launcher = get_path(prefix, hook("tarball/main.sh", predicate); warn = false),
+                 windowed = preferences["windowed"],
+                 compress = preferences["compress"],
+                 arch = Sys.ARCH,
+                 parameters = Dict("WINDOWED" => windowed)
+                 )
+
+    return Tarball(icon, desktop_launcher, install_script, main_launcher, windowed, compress, arch, predicate, parameters)
+end
+
+function Tarball(overlay; preferences = preferences(), kwargs...)
+
+    prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+    tarball = Tarball(; prefix, preferences, kwargs...)
+    get_bundle_parameters!(tarball.parameters, joinpath(overlay, "Project.toml"); preferences)
+
+    return tarball
+end
+
 # TODO: mention that application needs to be notarized by Apple. That can be done outside the build process by stapling already signed DMG archive. 
 
 """
@@ -441,6 +483,22 @@ function stage(snap::Snap, destination::String)
     return
 end
 
+function stage(tarball::Tarball, destination::String)
+
+    (; predicate, parameters) = tarball
+    app_name = parameters["APP_NAME"]
+
+    install(tarball.icon, joinpath(destination, "meta/icon.png"))
+    install(tarball.desktop_launcher, joinpath(destination, "meta/gui/$app_name.desktop"); parameters, predicate)
+    install(tarball.install_script, joinpath(destination, "install.sh"); parameters, executable = true, predicate)
+
+    if !isnothing(tarball.main_launcher)
+        install(tarball.main_launcher, joinpath(destination, "bin/$app_name"); parameters, executable = true, predicate)
+    end
+
+    return
+end
+
 
 """
     bundle(setup::Function, config, destination::String; force=false, [password=""])
@@ -602,6 +660,41 @@ function bundle(setup::Function, snap::Snap, destination::String; force = false)
     if snap.compress
         @info "Packaging staging area into Snap..."
         SnapPack.pack(app_stage, destination)
+    end
+
+    return
+end
+
+function bundle(setup::Function, tarball::Tarball, destination::String; force = false)
+
+    if ispath(destination)
+        if force
+            rm(destination; force=true, recursive=true)
+        else
+            error("Destination $destination already exists. Use `force = true` argument.")
+        end
+    end
+
+    # When compressing, stage into `<tmp>/<rootname>` so the archive has a single
+    # top-level folder (TarPack tars the parent). Uncompressed, the destination
+    # directory itself is the staging area.
+    if tarball.compress
+        rootname = replace(basename(destination), r"\.tar\.gz$" => "")
+        staging_parent = mktempdir()
+        app_stage = joinpath(staging_parent, rootname)
+        mkpath(app_stage)
+    else
+        app_stage = destination
+    end
+
+    @info "Initializing tarball staging layout..."
+    stage(tarball, app_stage)
+    @info "Installing app into staging area..."
+    setup(app_stage)
+
+    if tarball.compress
+        @info "Packaging staging area into tar.gz..."
+        TarPack.pack(app_stage, destination)
     end
 
     return
