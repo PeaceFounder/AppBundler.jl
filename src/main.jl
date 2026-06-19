@@ -49,6 +49,7 @@ function main_build(ARGS; sources_dir)
     preferences = merge(project_preferences["AppBundler"], preference_overrides)
 
     target_arch = config[:target_arch]
+    target_os = config[:target_os]
     target_bundle = config[:target_bundle]
     build_dir = config[:build_dir]
     password = config[:password]
@@ -134,7 +135,7 @@ function main_build(ARGS; sources_dir)
 
     elseif :tarball == target_bundle
 
-        tarball = Tarball(sources_dir; arch = target_arch, preferences)
+        tarball = Tarball(sources_dir; arch = target_arch, os = target_os, preferences)
         bundle(spec, tarball, target_path(tarball); force = overwrite_target)
 
     else
@@ -254,6 +255,7 @@ function parse_args(raw_args) #; preferences = Base.get_preferences()["AppBundle
     config = Dict(
         :build_dir => mktempdir(),  # Use nothing to distinguish "not set" from ""
         :target_arch => Sys.ARCH,
+        :target_os => Sys.islinux() ? :linux : Sys.isapple() ? :macos : Sys.iswindows() ? :windows : error("Bundling for current platform is unsupported"),
         :target_bundle => Sys.islinux() ? :snap : Sys.isapple() ? :dmg : Sys.iswindows() ? :msix : error("Bundling for current platform is unsupported"),
         :target_name => nothing,
         :password => nothing
@@ -310,6 +312,14 @@ function parse_args(raw_args) #; preferences = Base.get_preferences()["AppBundle
                 error("--target-arch requires a value")
             end
             config[:target_arch] = Symbol(args[i])
+        elseif arg == "--target-os"
+            i += 1
+            if i > length(args)
+                error("--target-os requires a value")
+            end
+            os = Symbol(args[i])
+            os in (:linux, :macos, :windows) || error("--target-os must be one of: linux, macos, windows")
+            config[:target_os] = os
         elseif arg == "--target-bundle"
             i += 1
             if i > length(args)
@@ -343,10 +353,15 @@ Options:
                                     Package format to produce
                                     (default: platform native — dmg on macOS,
                                     snap on Linux, msix on Windows). `tarball`
-                                    (Linux) produces a relocatable .tar.gz with
-                                    an install.sh (no snapd required).
+                                    produces a relocatable, unsigned .tar.gz on
+                                    every OS (install.sh on linux/macos,
+                                    install.ps1 + a .bat launcher on windows;
+                                    no snapd / code-signing required).
   --target-arch {x86_64|aarch64}    Target CPU architecture
                                     (default: current system architecture)
+  --target-os {linux|macos|windows} Target OS for `tarball` (default: host OS;
+                                    must match the host — the sysimage is built
+                                    with the running Julia).
   --target-name NAME                Override the output file/directory name
                                     (default: derived from app name and version)
   --selfsign                        Sign the bundle with a self-signed certificate

@@ -67,12 +67,20 @@ end
 
 function bundle(product::JuliaImgBundle, tarball::Tarball, destination::String; force = false)
 
+    platform = tarball.os === :windows ? Windows(tarball.arch) :
+               tarball.os === :macos   ? MacOS(tarball.arch)   :
+                                         Linux(tarball.arch)
+
+    if tarball.os !== host_os()
+        @warn "Building a $(tarball.os) tarball on $(host_os()): the sysimage is compiled with the host Julia, so this only works when host OS == target OS."
+    end
+
     bundle(tarball, destination; force) do app_stage
 
         app_name = tarball.parameters["APP_NAME"]
         bundle_identifier = tarball.parameters["BUNDLE_IDENTIFIER"]
 
-        stage(product, app_stage; platform = Linux(tarball.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
+        stage(product, app_stage; platform, runtime_mode = "SANDBOX", app_name, bundle_identifier)
 
         install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = tarball.parameters, force = true)
 

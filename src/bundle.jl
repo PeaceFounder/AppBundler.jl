@@ -178,37 +178,54 @@ function Snap(overlay; preferences = preferences(), kwargs...)
     return snap
 end
 
-# Plain relocatable directory tree, shipped as a .tar.gz with an install.sh.
-# Unlike Snap it carries no sandbox runtime: it runs from wherever it is
-# unpacked (e.g. /opt), relying on the launcher to set USER_DATA and on packages
-# resolving their assets relocatably (pkgdir, not @__DIR__).
+# Plain relocatable directory tree, shipped as a .tar.gz. Unlike Snap it carries
+# no sandbox runtime: it runs from wherever it is unpacked (e.g. /opt, a user
+# folder), relying on the launcher to set USER_DATA and on packages resolving
+# their assets relocatably (pkgdir, not @__DIR__).
+#
+# Cross-platform: `os` (:linux | :macos | :windows) selects the staged Julia
+# platform, the launcher (a POSIX `*.sh` for linux/macos, a `*.bat` for
+# windows) and the installer (`install.sh` vs `install.ps1`). The `.desktop`
+# entry is linux-only. Packing is always `.tar.gz` (Windows 10+ ships `tar`),
+# so the same TarPack path serves every OS.
 struct Tarball
     icon::String
-    desktop_launcher::String
-    install_script::String
+    desktop_launcher::Union{String, Nothing}
+    install_script::Union{String, Nothing}
     main_launcher::Union{String, Nothing}
     windowed::Bool
     compress::Bool
     arch::Symbol
+    os::Symbol
     predicate::String
     parameters::Dict{String, Any}
 end
+
+# Default target OS = the host (cross-compiling a sysimage isn't supported, so
+# each OS bundle must be built on a matching runner anyway).
+host_os() = Sys.iswindows() ? :windows : Sys.isapple() ? :macos : :linux
 
 function Tarball(;
                  prefix = joinpath(dirname(@__DIR__), "recipes"),
                  preferences = preferences(),
                  predicate = preferences["bundler"],
+                 os = host_os(),
                  icon = get_path(prefix, ["tarball/icon.png", "icon.png"]),
-                 desktop_launcher = get_path(prefix, ["tarball/main.desktop", "snap/main.desktop"]),
-                 install_script = get_path(prefix, "tarball/install.sh"),
-                 main_launcher = get_path(prefix, hook("tarball/main.sh", predicate); warn = false),
+                 desktop_launcher = os === :linux ?
+                     get_path(prefix, ["tarball/main.desktop", "snap/main.desktop"]) : nothing,
+                 install_script = os === :windows ?
+                     get_path(prefix, "tarball/install.ps1"; warn = false) :
+                     get_path(prefix, "tarball/install.sh"),
+                 main_launcher = os === :windows ?
+                     get_path(prefix, hook("tarball/main.bat", predicate); warn = false) :
+                     get_path(prefix, hook("tarball/main.sh", predicate); warn = false),
                  windowed = preferences["windowed"],
                  compress = preferences["compress"],
                  arch = Sys.ARCH,
                  parameters = Dict("WINDOWED" => windowed)
                  )
 
-    return Tarball(icon, desktop_launcher, install_script, main_launcher, windowed, compress, arch, predicate, parameters)
+    return Tarball(icon, desktop_launcher, install_script, main_launcher, windowed, compress, arch, os, predicate, parameters)
 end
 
 function Tarball(overlay; preferences = preferences(), kwargs...)
@@ -485,15 +502,28 @@ end
 
 function stage(tarball::Tarball, destination::String)
 
-    (; predicate, parameters) = tarball
+    (; predicate, parameters, os) = tarball
     app_name = parameters["APP_NAME"]
 
     install(tarball.icon, joinpath(destination, "meta/icon.png"))
-    install(tarball.desktop_launcher, joinpath(destination, "meta/gui/$app_name.desktop"); parameters, predicate)
-    install(tarball.install_script, joinpath(destination, "install.sh"); parameters, executable = true, predicate)
 
+    # `.desktop` integration is linux-only.
+    if !isnothing(tarball.desktop_launcher)
+        install(tarball.desktop_launcher, joinpath(destination, "meta/gui/$app_name.desktop"); parameters, predicate)
+    end
+
+    # Installer name matches its interpreter so the unpacked tree is obviously
+    # runnable: install.sh on unix, install.ps1 on windows.
+    if !isnothing(tarball.install_script)
+        install_name = os === :windows ? "install.ps1" : "install.sh"
+        install(tarball.install_script, joinpath(destination, install_name); parameters, executable = (os !== :windows), predicate)
+    end
+
+    # Launcher lands in bin/ next to the bundled julia: `<app>` (a bash script,
+    # resolved via a PATH symlink) on unix, `<app>.bat` on windows.
     if !isnothing(tarball.main_launcher)
-        install(tarball.main_launcher, joinpath(destination, "bin/$app_name"); parameters, executable = true, predicate)
+        launcher_rel = os === :windows ? "bin/$app_name.bat" : "bin/$app_name"
+        install(tarball.main_launcher, joinpath(destination, launcher_rel); parameters, executable = (os !== :windows), predicate)
     end
 
     return
