@@ -72,13 +72,15 @@ function main_build(ARGS; sources_dir)
             asset_spec = Dict{Symbol, Vector{String}}()
         end
 
-        spec = JuliaImgBundle(sources_dir; 
+        spec = JuliaImgBundle(sources_dir;
                               precompile = preferences["juliaimg_precompile"],
                               incremental = preferences["juliaimg_incremental"],
                               sysimg_packages = preferences["juliaimg_sysimg"],
+                              strip_debug = get(preferences, "juliaimg_strip_debug", false),
+                              strip_docs = get(preferences, "juliaimg_strip_docs", false),
                               remove_sources,
                               asset_spec
-                              ) 
+                              )
         
     elseif bundler == "juliac"
 
