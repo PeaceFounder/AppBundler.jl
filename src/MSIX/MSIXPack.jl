@@ -3,8 +3,7 @@ module MSIXPack
 using Makemsix_jll
 using osslsigncode_jll
 using rcodesign_jll: rcodesign
-#using OpenSSL_jll: openssl
-using ..OpenSSLLegacy: openssl
+using OpenSSL_CLI_jll: openssl
 
 function generate_self_signed_certificate(pfx_path; password = "", publisher = "CN=AppBundler, C=XX, O=PeaceFounder", validity_days = 365)
     

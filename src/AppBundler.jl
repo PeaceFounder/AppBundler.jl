@@ -29,7 +29,6 @@ include("DMG/DMGPack.jl")
 
 include("Snap/SnapPack.jl")
 
-include("MSIX/OpenSSLLegacy.jl")
 include("MSIX/MSIXPack.jl")
 include("MSIX/MSIXIcons.jl")
 include("MSIX/WinSubsystem.jl")

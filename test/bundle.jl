@@ -4,7 +4,7 @@ import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack
 import AppBundler
 
 using osslsigncode_jll
-using AppBundler.OpenSSLLegacy: openssl
+using OpenSSL_CLI_jll: openssl
 
 using SHA
 
