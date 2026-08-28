@@ -95,7 +95,7 @@ function pack(source, destination; pfx_path = nothing, password = "")
         update_publisher_in_manifest(appxmanifest, publisher)
     end
 
-    unsigned_msix = joinpath(tempdir(), "unsigned_msix.msix")
+    unsigned_msix = isnothing(pfx_path) ? destination : joinpath(tempdir(), "unsigned_msix.msix")
     rm(unsigned_msix; force=true)
 
     run(`$(makemsix()) pack -d $source -p $unsigned_msix`)
