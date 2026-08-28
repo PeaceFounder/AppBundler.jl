@@ -103,7 +103,7 @@ function main_build(ARGS; sources_dir)
         if selfsign
             password = ""
         elseif isnothing(msix.pfx_cert)
-            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
+            @warn("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
         elseif isnothing(password)
             print("Type in certificate password:")
             password = readline() |> strip
@@ -118,7 +118,7 @@ function main_build(ARGS; sources_dir)
         if selfsign
             password = ""
         elseif isnothing(dmg.pfx_cert)
-            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
+            @warn("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
         elseif isnothing(password)
             print("Type in certificate password:")
             password = readline() |> strip

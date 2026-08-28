@@ -76,7 +76,7 @@ function MSIX(;
               skip_unicode_paths = preferences["msix_skip_unicode_paths"],
               selfsign = preferences["selfsign"],              
               publisher = preferences["msix_publisher"] |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
-              pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
+              pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
               windowed = preferences["windowed"],
               compress = preferences["compress"],
               arch = Sys.ARCH,

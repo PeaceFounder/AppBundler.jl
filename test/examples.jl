@@ -36,10 +36,10 @@ end
     AppBundler.main(args(app_dir))
 end    
 
-# @testset "Mousetrap" begin
-#     app_dir = joinpath(dirname(@__DIR__), "examples/Mousetrap")
-#     AppBundler.main(args(app_dir))
-# end 
+@testset "Mousetrap" begin
+    app_dir = joinpath(dirname(@__DIR__), "examples/Mousetrap")
+    AppBundler.main(args(app_dir))
+end 
 
 @testset "BlinkApp" begin
     app_dir = joinpath(dirname(@__DIR__), "examples/BlinkApp")
