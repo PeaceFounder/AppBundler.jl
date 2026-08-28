@@ -239,11 +239,16 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
             # Populate the filesystem.
             run(`$(hfsplus_cmd()) $img_stage addall $stage`)
 
-            
+            #`$(hfsplus()) $path ls /`
+
+            run(`$(hfsplus_cmd()) $img_stage ls /`)
+
             # So how can we add symlinks
             add_symlinks(img_stage, symlinks)
             
         else
+
+            error("Don't do this now")
 
             println("Forming iso archive with xorriso at $img_stage")
             run(`$(xorriso()) -as mkisofs -V "$installer_title" -relaxed-filenames -D -R -no-pad -o $img_stage $(dirname(app_stage))`)
@@ -251,8 +256,20 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
         end
 
         println("Compressing img to dmg with $compression algorithm at $destination")
-        run(`$(dmg()) dmg $img_stage $destination --compression=$compression`)
-            
+        #run(`$(dmg()) dmg $img_stage $destination --compression=$compression`)
+
+        #@infiltrate
+        #run(`hdiutil imageinfo "$img_stage"`)
+        run(`$(dmg()) build $img_stage $destination --compression=$compression`)
+        #run(`hdiutil imageinfo "$desitnation"`)
+        #@infiltrate
+        
+        temp_img = tempname()
+
+        # So this works. And I am settled then!!!
+        run(`$(dmg()) extract $destination $temp_img`)
+        run(`$(hfsplus_cmd()) $temp_img ls /`)
+
 
         if !isnothing(pfx_path)
             println("Codesigning DMG bundle with certificate at $pfx_path")
