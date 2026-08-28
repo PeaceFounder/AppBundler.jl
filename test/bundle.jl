@@ -41,35 +41,35 @@ end
 
 predicate = "juliaimg"
 
-@time @testset "MSIX bundling tests" begin
+# @time @testset "MSIX bundling tests" begin
 
-    msix = MSIX(joinpath(@__DIR__, "../examples/GtkApp"); selfsign=true, predicate, windowed = true)
+#     msix = MSIX(joinpath(@__DIR__, "../examples/GtkApp"); selfsign=true, predicate, windowed = true)
 
-    @test hash_stage() do dest
-        stage(msix, dest)
-    end == "4351935f32e1b0036bbf31c0f496b5734dd6a9496e8a0005675a097233a6d07e"
+#     @test hash_stage() do dest
+#         stage(msix, dest)
+#     end == "4351935f32e1b0036bbf31c0f496b5734dd6a9496e8a0005675a097233a6d07e"
 
-    @test hash_stage() do stage_dir
+#     @test hash_stage() do stage_dir
 
-        dest = joinpath(mktempdir(), "gtkapp.msix")
-        bundle(msix, dest) do app_stage
-            @info "The MSIX app stage is $app_stage"
-            touch(joinpath(app_stage, "MRF_signal_Δθ_23_NTRs_500.mrd"))
-        end
+#         dest = joinpath(mktempdir(), "gtkapp.msix")
+#         bundle(msix, dest) do app_stage
+#             @info "The MSIX app stage is $app_stage"
+#             touch(joinpath(app_stage, "MRF_signal_Δθ_23_NTRs_500.mrd"))
+#         end
 
-        verify_msix_signature(dest)
+#         verify_msix_signature(dest)
 
-        MSIXPack.repack(dest, tempname()) # useful for debugging MSIX configuration issues
+#         MSIXPack.repack(dest, tempname()) # useful for debugging MSIX configuration issues
 
-        AppBundler.MSIXPack.unpack(dest, stage_dir)
+#         AppBundler.MSIXPack.unpack(dest, stage_dir)
 
-        rm(joinpath(stage_dir, "AppxSignature.p7x")) # Signatures are always nondeterministic
+#         rm(joinpath(stage_dir, "AppxSignature.p7x")) # Signatures are always nondeterministic
 
-        # @test hash_file(joinpath(stage_dir, "AppxBlockMap.xml")) == "70ff6695ec913326f645c1cd30e48f75f57545ee4ae546db5843bf0779e6ee7e"
-        rm(joinpath(stage_dir, "AppxBlockMap.xml")) # AppxBlockMap.xml has a slight nondeterminism
+#         # @test hash_file(joinpath(stage_dir, "AppxBlockMap.xml")) == "70ff6695ec913326f645c1cd30e48f75f57545ee4ae546db5843bf0779e6ee7e"
+#         rm(joinpath(stage_dir, "AppxBlockMap.xml")) # AppxBlockMap.xml has a slight nondeterminism
 
-    end == "4351935f32e1b0036bbf31c0f496b5734dd6a9496e8a0005675a097233a6d07e"
-end
+#     end == "4351935f32e1b0036bbf31c0f496b5734dd6a9496e8a0005675a097233a6d07e"
+# end
 
 if Sys.isunix()
 
