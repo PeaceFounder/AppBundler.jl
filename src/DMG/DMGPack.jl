@@ -1,6 +1,9 @@
 module DMGPack
 
 using libdmg_hfsplus_jll: dmg, hfsplus
+
+const hfsplus_cmd = hfsplus
+
 using hfsprogs_jll: newfs_hfs
 
 using Xorriso_jll: xorriso
@@ -129,16 +132,25 @@ Add symlinks to an HFS+ image.
 where `path` is relative to the staging root and `target` is the original
 symlink target as returned by `readlink`.
 """
+# function add_symlinks(image, symlinks)
+#     for (path, target) in symlinks
+#         # hfsplus expects the link path and target as filesystem paths.
+#         # Keep the original target unchanged so relative links remain
+#         # relative to the symlink's directory.
+#         run(`$(hfsplus) $image symlink $target $path`)
+#     end
+
+#     return nothing
+# end
+
 function add_symlinks(image, symlinks)
-    for (path, target) in symlinks
-        # hfsplus expects the link path and target as filesystem paths.
-        # Keep the original target unchanged so relative links remain
-        # relative to the symlink's directory.
-        run(`$(hfsplus) $image symlink $target $path`)
+    for (path, link_target) in symlinks
+        run(`$(hfsplus()) $image symlink $path $link_target`)
     end
 
     return nothing
 end
+
 
 
 """
@@ -162,7 +174,9 @@ The function assumes that `app_stage` points to a properly structured macOS appl
 - `installer_title::String = "Installer"`: Volume name for the DMG
 """
 function pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer", hardened_runtime = true, shallow_signing = true, hfsplus = true)
-
+    
+    hfsplus = true
+    
     isfile(entitlements) || error("Entitlements at $entitlements not found")
     isnothing(compression) || compression in [:lzma, :bzip2, :zlib, :lzfse] || error("Compression can only be `compression=[:lzma|:bzip|:zlib|:lzfse]`")
     isnothing(pfx_path) || isfile(pfx_path) || error("Signing certificate at $pfx_path not found")
@@ -191,18 +205,23 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
 
         if hfsplus
 
-            #println("Forming hfs archive with xorriso at $img_stage")
-
-            symlinks = extract_symlinks(app_stage)
-
-            println("Forming hfs archive with hfsplus at $img_stage")
+            #hfsplus = libdmg_hfsplus_jll.hfsplus # dirty fix
 
             stage = dirname(app_stage)
+
+            #println("Forming hfs archive with xorriso at $img_stage")
 
             # Need to replace Applications link in the parrent stage
             # This is a dirty fix for now. We need to think whether this needs to be refactored
             #rm(joinpath(dirname(app_stage), "Applications"); force = true)
-            rm(joinpath(stage, "Applications"); force = true)
+            #rm(joinpath(stage, "Applications"); force = true)
+
+
+            symlinks = extract_symlinks(dirname(app_stage))
+
+            println("Forming hfs archive with hfsplus at $img_stage")
+
+
 
             # `du -s` reports 512-byte blocks on macOS.
             du_blocks = parse(Int, split(strip(read(`du -s $stage`, String)))[1])
@@ -215,10 +234,10 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
             run(`$(newfs_hfs()) -v $installer_title $img_stage`)
 
             # Create the drag-to-Applications symlink.
-            run(`$(hfsplus) $img_stage symlink "/ " /Applications`)
+            #run(`$(hfsplus_cmd()) $img_stage symlink "/ " /Applications`)
 
             # Populate the filesystem.
-            run(`$(hfsplus) $img_stage addall $stage`)
+            run(`$(hfsplus_cmd()) $img_stage addall $stage`)
 
             
             # So how can we add symlinks
