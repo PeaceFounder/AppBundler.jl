@@ -56,6 +56,7 @@ function main_build(ARGS; sources_dir)
     #compress = config[:compress]
     #windowed = config[:windowed]
     selfsign = preferences["selfsign"]
+    skipsign = preferences["skipsign"]
     overwrite_target = preferences["overwrite_target"]
 
     bundler = preferences["bundler"]
@@ -100,7 +101,7 @@ function main_build(ARGS; sources_dir)
 
         msix = MSIX(sources_dir; arch = target_arch, preferences)
 
-        if selfsign
+        if selfsign || skipsign
             password = ""
         elseif isnothing(msix.pfx_cert)
             error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
@@ -115,7 +116,7 @@ function main_build(ARGS; sources_dir)
 
         dmg = DMG(sources_dir; arch = target_arch, preferences)
 
-        if selfsign
+        if selfsign || skipsign
             password = ""
         elseif isnothing(dmg.pfx_cert)
             error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
@@ -295,6 +296,8 @@ function parse_args(raw_args) #; preferences = Base.get_preferences()["AppBundle
             config[:target_name] = args[i]
         elseif arg == "--selfsign"
             preferences["selfsign"] = true
+        elseif arg == "--skipsign"
+            preferences["skipsign"] = true
         elseif arg == "--password"
             i += 1
             config[:password] = args[i] |> strip

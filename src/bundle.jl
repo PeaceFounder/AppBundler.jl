@@ -76,7 +76,7 @@ function MSIX(;
               skip_unicode_paths = preferences["msix_skip_unicode_paths"],
               selfsign = preferences["selfsign"],              
               publisher = preferences["msix_publisher"] |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
-              pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
+              pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
               windowed = preferences["windowed"],
               compress = preferences["compress"],
               arch = Sys.ARCH,
@@ -252,7 +252,7 @@ function DMG(;
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
              dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
              selfsign = preferences["selfsign"],
-             pfx_cert = get_path(prefix, "dmg/certificate.pfx"),
+             pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "dmg/certificate.pfx"),
              shallow_signing = preferences["dmg_shallow_signing"],
              hardened_runtime = preferences["dmg_hardened_runtime"],
              sandboxed_runtime = preferences["dmg_sandboxed_runtime"],
