@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name={{APP_DISPLAY_NAME}}
+Comment={{APP_SUMMARY}}
+Exec=AppRun
+Icon={{APP_NAME}}
+Categories=Utility;
+Terminal=true
+#X-AppImage-Version=$(APP_VERSION)

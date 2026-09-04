@@ -28,6 +28,7 @@ include("DMG/HFS.jl")
 include("DMG/DMGPack.jl")
 
 include("Snap/SnapPack.jl")
+include("AppImage/AppImagePack.jl")
 
 include("MSIX/MSIXPack.jl")
 include("MSIX/MSIXIcons.jl")
