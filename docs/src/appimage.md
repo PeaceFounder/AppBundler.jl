@@ -37,10 +37,12 @@ usr/share/metainfo/<id>.appdata.xml             AppStream metadata
 bin/ lib/ share/ etc/                           the Julia distribution
 ```
 
-The payload is compressed with **zstd** by default. `gzip` and `xz` also work — the runtime links
-squashfuse against zstd and zlib, and squashfuse handles xz — but zstd decompresses far faster,
-which is the point of mounting in the first place. `lz4` is deliberately rejected: `mksquashfs`
-offers it, and the runtime cannot read it.
+The payload is compressed with **zstd** by default, and `gzip` is the only other choice. The
+runtime bundles squashfuse built against zstd and zlib alone, so an image compressed any other way
+cannot be mounted — `mksquashfs` happily produces `xz` and `lz4` images, and the runtime answers
+`Failed to extract AppImage` for both. AppBundler therefore rejects them at configuration time
+rather than letting you ship an AppImage nobody can run. Of the two that work, zstd decompresses
+far faster, which is the point of mounting rather than unpacking.
 
 ## Obtaining the runtime
 

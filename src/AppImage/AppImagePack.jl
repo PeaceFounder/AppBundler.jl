@@ -19,11 +19,13 @@ import squashfs_tools_jll: mksquashfs, unsquashfs
 """
 Compressors accepted for the squashfs payload.
 
-The runtime links squashfuse against zstd and zlib only, so `lz4` — which `mksquashfs` itself
-offers — would produce an image the runtime cannot mount. `xz` works because squashfuse handles it,
-but decompresses far more slowly, which is the wrong trade for the HPC case this format targets.
+The runtime bundles squashfuse built against zstd and zlib only, so anything else produces an image
+it cannot mount. `mksquashfs` also offers `xz` and `lz4`; both are rejected here, verified against
+the upstream runtime, which reports `Failed to extract AppImage` for an xz payload. Between the two
+that remain, zstd decompresses far faster than gzip, which is the point of mounting rather than
+unpacking.
 """
-const COMPRESSORS = [:zstd, :gzip, :xz]
+const COMPRESSORS = [:zstd, :gzip]
 
 """
     pack(appdir::String, destination::String, runtime::String; compression = :zstd)

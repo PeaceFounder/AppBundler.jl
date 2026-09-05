@@ -23,7 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `appimage_depot` preference selecting where a Julia payload keeps its depot: `"app"` (default)
   points `USER_DATA` at `$XDG_DATA_HOME/<app>` and leaves the host `~/.julia` untouched, `"julia"`
   keeps the stock depot for sites where users expect their existing environments.
-- `appimage_compression` preference (`zstd` by default, `gzip` and `xz` also accepted).
+- `appimage_compression` preference: `zstd` by default, `gzip` the only alternative. The runtime
+  bundles squashfuse built against zstd and zlib alone, so `xz` and `lz4` images cannot be mounted
+  even though `mksquashfs` produces them; both are rejected at configuration time.
 - Documentation in `docs/src/appimage.md`, covering the format, the runtime, the depot choice, the
   build-time space requirement, and the FUSE requirement together with the no-FUSE workaround.
 

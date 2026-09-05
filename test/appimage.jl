@@ -63,8 +63,12 @@ end
 
     @test AppBundler.suffix(AppImage(APP; compress = false)) == ""
 
-    # A compressor mksquashfs does not have must be rejected before it is invoked, and the
-    # runtime only links squashfuse with zstd and zlib.
+    # The runtime only bundles squashfuse with zstd and zlib. mksquashfs will happily produce xz
+    # and lz4 images, and the runtime then reports "Failed to extract AppImage" — verified against
+    # the upstream runtime — so they are rejected at configuration time rather than shipped.
+    @test AppImage(APP; compression = :gzip).compression == :gzip
+    @test_throws ErrorException AppImage(APP; compression = :xz)
+    @test_throws ErrorException AppImage(APP; compression = :lz4)
     @test_throws ErrorException AppImage(APP; compression = :bzip2)
     @test_throws ErrorException AppImage(APP; depot = "elsewhere")
 end
