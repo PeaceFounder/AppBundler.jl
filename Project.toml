@@ -1,6 +1,6 @@
 name = "AppBundler"
 uuid = "40eb83ae-c93a-480c-8f39-f018b568f472"
-version = "1.0.1"
+version = "1.1.0"
 authors = ["Janis Erdmanis <janiserdmanis@protonmail.ch>"]
 
 [workspace]
@@ -18,6 +18,7 @@ FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 ImageCore = "a09fc81d-aa75-5fe9-8630-4744c3626534"
 ImageIO = "82e4d734-157c-48bb-816b-45c225c6df19"
 ImageTransformations = "02fcd773-0e25-5acc-982a-7f6622650795"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 Makemsix_jll = "92e7c7cf-2c17-5ab8-9563-5ab5b2fcee8a"
@@ -48,6 +49,7 @@ FileIO = "1.17.0"
 ImageCore = "0.10.5"
 ImageIO = "0.6.9"
 ImageTransformations = "0.10.2"
+JSON = "1"
 LibGit2 = "1.11.0"
 Libdl = "1.11.0"
 Makemsix_jll = "1.7.241"

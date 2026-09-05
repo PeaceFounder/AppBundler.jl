@@ -100,6 +100,50 @@ function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force 
 end
 
 
+"""
+    install_juliaup_workflow(; root, force = false)
+
+Install the GitHub Actions workflow that publishes a juliaup distribution.
+
+The workflow builds a relocatable tarball on each platform runner, attaches them to the release,
+and deploys the version database to GitHub Pages. Because the database only names paths, the
+tarballs stay on the releases page and their bytes never pass through Pages.
+"""
+function install_juliaup_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force = false)
+
+    if !isfile(joinpath(root, "Project.toml"))
+        error("It appears $root does not contain a valid Julia project")
+    end
+
+    mkpath(joinpath(root, ".github/workflows"))
+
+    destination = joinpath(root, ".github/workflows/Juliaup.yml")
+
+    cp(joinpath(dirname(@__DIR__), "recipes/workflows/JuliaupPages.yml"), destination; force)
+
+    if Sys.isunix() # chmod on windows can segfault
+        chmod(destination, 0o666)
+    end
+
+    println("""
+    Setup done. Enable GitHub Pages for this repository with "GitHub Actions" as the source, then
+    publish a release: the workflow builds a tarball per platform, attaches them to the release and
+    deploys the juliaup database to Pages.
+
+    Users then install the distribution with:
+
+        export JULIAUP_SERVER=https://<owner>.github.io/<repo>
+        juliaup add <channel>
+
+    Note that juliaup ignores a database whose version is not greater than the one built into its
+    own binary, and says nothing when it does. AppBundler resolves that number against the public
+    database automatically. See the Juliaup section of the documentation for details.
+    """)
+
+    return
+end
+
+
 function generate_signing_certificates(; root = dirname(Base.ACTIVE_PROJECT[]), person_name = "AppBundler", country = "XX", validity_days = 365, force = false)
 
     password_macos = generate_macos_signing_certificate(root; person_name, country, validity_days, force)

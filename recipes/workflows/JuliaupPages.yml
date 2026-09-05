@@ -1,0 +1,144 @@
+name: Publish Juliaup Distribution
+
+# Builds a relocatable tarball for every platform, attaches them to the release, and publishes
+# the juliaup version database to GitHub Pages. Users then install the distribution with:
+#
+#   export JULIAUP_SERVER=https://<owner>.github.io/<repo>
+#   juliaup add <channel>
+#
+# The database only names *paths*, so the tarballs stay on the releases page and none of their
+# bytes ever pass through Pages.
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_tag:
+        description: 'Release tag to publish'
+        required: false
+        default: ''
+        type: string
+  release:
+    types: [created]
+
+# Required for `actions/deploy-pages`.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# A half-published database is worse than a stale one, so never run two of these at once.
+concurrency:
+  group: juliaup-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            os: linux
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            os: linux
+            arch: aarch64
+          - runner: macos-13
+            os: macos
+            arch: x86_64
+          - runner: macos-latest
+            os: macos
+            arch: aarch64
+          - runner: windows-latest
+            os: windows
+            arch: x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12'
+      - uses: julia-actions/cache@v2
+
+      - name: Install dependencies
+        run: julia --project=meta -e 'using Pkg; Pkg.instantiate()'
+
+      # Julia does not cross-compile, so each tarball is built on a matching runner.
+      - name: Build tarball
+        run: >
+          julia --project=meta -m AppBundler build .
+          --build-dir=build
+          --target-bundle=tarball
+          --target-os=${{ matrix.os }}
+          --target-arch=${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball-${{ matrix.os }}-${{ matrix.arch }}
+          path: build/*.tar.gz
+          retention-days: 1
+
+  publish:
+    name: Publish database to Pages
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'release' || github.event.inputs.upload_tag != ''
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12'
+
+      - name: Install dependencies
+        run: julia --project=meta -e 'using Pkg; Pkg.instantiate()'
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Attach tarballs to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG_NAME="${{ github.event.inputs.upload_tag || github.event.release.tag_name }}"
+          echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"
+          find artifacts/ -name '*.tar.gz' -type f -print0 |
+            xargs -0 -I{} gh release upload "$TAG_NAME" {} --clobber
+
+      # juliaup only replaces its cached database when the published number is greater than
+      # both the number built into its binary and its local copy — and it reports nothing when
+      # it is not. Seeding the site with what is already live lets AppBundler keep climbing
+      # instead of republishing a number clients have already cached.
+      - name: Seed the previously published database version
+        continue-on-error: true
+        run: |
+          mkdir -p site/juliaup
+          curl -fsSL "${{ steps.pages.outputs.base_url || format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name) }}/juliaup/RELEASECHANNELDBVERSION" \
+            -o site/juliaup/RELEASECHANNELDBVERSION || true
+
+      - name: Build the juliaup database
+        run: >
+          julia --project=meta -m AppBundler juliaup .
+          --build-dir=site
+          --server=https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          --asset-base=https://github.com/${{ github.repository }}/releases/download/${{ env.TAG_NAME }}
+          --platform=linux/x86_64
+          --platform=linux/aarch64
+          --platform=macos/x86_64
+          --platform=macos/aarch64
+          --platform=windows/x86_64
+          --wrappers
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -178,16 +178,43 @@ function Snap(overlay; preferences = preferences(), kwargs...)
     return snap
 end
 
-# Plain relocatable directory tree, shipped as a .tar.gz. Unlike Snap it carries
-# no sandbox runtime: it runs from wherever it is unpacked (e.g. /opt, a user
-# folder), relying on the launcher to set USER_DATA and on packages resolving
-# their assets relocatably (pkgdir, not @__DIR__).
-#
-# Cross-platform: `os` (:linux | :macos | :windows) selects the staged Julia
-# platform, the launcher (a POSIX `*.sh` for linux/macos, a `*.bat` for
-# windows) and the installer (`install.sh` vs `install.ps1`). The `.desktop`
-# entry is linux-only. Packing is always `.tar.gz` (Windows 10+ ships `tar`),
-# so the same TarPack path serves every OS.
+"""
+    Tarball([overlay]; os, arch, compress, windowed, kwargs...)
+
+Create a tarball configuration object for distributing an application as a relocatable `.tar.gz`.
+
+Unlike the installer formats a tarball is unsigned and installs nothing: it runs from wherever it is
+unpacked, relying on the bundled launcher to set `USER_DATA` and on packages resolving their assets
+relocatably (`pkgdir`, not `@__DIR__`). It is also the format a `juliaup` distribution is built
+from — the archive always carries a single top-level directory with the interpreter at
+`<root>/bin/julia`, which is what `juliaup` expects. See [Juliaup](@ref).
+
+`os` selects the staged Julia platform, the launcher (a POSIX `*.sh` for linux and macos, a `*.bat`
+for windows) and the installer (`install.sh` vs `install.ps1`). The `.desktop` entry is linux only.
+Packing is always `.tar.gz` — Windows 10 and later ship `tar` — so one code path serves every OS.
+
+# Arguments
+- `overlay`: Path to a project directory containing `Project.toml`, optional `LocalPreferences.toml`, and optional `meta/tarball/` overrides
+
+# Keyword Arguments
+- `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
+- `os = host_os()`: Target operating system, one of `:linux`, `:macos` or `:windows`. Must match the host when a sysimage is compiled
+- `arch = Sys.ARCH`: Target CPU architecture
+- `icon = get_path(prefix, ["tarball/icon.png", "icon.png"])`: Path to application icon file
+- `desktop_launcher`: Desktop entry template; linux only
+- `install_script`: Installer placed at the archive root, `install.sh` or `install.ps1`
+- `main_launcher`: Launcher installed into `bin/`; resolved from prefix using the bundler predicate
+- `windowed`: If `true`, the application runs without a console window; defaults to `windowed` preference
+- `compress`: If `true`, pack the staging directory into a `.tar.gz`; defaults to `compress` preference
+- `predicate`: Bundler predicate used for hook selection; defaults to `bundler` preference
+- `parameters`: Dictionary of parameters for Mustache template rendering. When `overlay` is provided, pre-populated from `Project.toml` and preferences
+
+# Examples
+```julia
+Tarball(app_dir)                                  # host platform
+Tarball(app_dir; os = :macos, arch = :aarch64)
+```
+"""
 struct Tarball
     icon::String
     desktop_launcher::Union{String, Nothing}
@@ -635,6 +662,12 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
 end
 
 """
+    bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "")
+
+MSIX variant of [`bundle(setup, config, destination)`](@ref).
+
+Before packing, the staging area is checked against the constraints Windows places on an app
+package — path length, symlinks and non-ASCII paths — according to the `MSIX` configuration.
 """
 function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "")
 

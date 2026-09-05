@@ -16,8 +16,22 @@ end
     include("juliac.jl")
 end
 
+@time @safetestset "Tarball packing tests" begin
+    include("tarball.jl")
+end
+
+@time @safetestset "Juliaup version database tests" begin
+    include("juliaup.jl")
+end
+
 @time @safetestset "CLI API example" begin
     include("integrity.jl")
+end
+
+if get(ENV, "JULIA_RUN_JULIAUP_E2E", "false") == "true"
+    @time @safetestset "Juliaup end to end" begin
+        include("juliaup_e2e.jl")
+    end
 end
 
 if get(ENV, "JULIA_RUN_EXAMPLES", "false") == "true"

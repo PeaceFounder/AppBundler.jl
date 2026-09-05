@@ -11,11 +11,16 @@ import CodecZlib: GzipCompressorStream
 # freshly created `<parent>/<name>`), since we tar the parent to capture the
 # folder prefix. Tar.create records the owner-execute bit, so the launchers and
 # install.sh stay executable; symlinks in the Julia tree are preserved as-is.
+#
+# The single root is also what makes the archive installable by juliaup, which unpacks a
+# distribution with `download_extract_sans_parent(url, dir, 1)` — exactly one leading path
+# component is stripped — and then looks for the interpreter at `<root>/bin/julia`.
 function pack(rootdir, destination)
     parent = dirname(rootdir)
     name = basename(rootdir)
-    only(readdir(parent)) == name ||
-        error("TarPack.pack expects $parent to contain only $name")
+    entries = readdir(parent)
+    entries == [name] ||
+        error("TarPack.pack expects $parent to contain only $name, found: $(join(entries, ", "))")
 
     open(destination, "w") do io
         stream = GzipCompressorStream(io)

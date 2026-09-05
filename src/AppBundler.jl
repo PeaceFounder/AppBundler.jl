@@ -42,6 +42,8 @@ include("bundlers/JuliaC.jl")
 using .JuliaImg: install
 using .JuliaImg.Resources: merge_directories#, install
 
+include("Juliaup/Juliaup.jl")
+
 include("utils.jl")
 include("bundle.jl")
 include("recipes.jl") 

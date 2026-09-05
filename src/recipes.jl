@@ -180,3 +180,29 @@ function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password
 
     return
 end
+
+"""
+    bundle(product::JuliaCBundle, tarball::Tarball, destination::String; force = false)
+
+Package a juliac-compiled executable as a relocatable `.tar.gz`.
+
+Note that unlike a [`JuliaImgBundle`](@ref) tarball this is not a Julia distribution — it ships a
+standalone executable rather than `bin/julia` — so it can be unpacked and run, but not installed
+through `juliaup`.
+"""
+function bundle(product::JuliaCBundle, tarball::Tarball, destination::String; force = false)
+
+    if tarball.os !== host_os()
+        @warn "Building a $(tarball.os) tarball on $(host_os()): juliac compiles with the host toolchain, so this only works when host OS == target OS."
+    end
+
+    bundle(tarball, destination; force) do app_stage
+
+        app_name = tarball.parameters["APP_NAME"]
+        bundle_identifier = tarball.parameters["BUNDLE_IDENTIFIER"]
+
+        stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)
+    end
+
+    return
+end
