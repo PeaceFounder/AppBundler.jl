@@ -29,3 +29,11 @@ juliaimg_sysimg = []
 juliaimg_selective_assets = false
 
 juliac_trim = false
+
+# AppImage. `appimage_depot` selects where a Julia payload keeps its depot: "app" points USER_DATA
+# at $XDG_DATA_HOME/<app>, leaving the host ~/.julia untouched; "julia" keeps the stock depot.
+# `appimage_runtime` points at an AppImage runtime; leave empty to use AppImageRuntime_jll once it
+# is registered.
+appimage_depot = "app"
+appimage_compression = "zstd"
+appimage_runtime = ""

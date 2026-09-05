@@ -16,8 +16,18 @@ end
     include("juliac.jl")
 end
 
+@time @safetestset "AppImage tests" begin
+    include("appimage.jl")
+end
+
 @time @safetestset "CLI API example" begin
     include("integrity.jl")
+end
+
+if get(ENV, "JULIA_RUN_APPIMAGE_E2E", "false") == "true"
+    @time @safetestset "AppImage end to end" begin
+        include("appimage_e2e.jl")
+    end
 end
 
 if get(ENV, "JULIA_RUN_EXAMPLES", "false") == "true"
