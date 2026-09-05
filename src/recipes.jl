@@ -65,6 +65,30 @@ function bundle(product::JuliaImgBundle, snap::Snap, destination::String; force 
     return
 end
 
+function bundle(product::JuliaImgBundle, tarball::Tarball, destination::String; force = false)
+
+    platform = tarball.os === :windows ? Windows(tarball.arch) :
+               tarball.os === :macos   ? MacOS(tarball.arch)   :
+                                         Linux(tarball.arch)
+
+    if tarball.os !== host_os()
+        @warn "Building a $(tarball.os) tarball on $(host_os()): the sysimage is compiled with the host Julia, so this only works when host OS == target OS."
+    end
+
+    bundle(tarball, destination; force) do app_stage
+
+        app_name = tarball.parameters["APP_NAME"]
+        bundle_identifier = tarball.parameters["BUNDLE_IDENTIFIER"]
+
+        stage(product, app_stage; platform, runtime_mode = "SANDBOX", app_name, bundle_identifier)
+
+        install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = tarball.parameters, force = true)
+
+    end
+
+    return
+end
+
 function normalize_executable(path::String)
 
     tempfile = joinpath(mktempdir(), basename(path))
@@ -152,6 +176,32 @@ function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password
         if msix.windowed
             WinSubsystem.change_subsystem_inplace(joinpath(app_stage, "bin", "$app_name.exe"); subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
         end
+    end
+
+    return
+end
+
+"""
+    bundle(product::JuliaCBundle, tarball::Tarball, destination::String; force = false)
+
+Package a juliac-compiled executable as a relocatable `.tar.gz`.
+
+Note that unlike a [`JuliaImgBundle`](@ref) tarball this is not a Julia distribution — it ships a
+standalone executable rather than `bin/julia` — so it can be unpacked and run, but not installed
+through `juliaup`.
+"""
+function bundle(product::JuliaCBundle, tarball::Tarball, destination::String; force = false)
+
+    if tarball.os !== host_os()
+        @warn "Building a $(tarball.os) tarball on $(host_os()): juliac compiles with the host toolchain, so this only works when host OS == target OS."
+    end
+
+    bundle(tarball, destination; force) do app_stage
+
+        app_name = tarball.parameters["APP_NAME"]
+        bundle_identifier = tarball.parameters["BUNDLE_IDENTIFIER"]
+
+        stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)
     end
 
     return

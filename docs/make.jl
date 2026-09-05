@@ -25,6 +25,17 @@ if !isfile(index_path) || String(read(index_path)) != index_content
     write(index_path, index_content)
 end
 
+include("llms.jl")
+
+const PAGES = [
+    "Overview" => "index.md",
+    "Customization" => "customization.md",
+    "Deployment" => "deployment.md", # codesigning, GitHub CI,
+    "Juliaup" => "juliaup.md",
+    "Troubleshooting" => "troubleshooting.md",
+    "Reference" => "reference.md" # Here I could also give an overview of the internal API on how it composes. Perhaps I shall madke that as documentation for the module here.
+]
+
 makedocs(
     sitename = "AppBundler.jl",
     repo = Documenter.Remotes.GitHub("PeaceFounder", "AppBundler.jl"),
@@ -33,14 +44,10 @@ makedocs(
     checkdocs = :public,
     modules = [AppBundler],
     checkdocs_ignored_modules = [AppBundler.DSStore, AppBundler.HFS],
-    pages = [
-        "Overview" => "index.md",
-        "Customization" => "customization.md",
-        "Deployment" => "deployment.md", # codesigning, GitHub CI,
-        "Troubleshooting" => "troubleshooting.md",
-        "Reference" => "reference.md" # Here I could also give an overview of the internal API on how it composes. Perhaps I shall madke that as documentation for the module here.
-    ]
+    pages = PAGES
 )
+
+generate_llms_txt(joinpath(@__DIR__, "build"), joinpath(@__DIR__, "src"), PAGES)
 
 deploydocs(repo = "github.com/PeaceFounder/AppBundler.jl.git")
 

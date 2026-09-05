@@ -29,3 +29,11 @@ juliaimg_sysimg = []
 juliaimg_selective_assets = false
 
 juliac_trim = false
+
+# Publishing through juliaup. `juliaup_server` is the https base url the version database is
+# served from and is what the client wrappers export as JULIAUP_SERVER. `juliaup_asset_base`
+# is where the tarballs live: relative keeps the database portable across hosts, an absolute
+# url points elsewhere, such as a GitHub releases page.
+juliaup_server = ""
+juliaup_asset_base = "assets"
+juliaup_mirror = true

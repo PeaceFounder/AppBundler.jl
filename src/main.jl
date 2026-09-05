@@ -21,6 +21,14 @@ function (@main)(ARGS)
 
         main_build(ARGS[3:end]; sources_dir = realpath(ARGS[2]))
 
+    elseif command == "juliaup"
+
+        if length(ARGS) < 2
+            error("No project path provided for `juliaup` command. See `--help` for usage.")
+        end
+
+        main_juliaup(ARGS[3:end]; sources_dir = realpath(ARGS[2]))
+
     # elseif command == "init"
     #     ...
 
@@ -34,11 +42,21 @@ end
 suffix(msix::MSIX) = msix.compress ? ".msix" : ""
 suffix(dmg::DMG) = dmg.compress ? ".dmg" : ""
 suffix(snap::Snap) = snap.compress ? ".snap" : ""
+suffix(tarball::Tarball) = tarball.compress ? ".tar.gz" : ""
 
 function canonical_target_name(spec::Union{MSIX, DMG, Snap})
     version = spec.parameters["APP_VERSION"]
     app_name = spec.parameters["APP_NAME"]
     return "$(app_name)-$version-$(spec.arch)"
+end
+
+# Unlike the installer formats a tarball is produced for every operating system, so the name
+# carries the OS as well. Without it a release matrix uploads three different archives under
+# the same asset name, and the juliaup database can not tell them apart.
+function canonical_target_name(spec::Tarball)
+    version = spec.parameters["APP_VERSION"]
+    app_name = spec.parameters["APP_NAME"]
+    return "$(app_name)-$version-$(spec.os)-$(spec.arch)"
 end
 
 function main_build(ARGS; sources_dir)
@@ -48,6 +66,7 @@ function main_build(ARGS; sources_dir)
     preferences = merge(project_preferences["AppBundler"], preference_overrides)
 
     target_arch = config[:target_arch]
+    target_os = config[:target_os]
     target_bundle = config[:target_bundle]
     build_dir = config[:build_dir]
     password = config[:password]
@@ -70,13 +89,15 @@ function main_build(ARGS; sources_dir)
             asset_spec = Dict{Symbol, Vector{String}}()
         end
 
-        spec = JuliaImgBundle(sources_dir; 
+        spec = JuliaImgBundle(sources_dir;
                               precompile = preferences["juliaimg_precompile"],
                               incremental = preferences["juliaimg_incremental"],
                               sysimg_packages = preferences["juliaimg_sysimg"],
+                              strip_debug = get(preferences, "juliaimg_strip_debug", false),
+                              strip_docs = get(preferences, "juliaimg_strip_docs", false),
                               remove_sources,
                               asset_spec
-                              ) 
+                              )
         
     elseif bundler == "juliac"
 
@@ -131,11 +152,129 @@ function main_build(ARGS; sources_dir)
         snap = Snap(sources_dir; arch = target_arch, preferences)
         bundle(spec, snap, target_path(snap); force = overwrite_target)
 
+    elseif :tarball == target_bundle
+
+        tarball = Tarball(sources_dir; arch = target_arch, os = target_os, preferences)
+        bundle(spec, tarball, target_path(tarball); force = overwrite_target)
+
     else
         error("Got unsupported bundle type $target_bundle")
     end
 
     return
+end
+
+"""
+    main_juliaup(ARGS; sources_dir)
+
+Implements `appbundler juliaup <project_dir>`: writes the static file tree a `juliaup` client
+reads, so a distribution built with `--target-bundle=tarball` can be installed with
+`juliaup add <channel>`.
+
+Intended to run once per release, after the build matrix has uploaded its tarballs.
+"""
+function main_juliaup(ARGS; sources_dir)
+
+    config, preference_overrides = parse_juliaup_args(ARGS)
+    project_preferences = Resources.get_project_preferences(sources_dir)
+    preferences = merge(project_preferences["AppBundler"], preference_overrides)
+
+    # Only the flags that were actually given override the project's preferences.
+    overrides = Dict{Symbol, Any}(key => config[key]
+                                  for key in [:channel, :server, :asset_base, :mirror, :dbversion]
+                                  if !isnothing(config[key]))
+
+    dist = Juliaup.JuliaupDistribution(sources_dir; preferences, overrides...)
+
+    site = config[:build_dir]
+
+    Juliaup.publish(dist, site; assets = config[:platforms])
+
+    if config[:wrappers]
+        Juliaup.install_wrappers(dist, joinpath(site, "wrappers"))
+    end
+
+    println("""
+
+    The juliaup site is ready at $site. Serve it over HTTPS, then users can install the
+    distribution with:
+
+        export JULIAUP_SERVER=$(isempty(dist.server) ? "https://your.site" : dist.server)
+        juliaup add $(dist.channel)
+        julia +$(dist.channel)
+    """)
+
+    return
+end
+
+function parse_juliaup_args(raw_args)
+
+    args = normalize_args(raw_args)
+
+    config = Dict{Symbol, Any}(:build_dir => mktempdir(),
+                               :channel => nothing,
+                               :server => nothing,
+                               :asset_base => nothing,
+                               :dbversion => nothing,
+                               :mirror => nothing,
+                               :wrappers => false,
+                               :platforms => Tuple{Symbol, Symbol}[])
+
+    preference_overrides = String[]
+
+    i = 1
+    while i <= length(args)
+        arg = args[i]
+        if arg in ["--help", "-h"]
+            print_help()
+            exit(0)
+        elseif arg == "--build-dir"
+            i += 1
+            i > length(args) && error("--build-dir requires a value")
+            build_dir = expanduser(args[i])
+            config[:build_dir] = build_dir == "@temp" ? mktempdir() : (mkpath(build_dir); abspath(build_dir))
+        elseif arg == "--channel"
+            i += 1
+            i > length(args) && error("--channel requires a value")
+            config[:channel] = args[i]
+        elseif arg == "--server"
+            i += 1
+            i > length(args) && error("--server requires a value")
+            config[:server] = args[i]
+        elseif arg == "--asset-base"
+            i += 1
+            i > length(args) && error("--asset-base requires a value")
+            config[:asset_base] = args[i]
+        elseif arg == "--dbversion"
+            i += 1
+            i > length(args) && error("--dbversion requires a value")
+            config[:dbversion] = VersionNumber(args[i])
+        elseif arg == "--no-mirror"
+            config[:mirror] = false
+        elseif arg == "--mirror"
+            config[:mirror] = true
+        elseif arg == "--wrappers"
+            config[:wrappers] = true
+        elseif arg == "--platform"
+            i += 1
+            i > length(args) && error("--platform requires a value of the form <os>/<arch>")
+            parts = split(args[i], '/')
+            length(parts) == 2 || error("--platform expects <os>/<arch>, got `$(args[i])`")
+            push!(config[:platforms], (Symbol(parts[1]), Symbol(parts[2])))
+        elseif arg == "-D"
+            i += 1
+            push!(preference_overrides, args[i])
+        else
+            @warn "Unknown argument: $arg"
+        end
+        i += 1
+    end
+
+    if isempty(config[:platforms])
+        push!(config[:platforms], (host_os(), Sys.ARCH))
+    end
+
+    return config, TOML.parse(join(preference_overrides, "\n"))
 end
 
 function get_project_name(project_toml)
@@ -248,6 +387,7 @@ function parse_args(raw_args) #; preferences = Base.get_preferences()["AppBundle
     config = Dict(
         :build_dir => mktempdir(),  # Use nothing to distinguish "not set" from ""
         :target_arch => Sys.ARCH,
+        :target_os => Sys.islinux() ? :linux : Sys.isapple() ? :macos : Sys.iswindows() ? :windows : error("Bundling for current platform is unsupported"),
         :target_bundle => Sys.islinux() ? :snap : Sys.isapple() ? :dmg : Sys.iswindows() ? :msix : error("Bundling for current platform is unsupported"),
         :target_name => nothing,
         :password => nothing
@@ -304,6 +444,14 @@ function parse_args(raw_args) #; preferences = Base.get_preferences()["AppBundle
                 error("--target-arch requires a value")
             end
             config[:target_arch] = Symbol(args[i])
+        elseif arg == "--target-os"
+            i += 1
+            if i > length(args)
+                error("--target-os requires a value")
+            end
+            os = Symbol(args[i])
+            os in (:linux, :macos, :windows) || error("--target-os must be one of: linux, macos, windows")
+            config[:target_os] = os
         elseif arg == "--target-bundle"
             i += 1
             if i > length(args)
@@ -324,7 +472,8 @@ end
 
 
 const HELP_TEXT = """
-Usage: appbundler build <project_dir> [OPTIONS]
+Usage: appbundler build   <project_dir> [OPTIONS]
+       appbundler juliaup <project_dir> [OPTIONS]
 
 Arguments:
   <project_dir>                     Path to the Julia project to bundle
@@ -333,11 +482,19 @@ Options:
   --build-dir DIR                   Output directory for the bundle
                                     (default: temporary directory)
                                     Use '@temp' to explicitly request a temp dir
-  --target-bundle {dmg|snap|msix}   Package format to produce
+  --target-bundle {dmg|snap|tarball|msix}
+                                    Package format to produce
                                     (default: platform native — dmg on macOS,
-                                    snap on Linux, msix on Windows)
+                                    snap on Linux, msix on Windows). `tarball`
+                                    produces a relocatable, unsigned .tar.gz on
+                                    every OS (install.sh on linux/macos,
+                                    install.ps1 + a .bat launcher on windows;
+                                    no snapd / code-signing required).
   --target-arch {x86_64|aarch64}    Target CPU architecture
                                     (default: current system architecture)
+  --target-os {linux|macos|windows} Target OS for `tarball` (default: host OS;
+                                    must match the host — the sysimage is built
+                                    with the running Julia).
   --target-name NAME                Override the output file/directory name
                                     (default: derived from app name and version)
   --selfsign                        Sign the bundle with a self-signed certificate
@@ -358,6 +515,31 @@ Examples:
   appbundler build . --target-bundle=snap --target-arch=aarch64
   appbundler build . --selfsign --password=secret
   appbundler build . -Dbundler="juliac" -Djuliac_trim=true
+
+Juliaup options (appbundler juliaup):
+  --build-dir DIR                   Output directory for the static site
+  --channel NAME                    Channel users pass to `juliaup add`
+                                    (default: <app-name>-<app-version>)
+  --server URL                      HTTPS base url the site will be served from;
+                                    written into the client wrappers
+  --asset-base URL                  Base url or path the tarballs are served
+                                    from. Relative keeps the database portable
+                                    across hosts; absolute points elsewhere,
+                                    such as a GitHub releases page
+  --platform OS/ARCH                A platform that was built; repeatable
+                                    (default: the host platform)
+  --dbversion VERSION               Database version to publish. Must exceed the
+                                    public one or juliaup silently ignores it
+                                    (resolved automatically when omitted)
+  --mirror / --no-mirror            Merge the upstream database in so the stock
+                                    channels keep working (default: mirror)
+  --wrappers                        Also write the client wrappers into the site
+
+Examples:
+  appbundler juliaup . --build-dir=site --platform=linux/x86_64
+  appbundler juliaup . --build-dir=site --server=https://acme.github.io/myapp \\
+      --asset-base=https://github.com/acme/myapp/releases/download/v1.2.0 \\
+      --platform=linux/x86_64 --platform=macos/aarch64 --wrappers
 """
 
 function print_help()

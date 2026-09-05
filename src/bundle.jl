@@ -178,6 +178,92 @@ function Snap(overlay; preferences = preferences(), kwargs...)
     return snap
 end
 
+"""
+    Tarball([overlay]; os, arch, compress, windowed, kwargs...)
+
+Create a tarball configuration object for distributing an application as a relocatable `.tar.gz`.
+
+Unlike the installer formats a tarball is unsigned and installs nothing: it runs from wherever it is
+unpacked, relying on the bundled launcher to set `USER_DATA` and on packages resolving their assets
+relocatably (`pkgdir`, not `@__DIR__`). It is also the format a `juliaup` distribution is built
+from — the archive always carries a single top-level directory with the interpreter at
+`<root>/bin/julia`, which is what `juliaup` expects. See [Juliaup](@ref).
+
+`os` selects the staged Julia platform, the launcher (a POSIX `*.sh` for linux and macos, a `*.bat`
+for windows) and the installer (`install.sh` vs `install.ps1`). The `.desktop` entry is linux only.
+Packing is always `.tar.gz` — Windows 10 and later ship `tar` — so one code path serves every OS.
+
+# Arguments
+- `overlay`: Path to a project directory containing `Project.toml`, optional `LocalPreferences.toml`, and optional `meta/tarball/` overrides
+
+# Keyword Arguments
+- `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
+- `os = host_os()`: Target operating system, one of `:linux`, `:macos` or `:windows`. Must match the host when a sysimage is compiled
+- `arch = Sys.ARCH`: Target CPU architecture
+- `icon = get_path(prefix, ["tarball/icon.png", "icon.png"])`: Path to application icon file
+- `desktop_launcher`: Desktop entry template; linux only
+- `install_script`: Installer placed at the archive root, `install.sh` or `install.ps1`
+- `main_launcher`: Launcher installed into `bin/`; resolved from prefix using the bundler predicate
+- `windowed`: If `true`, the application runs without a console window; defaults to `windowed` preference
+- `compress`: If `true`, pack the staging directory into a `.tar.gz`; defaults to `compress` preference
+- `predicate`: Bundler predicate used for hook selection; defaults to `bundler` preference
+- `parameters`: Dictionary of parameters for Mustache template rendering. When `overlay` is provided, pre-populated from `Project.toml` and preferences
+
+# Examples
+```julia
+Tarball(app_dir)                                  # host platform
+Tarball(app_dir; os = :macos, arch = :aarch64)
+```
+"""
+struct Tarball
+    icon::String
+    desktop_launcher::Union{String, Nothing}
+    install_script::Union{String, Nothing}
+    main_launcher::Union{String, Nothing}
+    windowed::Bool
+    compress::Bool
+    arch::Symbol
+    os::Symbol
+    predicate::String
+    parameters::Dict{String, Any}
+end
+
+# Default target OS = the host (cross-compiling a sysimage isn't supported, so
+# each OS bundle must be built on a matching runner anyway).
+host_os() = Sys.iswindows() ? :windows : Sys.isapple() ? :macos : :linux
+
+function Tarball(;
+                 prefix = joinpath(dirname(@__DIR__), "recipes"),
+                 preferences = preferences(),
+                 predicate = preferences["bundler"],
+                 os = host_os(),
+                 icon = get_path(prefix, ["tarball/icon.png", "icon.png"]),
+                 desktop_launcher = os === :linux ?
+                     get_path(prefix, ["tarball/main.desktop", "snap/main.desktop"]) : nothing,
+                 install_script = os === :windows ?
+                     get_path(prefix, "tarball/install.ps1"; warn = false) :
+                     get_path(prefix, "tarball/install.sh"),
+                 main_launcher = os === :windows ?
+                     get_path(prefix, hook("tarball/main.bat", predicate); warn = false) :
+                     get_path(prefix, hook("tarball/main.sh", predicate); warn = false),
+                 windowed = preferences["windowed"],
+                 compress = preferences["compress"],
+                 arch = Sys.ARCH,
+                 parameters = Dict("WINDOWED" => windowed)
+                 )
+
+    return Tarball(icon, desktop_launcher, install_script, main_launcher, windowed, compress, arch, os, predicate, parameters)
+end
+
+function Tarball(overlay; preferences = preferences(), kwargs...)
+
+    prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+    tarball = Tarball(; prefix, preferences, kwargs...)
+    get_bundle_parameters!(tarball.parameters, joinpath(overlay, "Project.toml"); preferences)
+
+    return tarball
+end
+
 # TODO: mention that application needs to be notarized by Apple. That can be done outside the build process by stapling already signed DMG archive. 
 
 """
@@ -441,6 +527,35 @@ function stage(snap::Snap, destination::String)
     return
 end
 
+function stage(tarball::Tarball, destination::String)
+
+    (; predicate, parameters, os) = tarball
+    app_name = parameters["APP_NAME"]
+
+    install(tarball.icon, joinpath(destination, "meta/icon.png"))
+
+    # `.desktop` integration is linux-only.
+    if !isnothing(tarball.desktop_launcher)
+        install(tarball.desktop_launcher, joinpath(destination, "meta/gui/$app_name.desktop"); parameters, predicate)
+    end
+
+    # Installer name matches its interpreter so the unpacked tree is obviously
+    # runnable: install.sh on unix, install.ps1 on windows.
+    if !isnothing(tarball.install_script)
+        install_name = os === :windows ? "install.ps1" : "install.sh"
+        install(tarball.install_script, joinpath(destination, install_name); parameters, executable = (os !== :windows), predicate)
+    end
+
+    # Launcher lands in bin/ next to the bundled julia: `<app>` (a bash script,
+    # resolved via a PATH symlink) on unix, `<app>.bat` on windows.
+    if !isnothing(tarball.main_launcher)
+        launcher_rel = os === :windows ? "bin/$app_name.bat" : "bin/$app_name"
+        install(tarball.main_launcher, joinpath(destination, launcher_rel); parameters, executable = (os !== :windows), predicate)
+    end
+
+    return
+end
+
 
 """
     bundle(setup::Function, config, destination::String; force=false, [password=""])
@@ -547,6 +662,12 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
 end
 
 """
+    bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "")
+
+MSIX variant of [`bundle(setup, config, destination)`](@ref).
+
+Before packing, the staging area is checked against the constraints Windows places on an app
+package — path length, symlinks and non-ASCII paths — according to the `MSIX` configuration.
 """
 function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "")
 
@@ -602,6 +723,41 @@ function bundle(setup::Function, snap::Snap, destination::String; force = false)
     if snap.compress
         @info "Packaging staging area into Snap..."
         SnapPack.pack(app_stage, destination)
+    end
+
+    return
+end
+
+function bundle(setup::Function, tarball::Tarball, destination::String; force = false)
+
+    if ispath(destination)
+        if force
+            rm(destination; force=true, recursive=true)
+        else
+            error("Destination $destination already exists. Use `force = true` argument.")
+        end
+    end
+
+    # When compressing, stage into `<tmp>/<rootname>` so the archive has a single
+    # top-level folder (TarPack tars the parent). Uncompressed, the destination
+    # directory itself is the staging area.
+    if tarball.compress
+        rootname = replace(basename(destination), r"\.tar\.gz$" => "")
+        staging_parent = mktempdir()
+        app_stage = joinpath(staging_parent, rootname)
+        mkpath(app_stage)
+    else
+        app_stage = destination
+    end
+
+    @info "Initializing tarball staging layout..."
+    stage(tarball, app_stage)
+    @info "Installing app into staging area..."
+    setup(app_stage)
+
+    if tarball.compress
+        @info "Packaging staging area into tar.gz..."
+        TarPack.pack(app_stage, destination)
     end
 
     return

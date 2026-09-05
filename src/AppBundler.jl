@@ -29,6 +29,8 @@ include("DMG/DMGPack.jl")
 
 include("Snap/SnapPack.jl")
 
+include("Tarball/TarPack.jl")
+
 include("MSIX/MSIXPack.jl")
 include("MSIX/MSIXIcons.jl")
 include("MSIX/WinSubsystem.jl")
@@ -39,6 +41,8 @@ include("bundlers/JuliaC.jl")
 
 using .JuliaImg: install
 using .JuliaImg.Resources: merge_directories#, install
+
+include("Juliaup/Juliaup.jl")
 
 include("utils.jl")
 include("bundle.jl")
@@ -64,7 +68,7 @@ end
 #@doc (@doc JuliaImg.JuliaImgBundle) JuliaImgBundle
 #@doc (@doc JuliaC.JuliaCBundle) JuliaCBundle
 
-export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
+export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, Tarball, bundle, stage
 export main 
 
 

@@ -85,6 +85,8 @@ pkg = JuliaImgBundle("path/to/app"; sysimg_packages = ["Plots", "DifferentialEqu
     sysimg_packages::Vector{String} = []
     sysimg_args::Cmd = ``
     remove_sources::Bool = false # ToDo: It only makes sense to remove sources for packages baked in the sysimg
+    strip_debug::Bool = false # strip DWARF debug info from the staged Julia runtime libs (lib/julia)
+    strip_docs::Bool = false  # drop docs/test/examples from staged packages + Julia's share/doc·test·man
     asset_rpath::String = "assets"
     asset_spec::Dict{Symbol, Vector{String}} = Dict{Symbol, Vector{String}}()
     precompile::Bool = true
@@ -497,6 +499,12 @@ function stage(product::JuliaImgBundle, destination::String; platform::AbstractP
         cp(joinpath(product.source, "Project.toml"), joinpath(packages_dir, stdlib_project_name, "Project.toml"))
     end
 
+    # Size reduction passes. Run AFTER sysimg/pkgimg compilation: strip_debug!
+    # must see the freshly built sys image, and neither touches the depot's
+    # content-validated pkgimages (compiled/), only lib/julia and package trees.
+    product.strip_debug && strip_debug!(destination, platform)
+    product.strip_docs  && strip_docs!(destination, product)
+
     if isempty(product.asset_spec)
         Resources.install_pkgorigin_index(product.source, joinpath(destination, "index"), product.stdlib_dir)
     else
@@ -512,6 +520,74 @@ function stage(product::JuliaImgBundle, destination::String; platform::AbstractP
         println("Launch it with bin/julia")
     end
 
+    return
+end
+
+# Strip DWARF debug info from the staged Julia runtime libraries in lib/julia
+# (sys image + libjulia-codegen/libLLVM/libstdc++/…). NEVER touches the depot's
+# compiled/ pkgimages — those are content-validated and editing them forces a
+# recompile on first launch. Scoping to lib/julia naturally avoids them.
+#
+# Cross-build safe: prefers `llvm-strip` (handles ELF/Mach-O/COFF from any host),
+# falling back to host `strip`. `-S` (remove debug symbols/sections) is the one
+# flag understood by GNU strip, BSD/macOS strip, and llvm-strip alike. Windows
+# keeps debug info in separate .pdb files, so there we just delete those.
+function strip_debug!(destination, platform)
+    tos = string(os(platform))
+    if tos == "windows"
+        for base in (joinpath(destination, "lib", "julia"), joinpath(destination, "bin"))
+            isdir(base) || continue
+            for (root, _, files) in walkdir(base), f in files
+                endswith(lowercase(f), ".pdb") && rm(joinpath(root, f))
+            end
+        end
+        return
+    end
+
+    libdir = joinpath(destination, "lib", "julia")
+    isdir(libdir) || return
+    # Match .so, .so.N.M…, AND Julia's jl-ABI-suffixed libs (e.g. libLLVM.so.18.1jl).
+    # `\.so($|\.)` = ".so" at end, or ".so." followed by any version/ABI tail.
+    matches = tos == "macos" ? (f -> occursin(r"\.dylib$", f)) :
+                               (f -> occursin(r"\.so($|\.)", f))
+    stripper = something(Sys.which("llvm-strip"), Sys.which("strip"), Some(nothing))
+    if stripper === nothing
+        @warn "strip_debug!: no llvm-strip/strip on PATH; skipping debug stripping"
+        return
+    end
+    for (root, _, files) in walkdir(libdir), f in files
+        p = joinpath(root, f)
+        islink(p) && continue          # don't rewrite the .so/.so.N symlink aliases
+        matches(f) || continue
+        try
+            run(`$stripper -S $p`)
+        catch e
+            @warn "strip_debug!: failed to strip $p" exception = e
+        end
+    end
+    return
+end
+
+# Drop documentation/test/example trees from the staged package source tree, plus
+# Julia's own share/doc · share/julia/test · share/man. Unlike remove_sources,
+# this KEEPS each package's src/ so a pkgimage that ever gets invalidated can
+# still recompile. Pure directory removal — host-agnostic, identical per target.
+const STRIP_DOC_DIRS = ("docs", "test", "examples", "benchmark", "benchmarks")
+function strip_docs!(destination, product)
+    pkgs = joinpath(destination, product.stdlib_dir)
+    if isdir(pkgs)
+        for pkg in readdir(pkgs; join = true)
+            isdir(pkg) || continue
+            for sub in STRIP_DOC_DIRS
+                d = joinpath(pkg, sub)
+                isdir(d) && rm(d; recursive = true)
+            end
+        end
+    end
+    for rel in ("share/doc", joinpath("share", "julia", "test"), joinpath("share", "man"))
+        p = joinpath(destination, rel)
+        ispath(p) && rm(p; recursive = true)
+    end
     return
 end
 
