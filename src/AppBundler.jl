@@ -29,6 +29,9 @@ include("DMG/DMGPack.jl")
 
 include("Snap/SnapPack.jl")
 
+include("AppImage/AppImagePack.jl")
+include("AppImage/Runtime.jl")
+
 include("MSIX/MSIXPack.jl")
 include("MSIX/MSIXIcons.jl")
 include("MSIX/WinSubsystem.jl")
@@ -64,7 +67,7 @@ end
 #@doc (@doc JuliaImg.JuliaImgBundle) JuliaImgBundle
 #@doc (@doc JuliaC.JuliaCBundle) JuliaCBundle
 
-export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
+export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, AppImage, bundle, stage
 export main 
 
 

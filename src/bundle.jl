@@ -547,6 +547,12 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
 end
 
 """
+    bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "")
+
+MSIX variant of [`bundle(setup, config, destination)`](@ref).
+
+Before packing, the staging area is checked against the constraints Windows places on an app
+package — path length, symlinks and non-ASCII paths — according to the `MSIX` configuration.
 """
 function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "")
 
@@ -602,6 +608,169 @@ function bundle(setup::Function, snap::Snap, destination::String; force = false)
     if snap.compress
         @info "Packaging staging area into Snap..."
         SnapPack.pack(app_stage, destination)
+    end
+
+    return
+end
+
+
+"""
+    AppImage([overlay]; arch, compress, compression, depot, runtime, kwargs...)
+
+Create an AppImage configuration object for Linux application packaging.
+
+An AppImage is a runtime ELF followed by a squashfs image. The runtime **mounts** that filesystem
+rather than extracting it, so a bundled Julia distribution — tens of thousands of small files —
+never lands on disk. That is what makes the format worth having on HPC, where unpacking a tarball
+onto a network filesystem is the expensive part.
+
+Mounting requires `fusermount` on the target machine. Where it is missing the runtime falls back to
+`--appimage-extract-and-run`, and [`AppBundler.AppImagePack.unpack`](@ref) reads the payload without
+running the runtime at all.
+
+# Arguments
+- `overlay`: Path to a project directory containing `Project.toml`, optional `LocalPreferences.toml`, and optional `meta/appimage/` overrides
+
+# Keyword Arguments
+- `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
+- `icon = get_path(prefix, ["appimage/icon.png", "icon.png"])`: Path to application icon file
+- `desktop_launcher = get_path(prefix, "appimage/main.desktop")`: Path to the desktop entry template
+- `metainfo = get_path(prefix, "appimage/metainfo.xml")`: Path to the AppStream metadata template
+- `main_launcher`: Path to the `AppRun` template; resolved from prefix using the bundler predicate
+- `startup_file = get_path(prefix, "appimage/startup.jl")`: Startup file used when `depot = "julia"`, which sets up the load path without replacing `DEPOT_PATH`
+- `depot`: Where a Julia payload keeps its depot. `"app"` (default) points `USER_DATA` at
+  `\$XDG_DATA_HOME/<app>`, giving a persistent per-user depot that leaves the host `~/.julia`
+  untouched; `"julia"` keeps the stock depot; defaults to the `appimage_depot` preference
+- `compression`: squashfs compressor, one of `:zstd` (default), `:gzip` or `:xz`; defaults to the
+  `appimage_compression` preference
+- `runtime`: Path to the AppImage runtime. When unset, `AppImageRuntime_jll` is used if installed;
+  defaults to the `appimage_runtime` preference
+- `windowed`: If `true`, the application runs without a console window; defaults to `windowed` preference
+- `compress`: If `true`, pack the AppDir into an `.AppImage`; defaults to `compress` preference
+- `arch = Sys.ARCH`: Target CPU architecture
+- `predicate`: Bundler predicate used for hook selection; defaults to `bundler` preference
+- `parameters`: Dictionary of parameters for Mustache template rendering. When `overlay` is provided, pre-populated from `Project.toml` and preferences
+
+# Examples
+```julia
+AppImage(app_dir)
+AppImage(app_dir; depot = "julia")                       # keep the stock ~/.julia depot
+AppImage(app_dir; runtime = "/path/to/runtime-x86_64")   # until AppImageRuntime_jll exists
+```
+"""
+struct AppImage
+    icon::String
+    desktop_launcher::String
+    metainfo::String
+    main_launcher::Union{String, Nothing}
+    startup_file::Union{String, Nothing}
+    depot::String
+    compression::Symbol
+    runtime::Union{String, Nothing}
+    windowed::Bool
+    compress::Bool
+    arch::Symbol
+    predicate::String
+    parameters::Dict{String, Any}
+end
+
+const APPIMAGE_DEPOTS = ["app", "julia"]
+
+function AppImage(;
+                  prefix = joinpath(dirname(@__DIR__), "recipes"),
+                  preferences = preferences(),
+                  predicate = preferences["bundler"],
+                  icon = get_path(prefix, ["appimage/icon.png", "icon.png"]),
+                  desktop_launcher = get_path(prefix, "appimage/main.desktop"),
+                  metainfo = get_path(prefix, "appimage/metainfo.xml"),
+                  main_launcher = get_path(prefix, hook("appimage/AppRun.sh", predicate); warn = false),
+                  startup_file = get_path(prefix, "appimage/startup.jl"; warn = false),
+                  depot = get(preferences, "appimage_depot", "app"),
+                  compression = Symbol(get(preferences, "appimage_compression", "zstd")),
+                  runtime = get(preferences, "appimage_runtime", ""),
+                  windowed = preferences["windowed"],
+                  compress = preferences["compress"],
+                  arch = Sys.ARCH,
+                  parameters = Dict{String, Any}("WINDOWED" => windowed)
+                  )
+
+    depot in APPIMAGE_DEPOTS ||
+        error("`appimage_depot` must be one of: " * join(APPIMAGE_DEPOTS, ", ") * ". Got `$depot`.")
+
+    compression in AppImagePack.COMPRESSORS ||
+        error("`appimage_compression` must be one of: " *
+              join(AppImagePack.COMPRESSORS, ", ") * ". Got `$compression`.")
+
+    # The AppRun template branches on this rather than on the preference string, so the
+    # rendered launcher only carries the lines that apply.
+    parameters["APP_DEPOT"] = depot == "app"
+
+    return AppImage(icon, desktop_launcher, metainfo, main_launcher, startup_file, depot, compression,
+                    isempty(something(runtime, "")) ? nothing : runtime,
+                    windowed, compress, arch, predicate, parameters)
+end
+
+function AppImage(overlay; preferences = preferences(), kwargs...)
+
+    prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+    appimage = AppImage(; prefix, preferences, kwargs...)
+    get_bundle_parameters!(appimage.parameters, joinpath(overlay, "Project.toml"); preferences)
+
+    return appimage
+end
+
+function stage(appimage::AppImage, destination::String)
+
+    (; predicate, parameters) = appimage
+    app_name = parameters["APP_NAME"]
+    bundle_identifier = get(parameters, "BUNDLE_IDENTIFIER", app_name)
+
+    # The spec looks for the desktop entry and the icon at the AppDir root, and the `Icon=` key
+    # names the icon with no path and no extension.
+    install(appimage.icon, joinpath(destination, "$app_name.png"))
+    install(appimage.desktop_launcher, joinpath(destination, "$app_name.desktop"); parameters, predicate)
+
+    # `.DirIcon` is what file managers read for the thumbnail. A copy rather than a symlink, since
+    # squashfs preserves symlinks but some extraction paths do not follow them.
+    cp(joinpath(destination, "$app_name.png"), joinpath(destination, ".DirIcon"); force = true)
+
+    # Freedesktop locations, so an AppImage the user installs integrates with the menu
+    install(appimage.icon, joinpath(destination, "usr/share/icons/hicolor/256x256/apps/$app_name.png"))
+    install(appimage.desktop_launcher, joinpath(destination, "usr/share/applications/$app_name.desktop"); parameters, predicate)
+    install(appimage.metainfo, joinpath(destination, "usr/share/metainfo/$bundle_identifier.appdata.xml"); parameters, predicate)
+
+    if !isnothing(appimage.main_launcher)
+        install(appimage.main_launcher, joinpath(destination, "AppRun"); parameters, executable = true, predicate)
+    end
+
+    return
+end
+
+function bundle(setup::Function, appimage::AppImage, destination::String; force = false)
+
+    if ispath(destination)
+        if force
+            rm(destination; force=true, recursive=true)
+        else
+            error("Destination $destination already exists. Use `force = true` argument.")
+        end
+    end
+
+    # Resolve the runtime before doing the expensive staging work, so a missing one fails in
+    # seconds rather than after a full image build.
+    runtime = appimage.compress ? AppImageRuntime.resolve(appimage.arch; runtime = appimage.runtime) : nothing
+
+    appdir = appimage.compress ? mktempdir() : destination
+
+    @info "Initializing AppDir staging layout..."
+    stage(appimage, appdir)
+
+    @info "Installing app into staging area..."
+    setup(appdir)
+
+    if appimage.compress
+        @info "Packaging AppDir into AppImage..."
+        AppImagePack.pack(appdir, destination, runtime; compression = appimage.compression)
     end
 
     return

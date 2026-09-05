@@ -37,6 +37,7 @@ makedocs(
         "Overview" => "index.md",
         "Customization" => "customization.md",
         "Deployment" => "deployment.md", # codesigning, GitHub CI,
+        "AppImage" => "appimage.md",
         "Troubleshooting" => "troubleshooting.md",
         "Reference" => "reference.md" # Here I could also give an overview of the internal API on how it composes. Perhaps I shall madke that as documentation for the module here.
     ]
