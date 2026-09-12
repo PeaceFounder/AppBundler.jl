@@ -1,9 +1,9 @@
 [Desktop Entry]
-Type=Application
 Name={{APP_DISPLAY_NAME}}
-Comment={{APP_SUMMARY}}
-Exec=AppRun
+Exec={{APP_NAME}}
 Icon={{APP_NAME}}
+Version={{APP_VERSION}}
+Comment={{APP_SUMMARY}}
+Terminal={{#WINDOWED}}false{{/WINDOWED}}{{^WINDOWED}}true{{/WINDOWED}}
+Type=Application
 Categories=Utility;
-Terminal=true
-#X-AppImage-Version=$(APP_VERSION)

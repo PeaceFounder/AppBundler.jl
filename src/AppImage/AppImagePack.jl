@@ -21,6 +21,9 @@ const RUNTIME_TAG = "continuous"
 "Runtime architectures published by AppImage/type2-runtime."
 const RUNTIME_ARCHS = ("x86_64", "i686", "aarch64", "armhf")
 
+
+# ToDo:
+# - replace this with Artifacts.toml source
 runtime_url(arch) = "https://github.com/AppImage/type2-runtime/releases/download/" *
                     "$(RUNTIME_TAG)/runtime-$(arch)"
 
@@ -56,6 +59,9 @@ runtime_cache() = @get_scratch!("runtimes")
 
 # ---------------------------------------------------------------- runtime --
 
+
+# It is not possible to use Artifacts.toml because it expects artifacts to be placed in tarballs
+# The best option now is to wait for https://github.com/JuliaPackaging/Yggdrasil/pull/14695 to be merged
 """
     fetch_runtime(arch, cachedir) -> String
 
@@ -81,6 +87,7 @@ function fetch_runtime(arch::AbstractString, cachedir::AbstractString)
         @info "Using cached runtime-$(arch)"
     end
 
+    # Belongs to the tests
     header = open(io -> read(io, 11), dest, "r")
     length(header) == 11 || error("runtime is truncated")
     header[1:4] == UInt8[0x7f, 0x45, 0x4c, 0x46] || error("runtime is not an ELF file")
