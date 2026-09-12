@@ -21,6 +21,9 @@ dmg_hardened_runtime = true
 dmg_sandboxed_runtime = false
 dmg_compression = "lzma"
 
+appimage_compression = "zstd"
+
+
 bundler = "juliaimg"
 
 juliaimg_mainless = false

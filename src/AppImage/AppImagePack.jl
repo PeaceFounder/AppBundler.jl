@@ -11,91 +11,11 @@ recover that offset before `unsquashfs` can find the superblock.
 module AppImagePack
 
 import squashfs_tools_jll: mksquashfs, unsquashfs
-using Downloads
-using Scratch: @get_scratch!
+import ..AppImageRuntime: get_runtime
 
 export pack, unpack
 
-const RUNTIME_TAG = "continuous"
-
-"Runtime architectures published by AppImage/type2-runtime."
-const RUNTIME_ARCHS = ("x86_64", "i686", "aarch64", "armhf")
-
-
-# ToDo:
-# - replace this with Artifacts.toml source
-runtime_url(arch) = "https://github.com/AppImage/type2-runtime/releases/download/" *
-                    "$(RUNTIME_TAG)/runtime-$(arch)"
-
-"""
-    host_arch() -> String
-
-The runtime architecture matching the host, using AppImage's naming rather
-than Julia's. Only meaningful for a Linux host; cross-packaging should pass
-`arch` explicitly.
-"""
-function host_arch()
-    a = Sys.ARCH
-    a === :x86_64  && return "x86_64"
-    a === :i686    && return "i686"
-    a === :aarch64 && return "aarch64"
-    a === :arm     && return "armhf"
-    a === :armv7l  && return "armhf"
-    error("no AppImage runtime for host architecture $a; pass arch= explicitly")
-end
-
-"""
-    runtime_cache() -> String
-
-Scratch space holding downloaded runtimes between builds, keyed to this
-package so `Pkg.gc()` can reclaim it and `Scratch.delete_scratch!` can clear
-it. The path is resolved on each call rather than stored in a `const`, since
-baking a scratch path into precompiled code is not safe.
-
-Runtimes are re-downloaded if the space is garbage collected, so treat this
-purely as a cache.
-"""
-runtime_cache() = @get_scratch!("runtimes")
-
-# ---------------------------------------------------------------- runtime --
-
-
-# It is not possible to use Artifacts.toml because it expects artifacts to be placed in tarballs
-# The best option now is to wait for https://github.com/JuliaPackaging/Yggdrasil/pull/14695 to be merged
-"""
-    fetch_runtime(arch, cachedir) -> String
-
-Download the prebuilt type-2 runtime for `arch` (cached in `cachedir`), and
-check that it is an ELF carrying the AppImage magic `AI\\x02` at offset 8.
-"""
-function fetch_runtime(arch::AbstractString, cachedir::AbstractString)
-    arch in RUNTIME_ARCHS ||
-        error("unknown runtime architecture $arch; expected one of $(join(RUNTIME_ARCHS, ", "))")
-
-    mkpath(cachedir)
-    dest = joinpath(cachedir, "runtime-$(arch)")
-    if !isfile(dest) || filesize(dest) == 0
-        @info "Downloading runtime-$(arch)"
-        tmp = dest * ".part"
-        try
-            Downloads.download(runtime_url(arch), tmp)
-            mv(tmp, dest; force = true)
-        finally
-            rm(tmp; force = true)
-        end
-    else
-        @info "Using cached runtime-$(arch)"
-    end
-
-    # Belongs to the tests
-    header = open(io -> read(io, 11), dest, "r")
-    length(header) == 11 || error("runtime is truncated")
-    header[1:4] == UInt8[0x7f, 0x45, 0x4c, 0x46] || error("runtime is not an ELF file")
-    header[9:11] == UInt8[0x41, 0x49, 0x02] ||
-        error("runtime lacks the AI\\x02 magic at offset 8")
-
-    return dest
-end
+const COMPRESSORS = [:zstd, :gzip]
 
 # ------------------------------------------------------------------ offset --
 
@@ -159,16 +79,12 @@ the epoch and ownership forced to root so repeated builds are bit-identical;
 staged in `appdir`.
 """
 function compress(appdir::AbstractString, payload::AbstractString;
-                  comp::AbstractString = "zstd")
+                  compression::Symbol = :zstd)
     rm(payload; force = true)
-    args = String[
-        "-noappend", "-no-progress", "-quiet",
-        "-all-root", "-no-xattrs",
-        "-comp", comp, "-b", "128K",
-        "-mkfs-time", "0", "-all-time", "0",
-    ]
-    @info "Packing SquashFS payload ($comp)"
-    run(`$(mksquashfs()) $appdir $payload $args`)
+
+    @info "Packing SquashFS payload ($compression)"
+    run(`$(mksquashfs()) $appdir $payload -noappend -all-root -no-xattrs -comp $compression -b 128K -mkfs-time 0 -all-time 0`)
+
     return payload
 end
 
@@ -208,18 +124,13 @@ Package the AppDir at `source` into an AppImage at `destination`.
 plus the `.desktop` file, icon and `.DirIcon` the format expects. Nothing here
 edits the tree.
 """
-function pack(source::AbstractString, destination::AbstractString;
-              arch::AbstractString = host_arch(),
-              comp::AbstractString = "zstd",
-              cache::AbstractString = runtime_cache())
+function pack(source::AbstractString, destination::AbstractString; compression::Symbol = :zstd, runtime = get_runtime(Sys.ARCH))
 
     isdir(source) || error("AppDir not found: $source")
     isfile(joinpath(source, "AppRun")) || error("$source has no AppRun at its root")
 
-    runtime = fetch_runtime(arch, cache)
-
     mktempdir() do work
-        payload = compress(source, joinpath(work, "payload.squashfs"); comp = comp)
+        payload = compress(source, joinpath(work, "payload.squashfs"); compression)
         concatenate(runtime, payload, destination)
     end
 
@@ -240,7 +151,7 @@ function unpack(source::AbstractString, destination::AbstractString)
     isfile(source) || error("AppImage not found: $source")
     offset = payload_offset(source)
 
-    run(`$(unsquashfs()) -offset $offset -force -quiet -no-progress -dest $destination $source`)
+    run(`$(unsquashfs()) -offset $offset -force -dest $destination $source`)
 
     return destination
 end

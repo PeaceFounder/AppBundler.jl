@@ -337,7 +337,8 @@ Options:
   --build-dir DIR                   Output directory for the bundle
                                     (default: temporary directory)
                                     Use '@temp' to explicitly request a temp dir
-  --target-bundle {dmg|snap|msix}   Package format to produce
+  --target-bundle {dmg|snap|appimage|msix}   
+                                    Package format to produce
                                     (default: platform native — dmg on macOS,
                                     snap on Linux, msix on Windows)
   --target-arch {x86_64|aarch64}    Target CPU architecture

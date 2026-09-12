@@ -252,7 +252,7 @@ function DMG(;
              prefix = joinpath(dirname(@__DIR__), "recipes"),
              preferences = preferences(),
              predicate = preferences["bundler"],
-             icon = get_path(prefix, ["dmg/icon.icns", "dmg/icon.png", "icon.icns"]),
+             icon = get_path(prefix, ["dmg/icon.icns", "icon.icns"]), # The "dmg/icon.png" is not yet supported
              info_config = get_path(prefix, "dmg/Info.plist"),
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
              dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
@@ -661,14 +661,12 @@ struct AppImage
     icon::String
     desktop_launcher::String
     metainfo::String
-    main_launcher::Union{String, Nothing}
-    startup_file::Union{String, Nothing}
-    depot::String
+    main_launcher::String # It is always AppRun.sh. 
     compression::Symbol
-    runtime::Union{String, Nothing}
     windowed::Bool
     compress::Bool
     arch::Symbol
+    runtime::String
     predicate::String
     parameters::Dict{String, Any}
 end
@@ -683,30 +681,19 @@ function AppImage(;
                   desktop_launcher = get_path(prefix, "appimage/main.desktop"),
                   metainfo = get_path(prefix, "appimage/metainfo.xml"),
                   main_launcher = get_path(prefix, hook("appimage/AppRun.sh", predicate); warn = false),
-                  startup_file = get_path(prefix, "appimage/startup.jl"; warn = false),
-                  depot = get(preferences, "appimage_depot", "app"),
                   compression = Symbol(get(preferences, "appimage_compression", "zstd")),
-                  runtime = get(preferences, "appimage_runtime", ""),
                   windowed = preferences["windowed"],
                   compress = preferences["compress"],
                   arch = Sys.ARCH,
+                  runtime = AppImageRuntime.get_runtime(arch),
                   parameters = Dict{String, Any}("WINDOWED" => windowed)
                   )
-
-    depot in APPIMAGE_DEPOTS ||
-        error("`appimage_depot` must be one of: " * join(APPIMAGE_DEPOTS, ", ") * ". Got `$depot`.")
 
     compression in AppImagePack.COMPRESSORS ||
         error("`appimage_compression` must be one of: " *
               join(AppImagePack.COMPRESSORS, ", ") * ". Got `$compression`.")
 
-    # The AppRun template branches on this rather than on the preference string, so the
-    # rendered launcher only carries the lines that apply.
-    parameters["APP_DEPOT"] = depot == "app"
-
-    return AppImage(icon, desktop_launcher, metainfo, main_launcher, startup_file, depot, compression,
-                    isempty(something(runtime, "")) ? nothing : runtime,
-                    windowed, compress, arch, predicate, parameters)
+    return AppImage(icon, desktop_launcher, metainfo, main_launcher, compression, windowed, compress, arch, runtime, predicate, parameters)
 end
 
 function AppImage(overlay; preferences = preferences(), kwargs...)
@@ -731,16 +718,15 @@ function stage(appimage::AppImage, destination::String)
 
     # `.DirIcon` is what file managers read for the thumbnail. A copy rather than a symlink, since
     # squashfs preserves symlinks but some extraction paths do not follow them.
-    cp(joinpath(destination, "$app_name.png"), joinpath(destination, ".DirIcon"); force = true)
+    #cp(joinpath(destination, "$app_name.png"), joinpath(destination, ".DirIcon"); force = true)
+    install(appimage.icon, joinpath(destination, ".DirIcon"))
 
     # Freedesktop locations, so an AppImage the user installs integrates with the menu
     install(appimage.icon, joinpath(destination, "usr/share/icons/hicolor/256x256/apps/$app_name.png"))
     install(appimage.desktop_launcher, joinpath(destination, "usr/share/applications/$app_name.desktop"); parameters, predicate)
     install(appimage.metainfo, joinpath(destination, "usr/share/metainfo/$bundle_identifier.appdata.xml"); parameters, predicate)
 
-    if !isnothing(appimage.main_launcher)
-        install(appimage.main_launcher, joinpath(destination, "AppRun"); parameters, executable = true, predicate)
-    end
+    install(appimage.main_launcher, joinpath(destination, "AppRun"); parameters, executable = true, predicate)
 
     return
 end
@@ -757,7 +743,7 @@ function bundle(setup::Function, appimage::AppImage, destination::String; force 
 
     # Resolve the runtime before doing the expensive staging work, so a missing one fails in
     # seconds rather than after a full image build.
-    runtime = appimage.compress ? AppImageRuntime.resolve(appimage.arch; runtime = appimage.runtime) : nothing
+    #runtime = appimage.compress ? AppImageRuntime.resolve(appimage.arch; runtime = appimage.runtime) : nothing
 
     appdir = appimage.compress ? mktempdir() : destination
 
@@ -769,7 +755,7 @@ function bundle(setup::Function, appimage::AppImage, destination::String; force 
 
     if appimage.compress
         @info "Packaging AppDir into AppImage..."
-        AppImagePack.pack(appdir, destination, runtime; compression = appimage.compression)
+        AppImagePack.pack(appdir, destination; compression = appimage.compression, runtime = appimage.runtime)
     end
 
     return

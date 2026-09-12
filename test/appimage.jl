@@ -121,14 +121,13 @@ function verify(appimage::AbstractString)
     return nothing
 end
 
-function main(; workdir::AbstractString = joinpath(@__DIR__, "build"),
-                arch::AbstractString = get(ENV, "APPIMAGE_ARCH", AppImagePack.host_arch()))
+function main(; workdir::AbstractString = joinpath(@__DIR__, "build"))
     mkpath(workdir)
 
     appdir = build_appdir(workdir)
-    output = joinpath(@__DIR__, "$(APP_NAME)-$(APP_VERSION)-$(arch).AppImage")
+    output = joinpath(@__DIR__, "$(APP_NAME)-$(APP_VERSION)-$(Sys.ARCH).AppImage")
 
-    pack(appdir, output; arch = arch)
+    pack(appdir, output)
     verify(output)
 
     println()
