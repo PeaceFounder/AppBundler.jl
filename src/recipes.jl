@@ -182,12 +182,12 @@ function bundle(product::JuliaImgBundle, appimage::AppImage, destination::String
 
         # "julia" mode needs a startup file that leaves DEPOT_PATH alone; every set_depot_path_*
         # in AppEnv begins with `empty!(DEPOT_PATH)`, so AppEnv.init() cannot be used there.
-        startup_file = appimage.depot == "julia" ? appimage.startup_file : product.startup_file
+        # startup_file = appimage.depot == "julia" ? appimage.startup_file : product.startup_file
 
-        isnothing(startup_file) &&
-            error("No startup.jl available for `appimage_depot = \"julia\"`.")
+        # isnothing(startup_file) &&
+        #     error("No startup.jl available for `appimage_depot = \"julia\"`.")
 
-        install(startup_file, joinpath(appdir, "etc/julia/startup.jl");
+        install(product.startup_file, joinpath(appdir, "etc/julia/startup.jl");
                 parameters = appimage.parameters, force = true)
     end
 

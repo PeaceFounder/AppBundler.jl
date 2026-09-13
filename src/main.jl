@@ -133,6 +133,11 @@ function main_build(ARGS; sources_dir)
         snap = Snap(sources_dir; arch = target_arch, preferences)
         bundle(spec, snap, target_path(snap); force = overwrite_target)
 
+    elseif :appimage == target_bundle
+        
+        appimage = AppImage(sources_dir; arch = target_arch, preferences)
+        bundle(spec, appimage, target_path(appimage); force = overwrite_target)
+
     else
         error("Got unsupported bundle type $target_bundle")
     end
