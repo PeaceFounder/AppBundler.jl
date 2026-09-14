@@ -31,21 +31,43 @@ end
 
 ends_open(s) = endswith(rstrip(s), ',')
 
+
+"""
+    heal_args(raw_args) -> Vector{String}
+
+Rejoin option values that the shell split on whitespace. A token containing `=`
+absorbs following tokens while it has an unclosed quote or bracket — the closing
+delimiter marks the end of the value, so absorbed tokens may look like anything:
+`-Dsysimg=[a, --selfsign]` yields a two-element list.
+
+A comma is a separator, not a continuation signal. A value left ending in one is
+rejected: write the list without spaces, or bracket it so its end is explicit.
+"""
 function heal_args(raw_args)
     out = String[]
     i = 1
     while i <= length(raw_args)
         tok = String(raw_args[i])
         if occursin('=', tok)
-            while !is_balanced(tok) || ends_open(tok)
+            while !is_balanced(tok)
                 i += 1
-                i > length(raw_args) && error("""
-                    Unterminated value: $tok
-                    It ends with a comma, or is missing a closing ']' or '"'.
-                    Write the value without spaces, or quote the whole option:
-                        -Dkey=a,-b        or        -D 'key=[a, -b]'
-                    """)
+                if i > length(raw_args)
+                    error("""
+                          Unterminated value: $tok
+                          Missing a closing ']' or '"'. Write the list without spaces,
+                          or bracket it:
+                              -Dsysimg=a,b        or        -Dsysimg=[a, b]
+                          """)
+                end
                 tok *= " " * raw_args[i]
+            end
+            if ends_open(tok)
+                error("""
+                      Trailing comma in value: $tok
+                      A space after a comma ends the value. Remove the spaces, or
+                      bracket the list so its end is explicit:
+                          -Dsysimg=a,b        or        -Dsysimg=[a, b]
+                      """)
             end
         end
         push!(out, tok)
@@ -54,11 +76,35 @@ function heal_args(raw_args)
     return out
 end
 
+# function heal_args(raw_args)
+#     out = String[]
+#     i = 1
+#     while i <= length(raw_args)
+#         tok = String(raw_args[i])
+#         if occursin('=', tok)
+#             while !is_balanced(tok) || ends_open(tok)
+#                 i += 1
+#                 i > length(raw_args) && error("""
+#                     Unterminated value: $tok
+#                     It ends with a comma, or is missing a closing ']' or '"'.
+#                     Write the value without spaces, or quote the whole option:
+#                         -Dkey=a,-b        or        -D 'key=[a, -b]'
+#                     """)
+#                 tok *= " " * raw_args[i]
+#             end
+#         end
+#         push!(out, tok)
+#         i += 1
+#     end
+#     return out
+# end
+
 
 const Arg = Pair{String, Union{String, Nothing}}
 
 
 isoption(tok; short_options = Dict()) = startswith(tok, "--") || startswith(tok, "-D") || haskey(short_options, tok)
+
 
 """
     normalize_args(raw_args) -> Vector{Arg}
@@ -76,10 +122,19 @@ equivalent, and only the first `=` separates option from value:
 An option takes the following token as its value unless that token is itself an
 option. Tokens appearing where no option is open are emitted as
 `token => nothing`. Values are healed first (see `heal_args`) and have one
-matching pair of outer quotes removed.
+matching pair of outer quotes removed. The `-D` payload is left untouched —
+`unquote` runs later, per list element, during type coercion.
 
-The `-D` payload is left untouched — `unquote` runs later, per list element,
-during type coercion.
+Which tokens count as options is asymmetric, and it constrains what a detached
+value can be. Any token starting with `--` is an option, so a value beginning
+with `--` can never be adopted: `--target-name --weird` yields two valueless
+options rather than a name. Short options are matched exactly instead, so only
+the literal token `-h` is an option while `-hunter2` and `-secret` remain
+values. The attached form bypasses this check entirely and is the escape hatch
+for both cases — write `--target-name=--weird` or `--password=-h`. None of it
+applies inside a healed value, where an open bracket or trailing comma has
+already joined the tokens before this function sees them, so
+`-Dsysimg=[a, --selfsign]` keeps `--selfsign` as a list element.
 """
 function normalize_args(raw_args; short_options = Dict())
     tokens = heal_args(raw_args)

@@ -71,11 +71,11 @@ using AppBundler.CLIParser: normalize_args
     end
 
     @testset "healing: trailing comma" begin
-        @test normalize_args(["-Dsysimg=QMLApp,", "AppEnv"]) ==
+        @test_throws ErrorException normalize_args(["-Dsysimg=QMLApp,", "AppEnv"]) ==
               ["-D" => "sysimg=QMLApp, AppEnv"]
-        @test normalize_args(["-Dsysimg=a,", "--selfsign"]) ==
+        @test_throws ErrorException normalize_args(["-Dsysimg=a,", "--selfsign"]) ==
               ["-D" => "sysimg=a, --selfsign"]
-        @test normalize_args(["-Dsysimg=a,", "[b,", "c]"]) == ["-D" => "sysimg=a, [b, c]"]
+        @test_throws ErrorException normalize_args(["-Dsysimg=a,", "[b,", "c]"]) == ["-D" => "sysimg=a, [b, c]"]
         @test normalize_args(["-Dsysimg=a,b"]) == ["-D" => "sysimg=a,b"]
     end
 
@@ -290,9 +290,9 @@ end
 
 normalize_args(["-Dbundler=\"juliaimg\""]) == ["-D" => "bundler=\"juliaimg\""]
 
-prefs = prefs_of("-Djuliaimg_sysimg=a,", "--selfsign")
-@test prefs["juliaimg_sysimg"] == ["a", "--selfsign"]
-@test !haskey(prefs, "selfsign")          # deliberately NOT set
+@test_throws ErrorException prefs_of("-Djuliaimg_sysimg=a,", "--selfsign")
+#@test prefs["juliaimg_sysimg"] == ["a", "--selfsign"]
+#@test !haskey(prefs, "selfsign")          # deliberately NOT set
 
 @test prefs_of("-Djuliaimg_sysimg=[a,b,]")["juliaimg_sysimg"] == ["a", "b", ""]
 @test prefs_of("-Djuliaimg_sysimg=[,a]")["juliaimg_sysimg"] == ["", "a"]

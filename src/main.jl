@@ -11,6 +11,8 @@ function (@main)(ARGS)
 
     if command in ["--help", "-h"]
 
+        # one may want to print a generic help here and then point user down to
+        # build --help and etc for concrete information
         print_help()
 
     elseif command == "build"
