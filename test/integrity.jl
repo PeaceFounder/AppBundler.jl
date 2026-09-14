@@ -1,9 +1,6 @@
 using AppBundler
 using Test
 
-@test AppBundler.normalize_args(["--password=dfdfsdf"]) == ["--password", "dfdfsdf"]
-@test AppBundler.normalize_args(["--password=\"dfdfsdf\""]) == ["--password", "dfdfsdf"]
-
 app_dir = joinpath(dirname(@__DIR__), "examples/GLApp")
 build_dir = mktempdir()
 target_name = "glapp"

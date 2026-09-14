@@ -45,6 +45,8 @@ using .JuliaImg.Resources: merge_directories#, install
 include("utils.jl")
 include("bundle.jl")
 include("recipes.jl") 
+
+include("CLIParser.jl")
 include("main.jl")
 
 #bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)
