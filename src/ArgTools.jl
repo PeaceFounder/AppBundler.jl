@@ -1,6 +1,3 @@
-
-
-
 """
     ArgTools
 
@@ -97,31 +94,46 @@ const LIST_HINT = """
                   """
 
 """
-    value_part(token) -> SubString or nothing
+    list_payload(token, prev, schema) -> value or nothing
 
-The part of `token` that list syntax governs. A token starting with a quote is
-a value in its own right, so it is taken whole — the quote belongs to the value
-and not to any key. Otherwise the value is everything after the first `=`, and a
-token without one has no value at all.
+The value of `token`, if and only if it is a `-D` payload whose key the schema
+declares a list: `-Dsysimg=...`, or `sysimg=...` following a bare `-D`. For
+anything else — another option, a positional, a detached value, or a `-D` key
+that is unknown or holds a scalar — the answer is `nothing` and the token is
+left exactly as the shell delivered it.
+
+This is what makes healing a completion rather than a guess. An open `[` is only
+read as "more is coming" where a list was expected, and there it cannot mean
+anything else.
 """
-function value_part(token::AbstractString)
-    isempty(token) && return nothing
-    (token[1] == '"' || token[1] == '\'') && return SubString(token, 1)
-    return last(splitpair(token))
+function list_payload(token, prev, schema)
+    if startswith(token, "-D")
+        body = SubString(token, 3)
+    elseif prev == "-D"
+        body = SubString(token, 1)
+    else
+        return nothing
+    end
+
+    key, value = splitpair(body)
+    value === nothing && return nothing
+    get(schema, String(strip(key)), nothing) isa AbstractVector || return nothing
+    return value
 end
 
 """
-    absorb(tokens, i) -> (token, i)
+    absorb(tokens, i, prev, schema) -> (token, i)
 
-Grow `tokens[i]` until its value closes every quote and bracket it opened,
+Grow `tokens[i]` until its list value closes every quote and bracket it opened,
 returning the healed token and the index of the last token consumed.
 """
-function absorb(tokens, i)
+function absorb(tokens, i, prev, schema)
     token = tokens[i]
-    occursin('=', token) || return token, i
+    value = list_payload(token, prev, schema)
+    value === nothing && return token, i
 
     while true
-        _, open_quote, depth = scan(something(value_part(token)))
+        _, open_quote, depth = scan(value)
 
         depth < 0 && error("""
             Unexpected ']' or '}' in value: $token
@@ -134,6 +146,7 @@ function absorb(tokens, i)
             Missing a closing ']' or '"'.
             """ * LIST_HINT)
         token *= " " * tokens[i]
+        value = something(list_payload(token, prev, schema))   # the gate cannot change as the token grows
     end
 
     endswith(rstrip(token), ',') && error("""
@@ -145,25 +158,29 @@ function absorb(tokens, i)
 end
 
 """
-    heal_args(raw_args) -> Vector{String}
+    heal_args(raw_args, schema) -> Vector{String}
 
-Rejoin values that the shell split on whitespace. A token containing `=`
-absorbs following tokens while its value has an unclosed quote or bracket — the
-closing delimiter marks the end of the value, so absorbed tokens may look like
-anything: `-Dsysimg=[a, --selfsign]` yields a two-element list.
+Rejoin list values that the shell split on whitespace. A `-D` payload whose key
+the schema declares a list absorbs following tokens while its value has an
+unclosed quote or bracket — the closing delimiter marks the end of the value, so
+absorbed tokens may look like anything: `-Dsysimg=[a, --selfsign]` yields a
+two-element list.
+
+Everything else passes through untouched. A value only completes itself where a
+list was expected, so `--filter key=[a` keeps its bracket and cannot swallow the
+option after it, and `-Dbundler=[a` is a string that happens to start with one.
 
 A comma is a separator, not a continuation signal. A value left ending in one is
 rejected, as is one carrying a bracket that closes nothing: both are malformed
-lists rather than requests to keep absorbing. Quoting the whole token opts out
-of list syntax — `"a=b,"` is one string, comma and all.
+lists rather than requests to keep absorbing.
 """
-function heal_args(raw_args)
+function heal_args(raw_args, schema)
     tokens = map(String, raw_args)
     out = String[]
 
     i = 1
     while i <= length(tokens)
-        token, i = absorb(tokens, i)
+        token, i = absorb(tokens, i, isempty(out) ? "" : out[end], schema)
         push!(out, token)
         i += 1
     end
@@ -178,9 +195,9 @@ isoption(token, short_options) =
     startswith(token, "--") || startswith(token, "-D") || haskey(short_options, token)
 
 """
-    normalize_args(raw_args; short_options) -> Vector{Arg}
+    normalize_args(tokens; short_options) -> Vector{Arg}
 
-Turn raw ARGS into `option => value` pairs. Attached and detached forms are
+Turn tokens into `option => value` pairs. Attached and detached forms are
 equivalent, and only the first `=` separates option from value:
 
     --password=foo=bar   ⇒  "--password" => "foo=bar"
@@ -192,14 +209,14 @@ equivalent, and only the first `=` separates option from value:
 
 An option takes the following token as its value unless that token is itself an
 option. Tokens appearing where no option is open are emitted as
-`token => nothing`. Values are healed first (see `heal_args`) and have one
-matching pair of outer quotes removed. The `-D` payload is left untouched —
-`unquote` runs later, per list element, during type coercion.
+`token => nothing`. Values have one matching pair of outer quotes removed. The
+`-D` payload is left untouched — `unquote` runs later, per list element, during
+type coercion.
 
-Any token carrying an `=` is subject to list syntax, wherever it appears, so a
-detached value ending in a comma is rejected like the malformed list it looks
-like. Quoting the value opts out of that: `--password "a=b,"` is scanned as one
-string and passes, while `--password a=b,` errors.
+This function pairs tokens and nothing else: it takes each one as given, so a
+value keeps its brackets, commas and quotes, and never reaches across a shell
+split. Rejoining split list values is `heal_args`, a separate pass that
+`parse_args` runs first because it needs the schema.
 
 Which tokens count as options is asymmetric, and it constrains what a detached
 value can be. Any token starting with `--` or `-D` is an option, so a value
@@ -212,8 +229,8 @@ it applies inside a healed value, where an open bracket or trailing comma has
 already joined the tokens before this function sees them, so
 `-Dsysimg=[a, --selfsign]` keeps `--selfsign` as a list element.
 """
-function normalize_args(raw_args; short_options = Dict{String, String}())
-    tokens = heal_args(raw_args)
+function normalize_args(tokens; short_options = Dict{String, String}())
+    tokens = map(String, tokens)
     out = Arg[]
 
     i = 1
@@ -404,14 +421,15 @@ end
 
 Split `raw_args` into `option => value` pairs and `-Dkey=value` preference
 overrides. `schema` maps preference names to defaults whose types drive
-coercion; `short_options` maps single-dash aliases to their long form, as in
+coercion — and, before that, decide which values may be rejoined across a shell
+split. `short_options` maps single-dash aliases to their long form, as in
 `Dict("-h" => "--help")`.
 """
 function parse_args(raw_args; schema::Dict = Dict{String, Any}(), short_options = Dict{String, String}())
     options = Arg[]
     defines = String[]
 
-    for (key, value) in normalize_args(raw_args; short_options)
+    for (key, value) in normalize_args(heal_args(raw_args, schema); short_options)
         if key == "-D"
             value === nothing && error("-D expects key=value, e.g. -Dbundler=juliaimg")
             push!(defines, value)
