@@ -325,3 +325,11 @@ normalize_args(raw); @test raw == before
 
 @test prefs_of("-Dbundler=\"sdsd,sds\"")["bundler"] == "sdsd,sds"
 @test prefs_of("-Djuliaimg_sysimg=\"sdsd,sds\"")["juliaimg_sysimg"] == ["sdsd", "sds"]
+
+
+@test normalize_args(["--target-name=\"Bob's Tool\""]) == ["--target-name" => "Bob's Tool"]
+@test normalize_args(["--target-name", "Bob's Tool"]) == ["--target-name" => "Bob's Tool"]
+@test normalize_args(["--target-name=Bob's Tool"]) == ["--target-name" => "Bob's Tool"]
+
+@test_throws Exception normalize_args(["--description=Tool for X, Y,"])
+@test normalize_args(["--description=\"Tool for X, Y,\""]) == ["--description" => "Tool for X, Y,"]

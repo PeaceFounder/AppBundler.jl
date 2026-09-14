@@ -1,36 +1,68 @@
 module CLIParser
 
-"""
-    is_balanced(s) -> Bool
+# """
+#     is_balanced(s) -> Bool
 
-True when `s` contains no unclosed quote and no unclosed bracket, i.e. the
-shell did not split a `-D` value across multiple argv entries.
-"""
+# True when `s` contains no unclosed quote and no unclosed bracket, i.e. the
+# shell did not split a `-D` value across multiple argv entries.
+# """
+# function is_balanced(s::AbstractString)
+#     quote_char = nothing
+#     depth = 0
+#     escaped = false
+#     for c in s
+#         if escaped
+#             escaped = false
+#         # elseif c == '\\'
+#         #     escaped = true
+#         elseif quote_char !== nothing
+#             c == quote_char && (quote_char = nothing)
+#         elseif c == '"' || c == '\''
+#             quote_char = c
+#         elseif c == '[' || c == '{'
+#             depth += 1
+#         elseif c == ']' || c == '}'
+#             depth -= 1
+#         end
+#     end
+#     return quote_char === nothing && depth <= 0
+# end
+
+
 function is_balanced(s::AbstractString)
+    j = findfirst('=', s)
+    j === nothing && return true
+    return value_balanced(SubString(s, nextind(s, j)))
+end
+
+function value_balanced(v::AbstractString)
     quote_char = nothing
     depth = 0
-    escaped = false
-    for c in s
-        if escaped
-            escaped = false
-        # elseif c == '\\'
-        #     escaped = true
-        elseif quote_char !== nothing
-            c == quote_char && (quote_char = nothing)
-        elseif c == '"' || c == '\''
+    at_element_start = true
+    for c in v
+        if quote_char !== nothing
+            if c == quote_char
+                quote_char = nothing
+                at_element_start = false
+            end
+        elseif at_element_start && (c == '"' || c == '\'')
             quote_char = c
         elseif c == '[' || c == '{'
             depth += 1
+            at_element_start = true
         elseif c == ']' || c == '}'
             depth -= 1
+            at_element_start = false
+        elseif c == ','
+            at_element_start = true
+        elseif !isspace(c)
+            at_element_start = false
         end
     end
     return quote_char === nothing && depth <= 0
 end
 
-
 ends_open(s) = endswith(rstrip(s), ',')
-
 
 """
     heal_args(raw_args) -> Vector{String}
@@ -75,29 +107,6 @@ function heal_args(raw_args)
     end
     return out
 end
-
-# function heal_args(raw_args)
-#     out = String[]
-#     i = 1
-#     while i <= length(raw_args)
-#         tok = String(raw_args[i])
-#         if occursin('=', tok)
-#             while !is_balanced(tok) || ends_open(tok)
-#                 i += 1
-#                 i > length(raw_args) && error("""
-#                     Unterminated value: $tok
-#                     It ends with a comma, or is missing a closing ']' or '"'.
-#                     Write the value without spaces, or quote the whole option:
-#                         -Dkey=a,-b        or        -D 'key=[a, -b]'
-#                     """)
-#                 tok *= " " * raw_args[i]
-#             end
-#         end
-#         push!(out, tok)
-#         i += 1
-#     end
-#     return out
-# end
 
 
 const Arg = Pair{String, Union{String, Nothing}}
@@ -188,64 +197,6 @@ function normalize_args(raw_args; short_options = Dict())
 
     return out
 end
-
-
-
-# """
-#     normalize_args(raw_args) -> Vector{Arg}
-
-# Turn raw ARGS into `option => value` pairs. Attached and detached forms are
-# equivalent, and only the first `=` separates option from value:
-
-#     --password=foo=bar   ⇒  "--password" => "foo=bar"
-#     --password foo=bar   ⇒  "--password" => "foo=bar"
-#     -Dbundler=juliaimg   ⇒  "-D"         => "bundler=juliaimg"
-#     -D bundler=juliaimg  ⇒  "-D"         => "bundler=juliaimg"
-#     --selfsign           ⇒  "--selfsign" => nothing
-
-# An option takes the following token as its value unless that token is itself an
-# option. Tokens appearing where no option is open are emitted as `token =>
-# nothing`.
-
-# Values are healed first: a token containing `=` keeps absorbing following
-# tokens while it has an unclosed quote or bracket, or ends in a comma.
-# """
-
-# function normalize_args(raw_args)
-#     tokens = heal_args(raw_args)
-#     out = Arg[]
-
-#     i = 1
-#     while i <= length(tokens)
-#         tok = tokens[i]
-
-#         if !isoption(tok)
-#             push!(out, tok => nothing)     # positional, or a stray value
-#             i += 1
-#             continue
-#         end
-
-#         if startswith(tok, "-D") && !startswith(tok, "--")
-#             option = "-D"
-#             value = length(tok) > 2 ? tok[3:end] : nothing
-#         else
-#             j = findfirst('=', tok)
-#             option = j === nothing ? tok : tok[1:prevind(tok, j)]
-#             value  = j === nothing ? nothing : tok[nextind(tok, j):end]
-#         end
-
-#         # Detached form: adopt the next token unless it is another option.
-#         if value === nothing && i < length(tokens) && !isoption(tokens[i+1])
-#             i += 1
-#             value = tokens[i]
-#         end
-
-#         push!(out, option => (value === nothing ? nothing : unquote(value)))
-#         i += 1
-#     end
-
-#     return out
-# end
 
 
 ### Extra argument coercion according to schema
@@ -346,5 +297,6 @@ function edit_distance(a, b)
     return prev[end]
 end
 
+export normalize_args, parse_extra_args
 
 end
