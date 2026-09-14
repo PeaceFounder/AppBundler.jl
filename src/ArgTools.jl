@@ -1,23 +1,56 @@
+"""
+    ArgTools
+
+Command-line argument handling: rejoin values the shell split on whitespace,
+turn tokens into `option => value` pairs, and coerce `-Dkey=value` payloads
+against a schema of default values.
+"""
 module ArgTools
 
-function is_balanced(s::AbstractString)
+export parse_args
+
+"""An option and its value; `nothing` for flags, markers and bare tokens."""
+const Arg = Pair{String, Union{String, Nothing}}
+
+
+### Scanning
+
+"""
+    splitpair(s) -> (key, value)
+
+Split `s` at its first `=`. Later `=` characters belong to the value, which is
+`nothing` when there is no `=` at all.
+"""
+function splitpair(s::AbstractString)
     j = findfirst('=', s)
-    j === nothing && return true
-    return value_balanced(SubString(s, nextind(s, j)))
+    j === nothing && return SubString(s, 1), nothing
+    return SubString(s, 1, prevind(s, j)), SubString(s, nextind(s, j))
 end
 
-function value_balanced(v::AbstractString)
-    quote_char = nothing
+"""
+    scan(v) -> (breaks, open_quote, depth)
+
+Walk a value once, tracking quoting and bracket nesting. `breaks` holds the
+indices of the top-level commas — the element separators — while `open_quote`
+and `depth` describe the state left at the end: a quote still open or a positive
+depth means the value is unterminated.
+
+A quote only opens at the start of an element (after `[`, `{`, `,`, or leading
+whitespace), so an apostrophe inside a word is an ordinary character.
+"""
+function scan(v::AbstractString)
+    breaks = Int[]
+    open_quote = nothing
     depth = 0
     at_element_start = true
-    for c in v
-        if quote_char !== nothing
-            if c == quote_char
-                quote_char = nothing
+    for (i, c) in pairs(v)
+        if open_quote !== nothing
+            if c == open_quote
+                open_quote = nothing
                 at_element_start = false
             end
         elseif at_element_start && (c == '"' || c == '\'')
-            quote_char = c
+            open_quote = c
         elseif c == '[' || c == '{'
             depth += 1
             at_element_start = true
@@ -25,15 +58,52 @@ function value_balanced(v::AbstractString)
             depth -= 1
             at_element_start = false
         elseif c == ','
+            depth == 0 && push!(breaks, i)
             at_element_start = true
         elseif !isspace(c)
             at_element_start = false
         end
     end
-    return quote_char === nothing && depth <= 0
+    return breaks, open_quote, depth
 end
 
-ends_open(s) = endswith(rstrip(s), ',')
+"""Whether a value closes every quote and bracket it opens."""
+function balanced(v::AbstractString)
+    _, open_quote, depth = scan(v)
+    return open_quote === nothing && depth <= 0
+end
+
+"""Whether the value part of `token` (everything after the first `=`) is balanced."""
+function token_balanced(token::AbstractString)
+    _, value = splitpair(token)
+    return value === nothing || balanced(value)
+end
+
+"""
+    split_elements(body) -> Vector{String}
+
+Split a list body on its top-level commas. Commas inside quotes or nested
+brackets belong to an element.
+"""
+function split_elements(body::AbstractString)
+    breaks, _, _ = scan(body)
+    parts = String[]
+    start = firstindex(body)
+    for i in breaks
+        push!(parts, body[start:prevind(body, i)])
+        start = nextind(body, i)
+    end
+    push!(parts, body[start:end])
+    return parts
+end
+
+
+### Healing
+
+const LIST_HINT = """
+                  Write the list without spaces, or bracket it so its end is explicit:
+                      -Dsysimg=a,b        or        -Dsysimg=[a, b]
+                  """
 
 """
     heal_args(raw_args) -> Vector{String}
@@ -47,47 +117,43 @@ A comma is a separator, not a continuation signal. A value left ending in one is
 rejected: write the list without spaces, or bracket it so its end is explicit.
 """
 function heal_args(raw_args)
+    tokens = map(String, raw_args)
     out = String[]
+
     i = 1
-    while i <= length(raw_args)
-        tok = String(raw_args[i])
-        if occursin('=', tok)
-            while !is_balanced(tok)
+    while i <= length(tokens)
+        token = tokens[i]
+
+        if occursin('=', token)
+            while !token_balanced(token)
                 i += 1
-                if i > length(raw_args)
-                    error("""
-                          Unterminated value: $tok
-                          Missing a closing ']' or '"'. Write the list without spaces,
-                          or bracket it:
-                              -Dsysimg=a,b        or        -Dsysimg=[a, b]
-                          """)
-                end
-                tok *= " " * raw_args[i]
+                i > length(tokens) && error("""
+                    Unterminated value: $token
+                    Missing a closing ']' or '"'.
+                    """ * LIST_HINT)
+                token *= " " * tokens[i]
             end
-            if ends_open(tok)
-                error("""
-                      Trailing comma in value: $tok
-                      A space after a comma ends the value. Remove the spaces, or
-                      bracket the list so its end is explicit:
-                          -Dsysimg=a,b        or        -Dsysimg=[a, b]
-                      """)
-            end
+            endswith(rstrip(token), ',') && error("""
+                Trailing comma in value: $token
+                A space after a comma ends the value.
+                """ * LIST_HINT)
         end
-        push!(out, tok)
+
+        push!(out, token)
         i += 1
     end
+
     return out
 end
 
 
-const Arg = Pair{String, Union{String, Nothing}}
+### Normalisation
 
-
-isoption(tok; short_options = Dict()) = startswith(tok, "--") || startswith(tok, "-D") || haskey(short_options, tok)
-
+isoption(token, short_options) =
+    startswith(token, "--") || startswith(token, "-D") || haskey(short_options, token)
 
 """
-    normalize_args(raw_args) -> Vector{Arg}
+    normalize_args(raw_args; short_options) -> Vector{Arg}
 
 Turn raw ARGS into `option => value` pairs. Attached and detached forms are
 equivalent, and only the first `=` separates option from value:
@@ -106,83 +172,79 @@ matching pair of outer quotes removed. The `-D` payload is left untouched —
 `unquote` runs later, per list element, during type coercion.
 
 Which tokens count as options is asymmetric, and it constrains what a detached
-value can be. Any token starting with `--` is an option, so a value beginning
-with `--` can never be adopted: `--target-name --weird` yields two valueless
-options rather than a name. Short options are matched exactly instead, so only
-the literal token `-h` is an option while `-hunter2` and `-secret` remain
-values. The attached form bypasses this check entirely and is the escape hatch
-for both cases — write `--target-name=--weird` or `--password=-h`. None of it
-applies inside a healed value, where an open bracket or trailing comma has
+value can be. Any token starting with `--` or `-D` is an option, so a value
+beginning with either can never be adopted: `--target-name --weird` yields two
+valueless options rather than a name. Short options are matched exactly instead,
+so only the literal token `-h` is an option while `-hunter2` and `-secret`
+remain values. The attached form bypasses this check entirely and is the escape
+hatch for both cases — write `--target-name=--weird` or `--password=-h`. None of
+it applies inside a healed value, where an open bracket or trailing comma has
 already joined the tokens before this function sees them, so
 `-Dsysimg=[a, --selfsign]` keeps `--selfsign` as a list element.
 """
-function normalize_args(raw_args; short_options = Dict())
+function normalize_args(raw_args; short_options = Dict{String, String}())
     tokens = heal_args(raw_args)
     out = Arg[]
 
     i = 1
     while i <= length(tokens)
-        tok = tokens[i]
+        token = tokens[i]
+        i += 1
 
-        if !isoption(tok; short_options)
-            push!(out, tok => nothing)          # positional, or a stray value
-            i += 1
+        if !isoption(token, short_options)
+            push!(out, token => nothing)             # positional, or a stray value
             continue
-        end
-
-        if haskey(short_options, tok)           # boolean short flag, takes no value
-            push!(out, short_options[tok] => nothing)
-            i += 1
+        elseif haskey(short_options, token)          # boolean short flag, takes no value
+            push!(out, String(short_options[token]) => nothing)
             continue
-        end
-
-        if tok == "--"                          # end-of-options marker
+        elseif token == "--"                         # end-of-options marker
             push!(out, "--" => nothing)
-            i += 1
             continue
         end
 
-        if startswith(tok, "-D") && !startswith(tok, "--")
+        if startswith(token, "-D")
             option = "-D"
-            value = length(tok) > 2 ? tok[3:end] : nothing
+            value = length(token) > 2 ? token[3:end] : nothing
         else
-            j = findfirst('=', tok)
-            option = j === nothing ? tok : tok[1:prevind(tok, j)]
-            value  = j === nothing ? nothing : tok[nextind(tok, j):end]
+            key, raw = splitpair(token)
+            option = String(key)
+            value = raw === nothing ? nothing : String(raw)
         end
 
         # Detached form: adopt the next token unless it is another option.
-        if value === nothing && i < length(tokens) && !isoption(tokens[i+1]; short_options)
-            i += 1
+        if value === nothing && i <= length(tokens) && !isoption(tokens[i], short_options)
             value = tokens[i]
+            i += 1
         end
 
-        if option == "-D"
-            push!(out, "-D" => value)           # payload stays raw
+        if option == "-D" || value === nothing
+            push!(out, option => value)              # -D payload stays raw
         else
-            push!(out, option => (value === nothing ? nothing : unquote(value)))
+            push!(out, option => String(unquote(value)))
         end
-
-        i += 1
     end
 
     return out
 end
 
+"""Remove one layer of matching outer quotes, if the shell left any behind."""
+function unquote(s::AbstractString)
+    length(s) >= 2 || return s
+    (s[1] == s[end] && (s[1] == '"' || s[1] == '\'')) || return s
+    return s[nextind(s, 1):prevind(s, lastindex(s))]
+end
 
-### Extra argument coercion according to schema
 
-function parse_extra_args(args::Vector{String}, schema::Dict)
+### Coercion against the schema
 
+function parse_extra_args(defines, schema::Dict)
     overrides = Dict{String, Any}()
 
-    for arg in args
-        j = findfirst('=', arg)
-        key = j === nothing ? strip(arg) : strip(arg[1:prevind(arg, j)])
-        raw = j === nothing ? nothing : strip(arg[nextind(arg, j):end])
+    for define in defines
+        key, raw = splitpair(define)
+        key = String(strip(key))
 
         haskey(schema, key) || error(unknown_key_message(key, schema))
-
         default = schema[key]
 
         if raw === nothing
@@ -190,13 +252,12 @@ function parse_extra_args(args::Vector{String}, schema::Dict)
                                       "bare keys are only allowed for booleans. Use -D$key=<value>.")
             overrides[key] = true
         else
-            overrides[key] = coerce(unquote(raw), default, key)
+            overrides[key] = coerce(unquote(strip(raw)), default, key)
         end
     end
 
     return overrides
 end
-
 
 """
     coerce(value, default, key) -> Any
@@ -212,7 +273,7 @@ function coerce(value::AbstractString, default::AbstractVector, key)
     isempty(body) && return similar(default, 0)
 
     elem_default = isempty(default) ? "" : first(default)
-    return [coerce(unquote(strip(p)), elem_default, key) for p in split(body, ',')]
+    return [coerce(unquote(strip(p)), elem_default, key) for p in split_elements(body)]
 end
 
 coerce(value::AbstractString, ::AbstractString, key) = String(value)
@@ -223,35 +284,33 @@ function coerce(value::AbstractString, ::Bool, key)
     return value == "true"
 end
 
-function coerce(value::AbstractString, ::Integer, key)
-    n = tryparse(Int, value)
+function coerce(value::AbstractString, default::Integer, key)
+    n = tryparse(typeof(default), value)
     n === nothing && error("preference '$key' expects an integer, got '$value'")
     return n
 end
 
-function coerce(value::AbstractString, ::AbstractFloat, key)
-    x = tryparse(Float64, value)
+function coerce(value::AbstractString, default::AbstractFloat, key)
+    x = tryparse(typeof(default), value)
     x === nothing && error("preference '$key' expects a number, got '$value'")
     return x
 end
 
-"""Remove one layer of matching outer quotes, if the shell left any behind."""
-function unquote(s::AbstractString)
-    length(s) >= 2 || return s
-    (s[1] == s[end] && (s[1] == '"' || s[1] == '\'')) || return s
-    return s[nextind(s, 1):prevind(s, lastindex(s))]
-end
+coerce(::AbstractString, default, key) =
+    error("preference '$key' has a default of type $(typeof(default)), which cannot be set from the command line")
 
 type_name(::AbstractString) = "a string"
 type_name(::Bool) = "true or false"
 type_name(::Integer) = "an integer"
 type_name(::AbstractFloat) = "a number"
 type_name(::AbstractVector) = "a list"
+type_name(x) = "a $(typeof(x))"
 
 function unknown_key_message(key, schema)
-    near = [k for k in keys(schema) if edit_distance(key, k) <= max(2, length(key) ÷ 4)]
+    threshold = max(2, length(key) ÷ 4)
+    near = sort!([string(k) for k in keys(schema) if edit_distance(key, k) <= threshold])
     msg = "unknown preference '$key'"
-    isempty(near) || (msg *= "\n       did you mean " * join(("'$k'" for k in sort(near)), ", ", " or ") * "?")
+    isempty(near) || (msg *= "\n       did you mean " * join(("'$k'" for k in near), ", ", " or ") * "?")
     return msg
 end
 
@@ -268,13 +327,22 @@ function edit_distance(a, b)
     return prev[end]
 end
 
-function parse_args(raw_args; schema = Dict(), short_options = Dict())
-    args = normalize_args(raw_args; short_options)
 
+### Entry point
+
+"""
+    parse_args(raw_args; schema, short_options) -> (options, overrides)
+
+Split `raw_args` into `option => value` pairs and `-Dkey=value` preference
+overrides. `schema` maps preference names to defaults whose types drive
+coercion; `short_options` maps single-dash aliases to their long form, as in
+`Dict("-h" => "--help")`.
+"""
+function parse_args(raw_args; schema::Dict = Dict{String, Any}(), short_options = Dict{String, String}())
     options = Arg[]
     defines = String[]
 
-    for (key, value) in args
+    for (key, value) in normalize_args(raw_args; short_options)
         if key == "-D"
             value === nothing && error("-D expects key=value, e.g. -Dbundler=juliaimg")
             push!(defines, value)
@@ -285,7 +353,5 @@ function parse_args(raw_args; schema = Dict(), short_options = Dict())
 
     return options, parse_extra_args(defines, schema)
 end
-
-export parse_args
 
 end
