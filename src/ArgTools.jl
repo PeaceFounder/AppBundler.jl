@@ -1,3 +1,6 @@
+
+
+
 """
     ArgTools
 
@@ -67,18 +70,6 @@ function scan(v::AbstractString)
     return breaks, open_quote, depth
 end
 
-"""Whether a value closes every quote and bracket it opens."""
-function balanced(v::AbstractString)
-    _, open_quote, depth = scan(v)
-    return open_quote === nothing && depth <= 0
-end
-
-"""Whether the value part of `token` (everything after the first `=`) is balanced."""
-function token_balanced(token::AbstractString)
-    _, value = splitpair(token)
-    return value === nothing || balanced(value)
-end
-
 """
     split_elements(body) -> Vector{String}
 
@@ -106,15 +97,65 @@ const LIST_HINT = """
                   """
 
 """
+    value_part(token) -> SubString or nothing
+
+The part of `token` that list syntax governs. A token starting with a quote is
+a value in its own right, so it is taken whole — the quote belongs to the value
+and not to any key. Otherwise the value is everything after the first `=`, and a
+token without one has no value at all.
+"""
+function value_part(token::AbstractString)
+    isempty(token) && return nothing
+    (token[1] == '"' || token[1] == '\'') && return SubString(token, 1)
+    return last(splitpair(token))
+end
+
+"""
+    absorb(tokens, i) -> (token, i)
+
+Grow `tokens[i]` until its value closes every quote and bracket it opened,
+returning the healed token and the index of the last token consumed.
+"""
+function absorb(tokens, i)
+    token = tokens[i]
+    occursin('=', token) || return token, i
+
+    while true
+        _, open_quote, depth = scan(something(value_part(token)))
+
+        depth < 0 && error("""
+            Unexpected ']' or '}' in value: $token
+            """ * LIST_HINT)
+        open_quote === nothing && depth == 0 && break
+
+        i += 1
+        i > length(tokens) && error("""
+            Unterminated value: $token
+            Missing a closing ']' or '"'.
+            """ * LIST_HINT)
+        token *= " " * tokens[i]
+    end
+
+    endswith(rstrip(token), ',') && error("""
+        Trailing comma in value: $token
+        A space after a comma ends the value.
+        """ * LIST_HINT)
+
+    return token, i
+end
+
+"""
     heal_args(raw_args) -> Vector{String}
 
-Rejoin option values that the shell split on whitespace. A token containing `=`
-absorbs following tokens while it has an unclosed quote or bracket — the closing
-delimiter marks the end of the value, so absorbed tokens may look like anything:
-`-Dsysimg=[a, --selfsign]` yields a two-element list.
+Rejoin values that the shell split on whitespace. A token containing `=`
+absorbs following tokens while its value has an unclosed quote or bracket — the
+closing delimiter marks the end of the value, so absorbed tokens may look like
+anything: `-Dsysimg=[a, --selfsign]` yields a two-element list.
 
 A comma is a separator, not a continuation signal. A value left ending in one is
-rejected: write the list without spaces, or bracket it so its end is explicit.
+rejected, as is one carrying a bracket that closes nothing: both are malformed
+lists rather than requests to keep absorbing. Quoting the whole token opts out
+of list syntax — `"a=b,"` is one string, comma and all.
 """
 function heal_args(raw_args)
     tokens = map(String, raw_args)
@@ -122,23 +163,7 @@ function heal_args(raw_args)
 
     i = 1
     while i <= length(tokens)
-        token = tokens[i]
-
-        if occursin('=', token)
-            while !token_balanced(token)
-                i += 1
-                i > length(tokens) && error("""
-                    Unterminated value: $token
-                    Missing a closing ']' or '"'.
-                    """ * LIST_HINT)
-                token *= " " * tokens[i]
-            end
-            endswith(rstrip(token), ',') && error("""
-                Trailing comma in value: $token
-                A space after a comma ends the value.
-                """ * LIST_HINT)
-        end
-
+        token, i = absorb(tokens, i)
         push!(out, token)
         i += 1
     end
@@ -170,6 +195,11 @@ option. Tokens appearing where no option is open are emitted as
 `token => nothing`. Values are healed first (see `heal_args`) and have one
 matching pair of outer quotes removed. The `-D` payload is left untouched —
 `unquote` runs later, per list element, during type coercion.
+
+Any token carrying an `=` is subject to list syntax, wherever it appears, so a
+detached value ending in a comma is rejected like the malformed list it looks
+like. Quoting the value opts out of that: `--password "a=b,"` is scanned as one
+string and passes, while `--password a=b,` errors.
 
 Which tokens count as options is asymmetric, and it constrains what a detached
 value can be. Any token starting with `--` or `-D` is an option, so a value
@@ -234,6 +264,29 @@ function unquote(s::AbstractString)
     return s[nextind(s, 1):prevind(s, lastindex(s))]
 end
 
+"""
+    isquoted(s) -> Bool
+
+Whether `s` is one quoted span and nothing else: a quote at the first character
+whose first match is the last character. `"a,b"` qualifies; `"a","b"` does not,
+its closing quote falling in the middle. This is the question `unquote` should
+be asking but cannot, since it only compares the two end characters.
+"""
+function isquoted(s::AbstractString)
+    length(s) >= 2 || return false
+    q = first(s)
+    (q == '"' || q == '\'') || return false
+    i = nextind(s, firstindex(s))
+    while i <= lastindex(s)
+        s[i] == q && return i == lastindex(s)
+        i = nextind(s, i)
+    end
+    return false
+end
+
+"""Whether `s` is written as an explicit bracketed list."""
+islist(s::AbstractString) = startswith(s, '[') && endswith(s, ']')
+
 
 ### Coercion against the schema
 
@@ -252,7 +305,7 @@ function parse_extra_args(defines, schema::Dict)
                                       "bare keys are only allowed for booleans. Use -D$key=<value>.")
             overrides[key] = true
         else
-            overrides[key] = coerce(unquote(strip(raw)), default, key)
+            overrides[key] = coerce(strip(raw), default, key)
         end
     end
 
@@ -264,40 +317,56 @@ end
 
 Interpret `value` according to the type of `default`. The string is never
 inspected to guess a type; the schema decides.
+
+Quotes come off at the leaf, once. A list therefore sees its payload as written:
+a wholly quoted one is a single element, and quotes inside a bracketed one
+protect the commas they enclose.
 """
 function coerce(value::AbstractString, default::AbstractVector, key)
     body = strip(value)
-    if startswith(body, '[') && endswith(body, ']')
-        body = strip(body[nextind(body, 1):prevind(body, lastindex(body))])
+    elem_default = isempty(default) ? "" : first(default)
+
+    if isquoted(body)
+        inner = strip(unquote(body))
+        isempty(inner) && return similar(default, 0)
+        islist(inner) || return [coerce(inner, elem_default, key)]
+        body = inner
     end
+
+    islist(body) && (body = strip(body[nextind(body, 1):prevind(body, lastindex(body))]))
     isempty(body) && return similar(default, 0)
 
-    elem_default = isempty(default) ? "" : first(default)
-    return [coerce(unquote(strip(p)), elem_default, key) for p in split_elements(body)]
+    return [coerce(p, elem_default, key) for p in split_elements(body)]
 end
 
-coerce(value::AbstractString, ::AbstractString, key) = String(value)
+coerce(value::AbstractString, ::AbstractString, key) = String(unwrap(value))
 
 function coerce(value::AbstractString, ::Bool, key)
-    value in ("true", "false") ||
-        error("preference '$key' expects true or false, got '$value'")
-    return value == "true"
+    v = unwrap(value)
+    v in ("true", "false") ||
+        error("preference '$key' expects true or false, got '$v'")
+    return v == "true"
 end
 
 function coerce(value::AbstractString, default::Integer, key)
-    n = tryparse(typeof(default), value)
-    n === nothing && error("preference '$key' expects an integer, got '$value'")
+    v = unwrap(value)
+    n = tryparse(typeof(default), v)
+    n === nothing && error("preference '$key' expects an integer, got '$v'")
     return n
 end
 
 function coerce(value::AbstractString, default::AbstractFloat, key)
-    x = tryparse(typeof(default), value)
-    x === nothing && error("preference '$key' expects a number, got '$value'")
+    v = unwrap(value)
+    x = tryparse(typeof(default), v)
+    x === nothing && error("preference '$key' expects a number, got '$v'")
     return x
 end
 
 coerce(::AbstractString, default, key) =
     error("preference '$key' has a default of type $(typeof(default)), which cannot be set from the command line")
+
+"""Trim a scalar and take one layer of quotes off it — the last step before parsing."""
+unwrap(value::AbstractString) = unquote(strip(value))
 
 type_name(::AbstractString) = "a string"
 type_name(::Bool) = "true or false"

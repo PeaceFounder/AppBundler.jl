@@ -324,7 +324,7 @@ normalize_args(raw); @test raw == before
 @test prefs_of("--debug")["windowed"] === false
 
 @test prefs_of("-Dbundler=\"sdsd,sds\"")["bundler"] == "sdsd,sds"
-@test prefs_of("-Djuliaimg_sysimg=\"sdsd,sds\"")["juliaimg_sysimg"] == ["sdsd", "sds"]
+@test prefs_of("-Djuliaimg_sysimg=\"sdsd,sds\"")["juliaimg_sysimg"] == ["sdsd,sds"]
 
 
 @test normalize_args(["--target-name=\"Bob's Tool\""]) == ["--target-name" => "Bob's Tool"]
@@ -333,3 +333,14 @@ normalize_args(raw); @test raw == before
 
 @test_throws Exception normalize_args(["--description=Tool for X, Y,"])
 @test normalize_args(["--description=\"Tool for X, Y,\""]) == ["--description" => "Tool for X, Y,"]
+
+
+@test_throws Exception normalize_args(["--password", "a=b,"])
+@test normalize_args(["--password", "\"a=b,\""]) == ["--password" => "a=b,"]
+
+@test normalize_args(["--filter", "key=[a", "--selfsign]"]) == ["--filter" => "key=[a --selfsign]"]
+@test normalize_args(["--filter", "key=\"[a\"", "--selfsign]"]) == ["--filter" => "key=\"[a\"", "--selfsign]" => nothing]
+
+@test normalize_args(["--filter", "key=[a", "--selfsign]"]) == ["--filter" => "key=[a --selfsign]"]
+
+
