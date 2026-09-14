@@ -1,33 +1,4 @@
-module CLIParser
-
-# """
-#     is_balanced(s) -> Bool
-
-# True when `s` contains no unclosed quote and no unclosed bracket, i.e. the
-# shell did not split a `-D` value across multiple argv entries.
-# """
-# function is_balanced(s::AbstractString)
-#     quote_char = nothing
-#     depth = 0
-#     escaped = false
-#     for c in s
-#         if escaped
-#             escaped = false
-#         # elseif c == '\\'
-#         #     escaped = true
-#         elseif quote_char !== nothing
-#             c == quote_char && (quote_char = nothing)
-#         elseif c == '"' || c == '\''
-#             quote_char = c
-#         elseif c == '[' || c == '{'
-#             depth += 1
-#         elseif c == ']' || c == '}'
-#             depth -= 1
-#         end
-#     end
-#     return quote_char === nothing && depth <= 0
-# end
-
+module ArgTools
 
 function is_balanced(s::AbstractString)
     j = findfirst('=', s)
@@ -297,6 +268,24 @@ function edit_distance(a, b)
     return prev[end]
 end
 
-export normalize_args, parse_extra_args
+function parse_args(raw_args; schema = Dict(), short_options = Dict())
+    args = normalize_args(raw_args; short_options)
+
+    options = Arg[]
+    defines = String[]
+
+    for (key, value) in args
+        if key == "-D"
+            value === nothing && error("-D expects key=value, e.g. -Dbundler=juliaimg")
+            push!(defines, value)
+        else
+            push!(options, key => value)
+        end
+    end
+
+    return options, parse_extra_args(defines, schema)
+end
+
+export parse_args
 
 end

@@ -256,7 +256,8 @@ forbid(option, value)  = value === nothing || error("$option does not take a val
 
 function parse_args(raw_args) 
 
-    args = CLIParser.normalize_args(raw_args; short_options = SHORT_OPTIONS)
+    schema = TOML.parse(String(read(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))))["AppBundler"]
+    args, preference_overrides = ArgTools.parse_args(raw_args; schema, short_options = SHORT_OPTIONS)
 
     # Default values
     config = Dict(
@@ -267,7 +268,6 @@ function parse_args(raw_args)
         :password => nothing
     )
 
-    preference_overrides = String[]
     preferences = Dict()
 
     for (option, value) in args
@@ -276,8 +276,6 @@ function parse_args(raw_args)
             exit(0)
         elseif option == "--build-dir"
             config[:build_dir] = require(option, value)
-        elseif option == "-D"
-            push!(preference_overrides, require(option, value))
         elseif option == "--target-name"
             config[:target_name] = require(option, value)
         elseif option == "--password"
@@ -304,10 +302,7 @@ function parse_args(raw_args)
         end
     end
 
-    schema = TOML.parse(String(read(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))))["AppBundler"]
-    preference_overrides_dict = CLIParser.parse_extra_args(preference_overrides, schema)
-    merged_preferences = merge(preferences, preference_overrides_dict)
-
+    merged_preferences = merge(preferences, preference_overrides)
     return config, merged_preferences
 end
 

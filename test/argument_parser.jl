@@ -5,8 +5,8 @@ using AppBundler
 
 using Test
 
-using AppBundler: parse_args, CLIParser
-using AppBundler.CLIParser: normalize_args
+using AppBundler: parse_args
+using AppBundler.ArgTools: normalize_args
 
 # Original tests from integrity.jl
 @test normalize_args(["--password=dfdfsdf"]) == ["--password" => "dfdfsdf"]
