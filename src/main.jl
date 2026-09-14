@@ -242,12 +242,16 @@ function get_bundle_parameters!(parameters::Dict{String, Any}, project_toml; pre
     return parameters
 end
 
+# Short options, mapped to their long form. Listed explicitly because a leading
+# single dash is otherwise a value: `--password -secret` must keep -secret.
+const SHORT_OPTIONS = Dict("-h" => "--help")
+
 require(option, value) = value === nothing ? error("$option requires a value") : value
 forbid(option, value)  = value === nothing || error("$option does not take a value, got '$value'")
 
 function parse_args(raw_args) 
 
-    args = CLIParser.normalize_args(raw_args)
+    args = CLIParser.normalize_args(raw_args; short_options = SHORT_OPTIONS)
 
     # Default values
     config = Dict(
@@ -262,7 +266,7 @@ function parse_args(raw_args)
     preferences = Dict()
 
     for (option, value) in args
-        if option in ["--help", "-h"]
+        if option == "--help"
             print_help()
             exit(0)
         elseif option == "--build-dir"

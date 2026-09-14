@@ -279,5 +279,49 @@ end
     end
 end
 
+@test normalize_args(["--password=''x''"]) == ["--password" => "'x'"]
+@test prefs_of("-Dbundler=''x''")["bundler"] == "'x'"
+@test prefs_of("-Dbundler=\"\\\"x\\\"\"")["bundler"] == "\\\"x\\\""
+
+@test normalize_args(["-Dpath=\"C:\\\"", "--selfsign"]) ==
+      ["-D" => "path=\"C:\\\"", "--selfsign" => nothing]
+@test prefs_of("-Dbundler=a\\b")["bundler"] == "a\\b"
+@test normalize_args(["-Dpath=\"C:\\\"", "--selfsign"]) == ["-D" => "path=\"C:\\\"", "--selfsign" => nothing]
+
+normalize_args(["-Dbundler=\"juliaimg\""]) == ["-D" => "bundler=\"juliaimg\""]
+
+prefs = prefs_of("-Djuliaimg_sysimg=a,", "--selfsign")
+@test prefs["juliaimg_sysimg"] == ["a", "--selfsign"]
+@test !haskey(prefs, "selfsign")          # deliberately NOT set
+
+@test prefs_of("-Djuliaimg_sysimg=[a,b,]")["juliaimg_sysimg"] == ["a", "b", ""]
+@test prefs_of("-Djuliaimg_sysimg=[,a]")["juliaimg_sysimg"] == ["", "a"]
+
+@test normalize_args(["-D="]) == ["-D" => "="]
+@test_throws Exception prefs_of("-D=")              # empty key
+@test_throws Exception prefs_of("-D", "=value")
+@test prefs_of("-D", "selfsign")["selfsign"] === true    # detached bare bool
 
 
+@test normalize_args(["-Dkey={a,", "b}"]) == ["-D" => "key={a, b}"]
+@test_throws Exception prefs_of("-Dkey={a=1}")
+
+
+# --skipsign never appears in any test
+@test prefs_of("--skipsign")["skipsign"] === true
+
+# repeated non-D flags
+@test config_of("--target-arch", "x86_64", "--target-arch", "aarch64")[:target_arch] === :aarch64
+
+# attached --password keeps the strip()
+@test config_of("--password=  hunter2  ")[:password] == "hunter2"
+
+# normalize_args must not mutate its input
+raw = ["-Dsysimg=[a,", "b]"]; before = copy(raw)
+normalize_args(raw); @test raw == before
+
+# --debug sets windowed, which is never asserted
+@test prefs_of("--debug")["windowed"] === false
+
+@test prefs_of("-Dbundler=\"sdsd,sds\"")["bundler"] == "sdsd,sds"
+@test prefs_of("-Djuliaimg_sysimg=\"sdsd,sds\"")["juliaimg_sysimg"] == ["sdsd", "sds"]

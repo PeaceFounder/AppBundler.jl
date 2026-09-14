@@ -13,8 +13,8 @@ function is_balanced(s::AbstractString)
     for c in s
         if escaped
             escaped = false
-        elseif c == '\\'
-            escaped = true
+        # elseif c == '\\'
+        #     escaped = true
         elseif quote_char !== nothing
             c == quote_char && (quote_char = nothing)
         elseif c == '"' || c == '\''
@@ -57,7 +57,8 @@ end
 
 const Arg = Pair{String, Union{String, Nothing}}
 
-isoption(tok) = startswith(tok, "--") || startswith(tok, "-D")
+
+isoption(tok; short_options = Dict()) = startswith(tok, "--") || startswith(tok, "-D") || haskey(short_options, tok)
 
 """
     normalize_args(raw_args) -> Vector{Arg}
@@ -70,15 +71,17 @@ equivalent, and only the first `=` separates option from value:
     -Dbundler=juliaimg   ⇒  "-D"         => "bundler=juliaimg"
     -D bundler=juliaimg  ⇒  "-D"         => "bundler=juliaimg"
     --selfsign           ⇒  "--selfsign" => nothing
+    -h                   ⇒  "--help"     => nothing
 
 An option takes the following token as its value unless that token is itself an
-option. Tokens appearing where no option is open are emitted as `token =>
-nothing`.
+option. Tokens appearing where no option is open are emitted as
+`token => nothing`. Values are healed first (see `heal_args`) and have one
+matching pair of outer quotes removed.
 
-Values are healed first: a token containing `=` keeps absorbing following
-tokens while it has an unclosed quote or bracket, or ends in a comma.
+The `-D` payload is left untouched — `unquote` runs later, per list element,
+during type coercion.
 """
-function normalize_args(raw_args)
+function normalize_args(raw_args; short_options = Dict())
     tokens = heal_args(raw_args)
     out = Arg[]
 
@@ -86,8 +89,20 @@ function normalize_args(raw_args)
     while i <= length(tokens)
         tok = tokens[i]
 
-        if !isoption(tok)
-            push!(out, tok => nothing)     # positional, or a stray value
+        if !isoption(tok; short_options)
+            push!(out, tok => nothing)          # positional, or a stray value
+            i += 1
+            continue
+        end
+
+        if haskey(short_options, tok)           # boolean short flag, takes no value
+            push!(out, short_options[tok] => nothing)
+            i += 1
+            continue
+        end
+
+        if tok == "--"                          # end-of-options marker
+            push!(out, "--" => nothing)
             i += 1
             continue
         end
@@ -102,17 +117,80 @@ function normalize_args(raw_args)
         end
 
         # Detached form: adopt the next token unless it is another option.
-        if value === nothing && i < length(tokens) && !isoption(tokens[i+1])
+        if value === nothing && i < length(tokens) && !isoption(tokens[i+1]; short_options)
             i += 1
             value = tokens[i]
         end
 
-        push!(out, option => (value === nothing ? nothing : unquote(value)))
+        if option == "-D"
+            push!(out, "-D" => value)           # payload stays raw
+        else
+            push!(out, option => (value === nothing ? nothing : unquote(value)))
+        end
+
         i += 1
     end
 
     return out
 end
+
+
+
+# """
+#     normalize_args(raw_args) -> Vector{Arg}
+
+# Turn raw ARGS into `option => value` pairs. Attached and detached forms are
+# equivalent, and only the first `=` separates option from value:
+
+#     --password=foo=bar   ⇒  "--password" => "foo=bar"
+#     --password foo=bar   ⇒  "--password" => "foo=bar"
+#     -Dbundler=juliaimg   ⇒  "-D"         => "bundler=juliaimg"
+#     -D bundler=juliaimg  ⇒  "-D"         => "bundler=juliaimg"
+#     --selfsign           ⇒  "--selfsign" => nothing
+
+# An option takes the following token as its value unless that token is itself an
+# option. Tokens appearing where no option is open are emitted as `token =>
+# nothing`.
+
+# Values are healed first: a token containing `=` keeps absorbing following
+# tokens while it has an unclosed quote or bracket, or ends in a comma.
+# """
+
+# function normalize_args(raw_args)
+#     tokens = heal_args(raw_args)
+#     out = Arg[]
+
+#     i = 1
+#     while i <= length(tokens)
+#         tok = tokens[i]
+
+#         if !isoption(tok)
+#             push!(out, tok => nothing)     # positional, or a stray value
+#             i += 1
+#             continue
+#         end
+
+#         if startswith(tok, "-D") && !startswith(tok, "--")
+#             option = "-D"
+#             value = length(tok) > 2 ? tok[3:end] : nothing
+#         else
+#             j = findfirst('=', tok)
+#             option = j === nothing ? tok : tok[1:prevind(tok, j)]
+#             value  = j === nothing ? nothing : tok[nextind(tok, j):end]
+#         end
+
+#         # Detached form: adopt the next token unless it is another option.
+#         if value === nothing && i < length(tokens) && !isoption(tokens[i+1])
+#             i += 1
+#             value = tokens[i]
+#         end
+
+#         push!(out, option => (value === nothing ? nothing : unquote(value)))
+#         i += 1
+#     end
+
+#     return out
+# end
 
 
 ### Extra argument coercion according to schema
