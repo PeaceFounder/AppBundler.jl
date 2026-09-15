@@ -34,14 +34,15 @@ function get_juliac()
     if haskey(ENV, "JULIAC")
         return Cmd([ENV["JULIAC"]])
     else
-        if isnothing(Base.ACTIVE_PROJECT[])
+
+        if isnothing(Base.ACTIVE_PROJECT[]) || samefile(Base.ACTIVE_PROJECT[], pkgdir(@__MODULE__))
 
             shim = juliac_shim()
             if isnothing(shim)
                 error("Could not resolve juliac shim. Alternativelly launch appbundler with `julia --porject=meta -m AppBundler` where in the meta project add `JuliaC` which is recommended as it pins JuliaC and AppBundler in it's manifest.")
             end
 
-            return Cmd(shim)
+            return Cmd([shim])
         else
             meta_project = Base.ACTIVE_PROJECT[]
             
