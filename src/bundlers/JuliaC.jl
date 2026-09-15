@@ -45,12 +45,10 @@ function get_juliac()
         else
             meta_project = Base.ACTIVE_PROJECT[]
             
-            # Need to check that the current project indeed has JULIAC
-            if Base.identify_package("JuliaC") == Base.PkgId(Base.UUID("acedd4c2-ced6-4a15-accc-2607eb759ba2"), "JuliaC")
+            if Base.project_deps_get(meta_project, "JuliaC") == Base.PkgId(Base.UUID("acedd4c2-ced6-4a15-accc-2607eb759ba2"), "JuliaC")
                          
                 julia_exe = Base.julia_cmd()[1]
-                return `$julia_exe --startup-file=no --project=$meta_project -m JuliaC`
-
+                return addenv(`$julia_exe --startup-file=no --project=$meta_project -m JuliaC`, "JULIA_LOAD_PATH" => "@")
 
             else
                 error("JuliaC is not available in the active project $meta_project environment.")
