@@ -1,15 +1,20 @@
 """
     ArgTools
 
-Command-line argument handling: turn tokens into `option => value` pairs and
-coerce `-Dkey=value` payloads against a schema of default values. One shell word
-is one value, so pairing never needs the schema — only coercion does.
+Command-line argument handling, in two halves the caller invokes separately:
+
+    options, defines = parse_options(ARGS)      # argv -> option => value pairs
+    prefs = parse_preferences(defines, schema)  # key => text -> key => typed value
+
+Pairing needs no schema — one shell word is one value — so a caller can read its
+options, decide which preference set applies, and coerce afterwards.
 """
 module ArgTools
 
-export parse_args
+export parse_options, parse_preferences
 
-"""An option and its value; `nothing` for flags, markers and bare tokens."""
+"""An option or preference and its value; `nothing` for flags, markers, bare
+tokens and bare `-D` keys."""
 const Arg = Pair{String, Union{String, Nothing}}
 
 
@@ -213,63 +218,6 @@ const LIST_HINT = """
     """
 
 """
-    parse_extra_args(defines, schema) -> Dict{String, Any}
-
-Read `key=value` payloads against the schema. An unknown key is an error with
-near misses suggested; a known one has its value coerced to the type of its
-default. A bare `key` stands for `key=true` and is only allowed where that
-default is a `Bool`.
-
-A repeated key accumulates where its default is a list — `-Dsysimg=a -Dsysimg=b`
-is the two-element form that needs no whitespace repair — and an empty payload
-clears what came before, so `-Dsysimg=` starts the list over. A repeated scalar
-takes its last value, the way a repeated flag does.
-
-`on_repeat = :error` makes a second mention of a key an error instead, lists
-included: every preference must then be written exactly once. That suits a build
-where a wrong preference is expensive, since it changes the artifact silently;
-it does not suit a wrapper script that prepends defaults for the user to
-override.
-"""
-function parse_extra_args(defines, schema::AbstractDict; on_repeat::Symbol = :last)
-    on_repeat in (:last, :error) ||
-        error("on_repeat must be :last or :error, got :$on_repeat")
-
-    overrides = Dict{String, Any}()
-
-    for define in defines
-        key, raw = splitpair(define)
-        key = String(strip(key))
-
-        haskey(schema, key) || error(unknown_key_message(key, schema))
-        default = schema[key]
-
-        if raw === nothing
-            default isa Bool || error("preference '$key' expects $(type_name(default)); " *
-                                      "bare keys are only allowed for booleans. Use -D$key=<value>.")
-            value = true
-        else
-            value = coerce(strip(raw), typeof(default), key)
-        end
-
-        if !haskey(overrides, key)
-            overrides[key] = value
-        elseif on_repeat === :error
-            error("preference '$key' is set more than once, to '$(overrides[key])' and then " *
-                  "'$value'. Set it once.")
-        elseif !(default isa AbstractVector)
-            overrides[key] = value                   # a later scalar replaces
-        elseif isempty(value)
-            overrides[key] = value                   # an empty payload clears the list
-        else
-            append!(overrides[key], value)
-        end
-    end
-
-    return overrides
-end
-
-"""
     coerce(value, T, key) -> Any
 
 Interpret `value` as a `T`, the type of the preference's default. The string is
@@ -389,48 +337,98 @@ function edit_distance(a, b)
 end
 
 
-### Entry point
+### Entry points
 
 """
-    split_defines(args) -> (options, defines)
+    parse_options(raw_args; short_options) -> (options, defines)
 
-Separate the `-D` payloads from the rest of the pairs. This needs no schema, so
-a caller with more than one preference set — a subcommand, say — can pair its
-tokens and read its options first, then choose the schema and coerce.
+Pair `raw_args` into `option => value`, and the `-D` payloads into
+`key => value` of their own: `-Dsysimg=[QMLApp]` becomes
+`"sysimg" => "[QMLApp]"`, and a bare `-Dselfsign` becomes
+`"selfsign" => nothing`. Both halves are `Arg` vectors; the difference is that
+the second names preferences rather than options.
+
+The value stays the text the shell delivered: one shell word is one value,
+whatever that value will turn out to mean. Reading `"[QMLApp]"` as the
+one-element list `["QMLApp"]` is coercion, and coercion needs the schema.
+
+This is the half of parsing a caller can do first — read the subcommand, spot
+`--help`, hand the rest on — and only then choose a schema and call
+[`parse_preferences`](@ref) on `defines`.
+
+    options, defines = parse_options(ARGS; short_options = Dict("-h" => "--help"))
+    prefs = parse_preferences(defines, schema_for(options))
 """
-function split_defines(args)
+function parse_options(raw_args; short_options = Dict{String, String}())
     options = Arg[]
-    defines = String[]
+    defines = Arg[]
 
-    for (key, value) in args
-        if key == "-D"
-            value === nothing && error("-D expects key=value, e.g. -Dbundler=juliaimg")
-            push!(defines, value)
-        else
+    for (key, value) in normalize_args(raw_args; short_options)
+        if key != "-D"
             push!(options, key => value)
+            continue
         end
+
+        value === nothing && error("-D expects key=value, e.g. -Dbundler=juliaimg")
+        name, raw = splitpair(value)
+        push!(defines, String(strip(name)) => (raw === nothing ? nothing : String(raw)))
     end
 
     return options, defines
 end
 
 """
-    parse_args(raw_args; schema, short_options, on_repeat) -> (options, overrides)
+    parse_preferences(defines, schema; on_repeat) -> Dict{String, Any}
 
-Split `raw_args` into `option => value` pairs and `-Dkey=value` preference
-overrides. `schema` maps preference names to defaults whose types drive
-coercion. `short_options` maps single-dash aliases to their long form, as in
-`Dict("-h" => "--help")`; an alias is replaced by the option it names before
-anything else looks at it, so the two forms behave identically.
+Coerce the `key => value` pairs from [`parse_options`](@ref) against the schema.
+An unknown key is an error with near misses suggested; a known one has its value
+read as the type of its default. A `nothing` value — a bare `-Dkey` — stands for
+`true` and is only allowed where that default is a `Bool`.
 
-Tokenizing is schema-free: `normalize_args` and `split_defines` run without one,
-and only `parse_extra_args` consults it. `on_repeat` is passed straight through
-to it and governs what a second `-Dkey=` means.
+A repeated key accumulates where its default is a list — `-Dsysimg=a -Dsysimg=b`
+is the two-element form that needs no whitespace repair — and an empty payload
+clears what came before, so `-Dsysimg=` starts the list over. A repeated scalar
+takes its last value, the way a repeated flag does.
+
+`on_repeat = :error` makes a second mention of a key an error instead, lists
+included: every preference must then be written exactly once. That suits a build
+where a wrong preference is expensive, since it changes the artifact silently;
+it does not suit a wrapper script that prepends defaults for the user to
+override.
 """
-function parse_args(raw_args; schema::AbstractDict = Dict{String, Any}(),
-                    short_options = Dict{String, String}(), on_repeat::Symbol = :last)
-    options, defines = split_defines(normalize_args(raw_args; short_options))
-    return options, parse_extra_args(defines, schema; on_repeat)
+function parse_preferences(defines, schema::AbstractDict; on_repeat::Symbol = :last)
+    on_repeat in (:last, :error) ||
+        error("on_repeat must be :last or :error, got :$on_repeat")
+
+    overrides = Dict{String, Any}()
+
+    for (key, raw) in defines
+        haskey(schema, key) || error(unknown_key_message(key, schema))
+        default = schema[key]
+
+        if raw === nothing
+            default isa Bool || error("preference '$key' expects $(type_name(default)); " *
+                                      "bare keys are only allowed for booleans. Use -D$key=<value>.")
+            value = true
+        else
+            value = coerce(strip(raw), typeof(default), key)
+        end
+
+        if !haskey(overrides, key)
+            overrides[key] = value
+        elseif on_repeat === :error
+            error("preference '$key' is set more than once, to '$(overrides[key])' and then " *
+                  "'$value'. Set it once.")
+        elseif !(default isa AbstractVector)
+            overrides[key] = value                   # a later scalar replaces
+        elseif isempty(value)
+            overrides[key] = value                   # an empty payload clears the list
+        else
+            append!(overrides[key], value)
+        end
+    end
+
+    return overrides
 end
 
 end

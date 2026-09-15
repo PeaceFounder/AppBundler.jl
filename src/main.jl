@@ -256,8 +256,7 @@ forbid(option, value)  = value === nothing || error("$option does not take a val
 
 function parse_args(raw_args) 
 
-    schema = TOML.parse(String(read(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))))["AppBundler"]
-    args, preference_overrides = ArgTools.parse_args(raw_args; schema, short_options = SHORT_OPTIONS)
+    args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
 
     # Default values
     config = Dict(
@@ -302,7 +301,10 @@ function parse_args(raw_args)
         end
     end
 
-    merged_preferences = merge(preferences, preference_overrides)
+    schema = TOML.parse(String(read(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))))["AppBundler"]
+    overrides = ArgTools.parse_preferences(defines, schema)
+    
+    merged_preferences = merge(preferences, overrides)
     return config, merged_preferences
 end
 
