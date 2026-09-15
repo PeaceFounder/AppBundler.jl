@@ -7,27 +7,61 @@ using ..Resources: get_module_name
 
 import AppEnv
 
-function juliac()
 
-    juliac_exe = Sys.iswindows() ? "juliac.bat" : "juliac"
+const JULIAC_PKGID = Base.PkgId(Base.UUID("acedd4c2-ced6-4a15-accc-2607eb759ba2"), "JuliaC")
+const JULIAC_EXE = Sys.iswindows() ? "juliac.bat" : "juliac"
 
-    # It may be worth to iterate over PATH to look for executable
-    # However it is unclear what precedance it should take
+"""
+    juliac_shim() -> Union{String, Nothing}
 
-    for i in Base.DEPOT_PATH
-        path = joinpath(i, "bin", juliac_exe)
-        if isfile(path)
-            return path
-        end
+Locate the `juliac` app shim installed via `pkg> app add JuliaC`. Depots are searched
+in `DEPOT_PATH` order, then `~/.julia` (in case `JULIA_DEPOT_PATH` excludes it),
+and finally `PATH` as a last resort.
+"""
+function juliac_shim()
+    for depot in unique([Base.DEPOT_PATH; joinpath(homedir(), ".julia")])
+        path = joinpath(depot, "bin", JULIAC_EXE)
+        isfile(path) && return path
     end
-
-    path = joinpath(homedir(), ".julia", "bin", juliac_exe)
-    if isfile(path)
-        return path
-    end
-
-    error("Commmadn juliac not found")
+    return Sys.which(JULIAC_EXE)
 end
+
+
+"""
+    get_juliac() -> Cmd
+
+Resolve the command used to invoke juliac:
+
+1. the `JULIAC` environment variable, if set;
+2. the `juliac` app shim, when no project is active or AppBundler's own project is active;
+3. JuliaC from the active meta project, pinned by its manifest.
+"""
+function get_juliac()
+    project = Base.active_project()
+
+    if haskey(ENV, "JULIAC")
+        return Cmd([ENV["JULIAC"]])
+
+    elseif isnothing(project) || samefile(dirname(project), pkgdir(@__MODULE__))
+        shim = juliac_shim()
+        isnothing(shim) && error("""
+            Could not resolve the juliac shim. Install it with `pkg> app add JuliaC`, or
+            launch AppBundler with `julia --project=<meta> -m AppBundler`, where the meta
+            project has JuliaC added (recommended, since its manifest pins both JuliaC
+            and AppBundler).
+            """)
+        return Cmd([shim])
+
+    elseif Base.project_deps_get(project, "JuliaC") == JULIAC_PKGID
+        julia = Base.julia_cmd()[1]
+        cmd = `$julia --startup-file=no --project=$project -m JuliaC`
+        return addenv(cmd, "JULIA_LOAD_PATH" => "@")
+
+    else
+        error("JuliaC is not available in the active project environment $project.")
+    end
+end
+
 
 """
     JuliaCBundle(project; kwargs...)
@@ -45,8 +79,6 @@ entry of `DEPOT_PATH`, with `~/.julia/bin` as a final fallback.
 # Keyword Arguments
 - `juliac_cmd::Cmd = Cmd([juliac()])`: Command used to invoke `juliac`. Defaults to the
   first `juliac` executable found on `DEPOT_PATH`
-- `executable_name::String`: Name of the produced executable. Defaults to the lowercase
-  module name derived from `Project.toml`
 - `trim::Bool = false`: When `true`, passes `--trim=safe` to `juliac`, removing unreachable
   code from the output binary
 - `args::Cmd = \`\``: Additional arguments forwarded verbatim to `juliac`
@@ -65,8 +97,7 @@ pkg = JuliaCBundle("path/to/app"; executable_name = "myapp", trim = true)
 """
 @kwdef struct JuliaCBundle <: BuildSpec
     project::String
-    juliac_cmd::Cmd = Cmd([juliac()])
-#    executable_name::String = lowercase(get_module_name(project))
+    juliac_cmd::Cmd = get_juliac()
     trim::Bool = false
     args::Cmd = ``
     asset_rpath::String = "assets"

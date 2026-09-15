@@ -21,13 +21,16 @@ Both specs can be staged directly into a directory for inspection before packagi
 
 ## Bundle Formats
 
-A bundle format defines the packaging target. The three supported formats are `DMG` (macOS), `MSIX` (Windows), and `Snap` (Linux). They are instantiated from a project directory:
+A bundle format defines the packaging target. The supported formats are `DMG` (macOS), `MSIX` (Windows), and `Snap` and `AppImage` (Linux). They are instantiated from a project directory:
 
 ```julia
-dmg  = DMG(project; arch = Sys.ARCH, kwargs...)
-msix = MSIX(project; arch = Sys.ARCH, kwargs...)
-snap = Snap(project; arch = Sys.ARCH, kwargs...)
+dmg      = DMG(project; arch = Sys.ARCH, kwargs...)
+msix     = MSIX(project; arch = Sys.ARCH, kwargs...)
+snap     = Snap(project; arch = Sys.ARCH, kwargs...)
+appimage = AppImage(project; arch = Sys.ARCH, kwargs...)
 ```
+
+`AppImage` produces a single mountable file rather than an installed tree; see [AppImage](@ref).
 
 Each format reads configuration file overrides from the corresponding `project/meta/<format>` directory and carries architecture information that determines the destination platform. Bundle formats can also be staged independently via `stage(format, destination)` to produce the directory structure before compression and signing.
 
@@ -51,6 +54,7 @@ AppBundler.JuliaCBundle
 AppBundler.DMG
 AppBundler.MSIX
 AppBundler.Snap
+AppBundler.AppImage
 ```
 
 ## Functions
@@ -60,5 +64,7 @@ AppBundler.stage(::AppBundler.JuliaImg.JuliaImgBundle, ::String)
 AppBundler.stage(::AppBundler.JuliaC.JuliaCBundle, ::String)
 AppBundler.stage(::AppBundler.MSIX, ::String)
 AppBundler.bundle(::Function, ::AppBundler.DMG, ::String)
+AppBundler.bundle(::Function, ::AppBundler.MSIX, ::String)
+AppBundler.bundle(::AppBundler.JuliaC.JuliaCBundle, ::AppBundler.AppImage, ::String)
 AppBundler.bundle(::AppBundler.JuliaImgBundle, ::AppBundler.DMG, ::String)
 ```
