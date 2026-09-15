@@ -1,9 +1,9 @@
 """
     ArgTools
 
-Command-line argument handling: rejoin values the shell split on whitespace,
-turn tokens into `option => value` pairs, and coerce `-Dkey=value` payloads
-against a schema of default values.
+Command-line argument handling: turn tokens into `option => value` pairs and
+coerce `-Dkey=value` payloads against a schema of default values. One shell word
+is one value, so pairing never needs the schema — only coercion does.
 """
 module ArgTools
 
@@ -68,13 +68,15 @@ function scan(v::AbstractString)
 end
 
 """
-    split_elements(body) -> Vector{String}
+    split_elements(body) -> (parts, open_quote, depth)
 
-Split a list body on its top-level commas. Commas inside quotes or nested
-brackets belong to an element.
+Split a list body on its top-level commas, and hand back the state the scan
+ended in. Commas inside quotes or nested brackets belong to an element. A quote
+still open or a nonzero `depth` means the body is malformed; the caller decides
+what to say about it, since only it knows whose value this is.
 """
 function split_elements(body::AbstractString)
-    breaks, _, _ = scan(body)
+    breaks, open_quote, depth = scan(body)
     parts = String[]
     start = firstindex(body)
     for i in breaks
@@ -82,118 +84,17 @@ function split_elements(body::AbstractString)
         start = nextind(body, i)
     end
     push!(parts, body[start:end])
-    return parts
-end
-
-
-### Healing
-
-const LIST_HINT = """
-    Write the list without spaces, or bracket it so its end is explicit:
-        -Dsysimg=a,b        or        -Dsysimg=[a, b]
-    """
-
-"""
-    list_payload(token, prev, schema) -> value or nothing
-
-The value of `token`, if and only if it is a `-D` payload whose key the schema
-declares a list: `-Dsysimg=...`, or `sysimg=...` following a bare `-D`. For
-anything else — another option, a positional, a detached value, or a `-D` key
-that is unknown or holds a scalar — the answer is `nothing` and the token is
-left exactly as the shell delivered it.
-
-This is what makes healing a completion rather than a guess. An open `[` is only
-read as "more is coming" where a list was expected, and there it cannot mean
-anything else.
-"""
-function list_payload(token, prev, schema)
-    if startswith(token, "-D")
-        body = SubString(token, 3)
-    elseif prev == "-D"
-        body = SubString(token, 1)
-    else
-        return nothing
-    end
-
-    key, value = splitpair(body)
-    value === nothing && return nothing
-    get(schema, String(strip(key)), nothing) isa AbstractVector || return nothing
-    return value
-end
-
-"""
-    absorb(tokens, i, prev, schema) -> (token, i)
-
-Grow `tokens[i]` until its list value closes every quote and bracket it opened,
-returning the healed token and the index of the last token consumed.
-"""
-function absorb(tokens, i, prev, schema)
-    token = tokens[i]
-    value = list_payload(token, prev, schema)
-    value === nothing && return token, i
-
-    while true
-        _, open_quote, depth = scan(value)
-
-        depth < 0 && error("""
-            Unexpected ']' or '}' in value: $token
-            """ * LIST_HINT)
-        open_quote === nothing && depth == 0 && break
-
-        i += 1
-        i > length(tokens) && error("""
-            Unterminated value: $token
-            Missing a closing ']' or '"'.
-            """ * LIST_HINT)
-        token *= " " * tokens[i]
-        value = something(list_payload(token, prev, schema))   # the gate cannot change as the token grows
-    end
-
-    endswith(rstrip(token), ',') && error("""
-        Trailing comma in value: $token
-        A space after a comma ends the value.
-        """ * LIST_HINT)
-
-    return token, i
-end
-
-"""
-    heal_args(raw_args, schema) -> Vector{String}
-
-Rejoin list values that the shell split on whitespace. A `-D` payload whose key
-the schema declares a list absorbs following tokens while its value has an
-unclosed quote or bracket — the closing delimiter marks the end of the value, so
-absorbed tokens may look like anything: `-Dsysimg=[a, --selfsign]` yields a
-two-element list.
-
-Everything else passes through untouched. A value only completes itself where a
-list was expected, so `--filter key=[a` keeps its bracket and cannot swallow the
-option after it, and `-Dbundler=[a` is a string that happens to start with one.
-
-A comma is a separator, not a continuation signal. A value left ending in one is
-rejected, as is one carrying a bracket that closes nothing: both are malformed
-lists rather than requests to keep absorbing.
-"""
-function heal_args(raw_args, schema)
-    tokens = map(String, raw_args)
-    out = String[]
-
-    i = 1
-    while i <= length(tokens)
-        token, i = absorb(tokens, i, isempty(out) ? "" : out[end], schema)
-        push!(out, token)
-        i += 1
-    end
-
-    return out
+    return parts, open_quote, depth
 end
 
 
 ### Normalisation
 
-"""Whether `token` introduces an option: a `--` or `-D` prefix, or an exact short alias."""
+"""Whether `token` introduces an option: a `--` or `-D` prefix, or a short alias,
+whole or as the part before its first `=`."""
 isoption(token, short_options) =
-    startswith(token, "--") || startswith(token, "-D") || haskey(short_options, token)
+    startswith(token, "--") || startswith(token, "-D") ||
+    haskey(short_options, first(splitpair(token)))
 
 """
     normalize_args(tokens; short_options) -> Vector{Arg}
@@ -206,6 +107,8 @@ equivalent, and only the first `=` separates option from value:
     -Dbundler=juliaimg   ⇒  "-D"         => "bundler=juliaimg"
     -D bundler=juliaimg  ⇒  "-D"         => "bundler=juliaimg"
     --selfsign           ⇒  "--selfsign" => nothing
+    -p=hunter2           ⇒  "--password" => "hunter2"
+    -p hunter2           ⇒  "--password" => "hunter2"
     -h                   ⇒  "--help"     => nothing
 
 An option takes the following token as its value unless that token is itself an
@@ -216,19 +119,21 @@ type coercion.
 
 This function pairs tokens and nothing else: it takes each one as given, so a
 value keeps its brackets, commas and quotes, and never reaches across a shell
-split. Rejoining split list values is `heal_args`, a separate pass that
-`parse_args` runs first because it needs the schema.
+split. It needs no schema — one shell word is one value, whatever that value
+will later turn out to mean.
 
 Which tokens count as options is asymmetric, and it constrains what a detached
 value can be. Any token starting with `--` or `-D` is an option, so a value
 beginning with either can never be adopted: `--target-name --weird` yields two
-valueless options rather than a name. Short options are matched exactly instead,
-so only the literal token `-h` is an option while `-hunter2` and `-secret`
-remain values. The attached form bypasses this check entirely and is the escape
-hatch for both cases — write `--target-name=--weird` or `--password=-h`. None of
-it applies inside a healed value, where an open bracket or trailing comma has
-already joined the tokens before this function sees them, so
-`-Dsysimg=[a, --selfsign]` keeps `--selfsign` as a list element.
+valueless options rather than a name. Short aliases are matched exactly instead
+— as a whole token, or as the part before the first `=` — so `-p` and
+`-p=hunter2` are options while `-phunter2` and `-secret` remain values. An alias
+is replaced by the option it names and then treated exactly like it, adopted
+value included, so a short flag is only valueless when its long form is. The
+attached form bypasses this check entirely and is the escape hatch for a value
+that looks like an option — write `--target-name=--weird` or `-p=-h`. A value
+holding spaces is the shell's business, not this function's: quote it, and
+`-Dsysimg="[a, --selfsign]"` arrives as one token and one list.
 """
 function normalize_args(tokens; short_options = Dict{String, String}())
     tokens = map(String, tokens)
@@ -239,21 +144,18 @@ function normalize_args(tokens; short_options = Dict{String, String}())
         token = tokens[i]
         i += 1
 
-        if haskey(short_options, token)              # boolean short flag, takes no value
-            push!(out, String(short_options[token]) => nothing)
-            continue
-        elseif token == "--" || !isoption(token, short_options)
+        if token == "--" || !isoption(token, short_options)
             push!(out, token => nothing)             # marker, positional, or a stray value
             continue
         end
 
         if startswith(token, "-D")
             option = "-D"
-            payload = SubString(token, 3)            # "" for a bare -D, as in list_payload
+            payload = SubString(token, 3)            # "" for a bare -D
             value = isempty(payload) ? nothing : String(payload)
         else
             key, raw = splitpair(token)
-            option = String(key)
+            option = String(get(short_options, key, key))   # an alias stands in for its long form
             value = raw === nothing ? nothing : String(raw)
         end
 
@@ -305,6 +207,11 @@ islist(s::AbstractString) = startswith(s, '[') && endswith(s, ']')
 
 ### Coercion against the schema
 
+const LIST_HINT = """
+    Write the list without spaces, or bracket it so its end is explicit:
+        -Dsysimg=a,b        or        -Dsysimg=[a, b]
+    """
+
 """
     parse_extra_args(defines, schema) -> Dict{String, Any}
 
@@ -312,8 +219,22 @@ Read `key=value` payloads against the schema. An unknown key is an error with
 near misses suggested; a known one has its value coerced to the type of its
 default. A bare `key` stands for `key=true` and is only allowed where that
 default is a `Bool`.
+
+A repeated key accumulates where its default is a list — `-Dsysimg=a -Dsysimg=b`
+is the two-element form that needs no whitespace repair — and an empty payload
+clears what came before, so `-Dsysimg=` starts the list over. A repeated scalar
+takes its last value, the way a repeated flag does.
+
+`on_repeat = :error` makes a second mention of a key an error instead, lists
+included: every preference must then be written exactly once. That suits a build
+where a wrong preference is expensive, since it changes the artifact silently;
+it does not suit a wrapper script that prepends defaults for the user to
+override.
 """
-function parse_extra_args(defines, schema::AbstractDict)
+function parse_extra_args(defines, schema::AbstractDict; on_repeat::Symbol = :last)
+    on_repeat in (:last, :error) ||
+        error("on_repeat must be :last or :error, got :$on_repeat")
+
     overrides = Dict{String, Any}()
 
     for define in defines
@@ -326,9 +247,22 @@ function parse_extra_args(defines, schema::AbstractDict)
         if raw === nothing
             default isa Bool || error("preference '$key' expects $(type_name(default)); " *
                                       "bare keys are only allowed for booleans. Use -D$key=<value>.")
-            overrides[key] = true
+            value = true
         else
-            overrides[key] = coerce(strip(raw), default, key)
+            value = coerce(strip(raw), typeof(default), key)
+        end
+
+        if !haskey(overrides, key)
+            overrides[key] = value
+        elseif on_repeat === :error
+            error("preference '$key' is set more than once, to '$(overrides[key])' and then " *
+                  "'$value'. Set it once.")
+        elseif !(default isa AbstractVector)
+            overrides[key] = value                   # a later scalar replaces
+        elseif isempty(value)
+            overrides[key] = value                   # an empty payload clears the list
+        else
+            append!(overrides[key], value)
         end
     end
 
@@ -336,57 +270,89 @@ function parse_extra_args(defines, schema::AbstractDict)
 end
 
 """
-    coerce(value, default, key) -> Any
+    coerce(value, T, key) -> Any
 
-Interpret `value` according to the type of `default`. The string is never
-inspected to guess a type; the schema decides.
+Interpret `value` as a `T`, the type of the preference's default. The string is
+never inspected to guess a type; the schema decides.
 
 Quotes come off at the leaf, once. A list therefore sees its payload as written:
 a wholly quoted one is a single element, and quotes inside a bracketed one
-protect the commas they enclose.
+protect the commas they enclose. Elements are coerced to `eltype(T)`, so an
+empty default still says what its elements are and `Int[]` does not quietly
+become a list of strings; an untyped `[]` reads its elements as strings.
+
+A blank element is an error — `[a,,b]` and `[,a]` are malformed rather than
+carriers of an empty string, which is written `["", a]`. The one exception is a
+single trailing comma inside brackets, which is conventional and ignored.
+
+A bracket or quote left open is an error too. One shell word is one value, so
+`-Dsysimg=[a, b]` must be quoted or written without the space; there is no pass
+that reaches forward across argv to close it.
 """
-function coerce(value::AbstractString, default::AbstractVector, key)
+function coerce(value::AbstractString, ::Type{T}, key) where {T <: AbstractVector}
+    E = eltype(T)
     body = strip(value)
-    elem_default = isempty(default) ? "" : first(default)
+    bracketed = false
 
     if isquoted(body)
         inner = strip(unquote(body))
-        isempty(inner) && return similar(default, 0)
-        islist(inner) || return [coerce(inner, elem_default, key)]
+        isempty(inner) && return E[]
+        islist(inner) || return E[coerce(inner, E, key)]
         body = inner
     end
 
-    islist(body) && (body = strip(chop(body, head = 1, tail = 1)))
-    isempty(body) && return similar(default, 0)
+    if islist(body)
+        bracketed = true
+        body = strip(chop(body, head = 1, tail = 1))
+    end
+    isempty(body) && return E[]
 
-    return [coerce(p, elem_default, key) for p in split_elements(body)]
+    parts, open_quote, depth = split_elements(body)
+
+    depth < 0 && error("""
+        Unexpected ']' or '}' in value of preference '$key': '$value'
+        """ * LIST_HINT)
+    (open_quote === nothing && depth == 0) || error("""
+        Unterminated value for preference '$key': '$value'
+        Missing a closing ']' or '"'.
+        """ * LIST_HINT)
+
+    bracketed && isempty(strip(last(parts))) && pop!(parts)
+    any(p -> isempty(strip(p)), parts) &&
+        error("""
+            Blank element in value of preference '$key': '$value'
+            """ * LIST_HINT)
+
+    return E[coerce(p, E, key) for p in parts]
 end
 
-coerce(value::AbstractString, ::AbstractString, key) = String(unwrap(value))
+coerce(value::AbstractString, ::Type{<:AbstractString}, key) = String(unwrap(value))
 
-function coerce(value::AbstractString, ::Bool, key)
+coerce(value::AbstractString, ::Type{Any}, key) = String(unwrap(value))
+
+function coerce(value::AbstractString, ::Type{Bool}, key)
     v = unwrap(value)
     v in ("true", "false") ||
         error("preference '$key' expects true or false, got '$v'")
     return v == "true"
 end
 
-function coerce(value::AbstractString, default::Integer, key)
+function coerce(value::AbstractString, ::Type{T}, key) where {T <: Integer}
     v = unwrap(value)
-    n = tryparse(typeof(default), v)
+    n = tryparse(T, v)
     n === nothing && error("preference '$key' expects an integer, got '$v'")
     return n
 end
 
-function coerce(value::AbstractString, default::AbstractFloat, key)
+function coerce(value::AbstractString, ::Type{T}, key) where {T <: AbstractFloat}
     v = unwrap(value)
-    x = tryparse(typeof(default), v)
+    x = tryparse(T, v)
     x === nothing && error("preference '$key' expects a number, got '$v'")
     return x
 end
 
-coerce(::AbstractString, default, key) =
-    error("preference '$key' has a default of type $(typeof(default)), which cannot be set from the command line")
+coerce(::AbstractString, ::Type{T}, key) where {T} =
+    error("preference '$key' has a default of type $T, which cannot be set from the command line")
 
 """Trim a scalar and take one layer of quotes off it — the last step before parsing."""
 unwrap(value::AbstractString) = unquote(strip(value))
@@ -426,19 +392,17 @@ end
 ### Entry point
 
 """
-    parse_args(raw_args; schema, short_options) -> (options, overrides)
+    split_defines(args) -> (options, defines)
 
-Split `raw_args` into `option => value` pairs and `-Dkey=value` preference
-overrides. `schema` maps preference names to defaults whose types drive
-coercion — and, before that, decide which values may be rejoined across a shell
-split. `short_options` maps single-dash aliases to their long form, as in
-`Dict("-h" => "--help")`.
+Separate the `-D` payloads from the rest of the pairs. This needs no schema, so
+a caller with more than one preference set — a subcommand, say — can pair its
+tokens and read its options first, then choose the schema and coerce.
 """
-function parse_args(raw_args; schema::AbstractDict = Dict{String, Any}(), short_options = Dict{String, String}())
+function split_defines(args)
     options = Arg[]
     defines = String[]
 
-    for (key, value) in normalize_args(heal_args(raw_args, schema); short_options)
+    for (key, value) in args
         if key == "-D"
             value === nothing && error("-D expects key=value, e.g. -Dbundler=juliaimg")
             push!(defines, value)
@@ -447,7 +411,26 @@ function parse_args(raw_args; schema::AbstractDict = Dict{String, Any}(), short_
         end
     end
 
-    return options, parse_extra_args(defines, schema)
+    return options, defines
+end
+
+"""
+    parse_args(raw_args; schema, short_options, on_repeat) -> (options, overrides)
+
+Split `raw_args` into `option => value` pairs and `-Dkey=value` preference
+overrides. `schema` maps preference names to defaults whose types drive
+coercion. `short_options` maps single-dash aliases to their long form, as in
+`Dict("-h" => "--help")`; an alias is replaced by the option it names before
+anything else looks at it, so the two forms behave identically.
+
+Tokenizing is schema-free: `normalize_args` and `split_defines` run without one,
+and only `parse_extra_args` consults it. `on_repeat` is passed straight through
+to it and governs what a second `-Dkey=` means.
+"""
+function parse_args(raw_args; schema::AbstractDict = Dict{String, Any}(),
+                    short_options = Dict{String, String}(), on_repeat::Symbol = :last)
+    options, defines = split_defines(normalize_args(raw_args; short_options))
+    return options, parse_extra_args(defines, schema; on_repeat)
 end
 
 end
