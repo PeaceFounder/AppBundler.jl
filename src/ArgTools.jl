@@ -89,9 +89,9 @@ end
 ### Healing
 
 const LIST_HINT = """
-                  Write the list without spaces, or bracket it so its end is explicit:
-                      -Dsysimg=a,b        or        -Dsysimg=[a, b]
-                  """
+    Write the list without spaces, or bracket it so its end is explicit:
+        -Dsysimg=a,b        or        -Dsysimg=[a, b]
+    """
 
 """
     list_payload(token, prev, schema) -> value or nothing
@@ -191,6 +191,7 @@ end
 
 ### Normalisation
 
+"""Whether `token` introduces an option: a `--` or `-D` prefix, or an exact short alias."""
 isoption(token, short_options) =
     startswith(token, "--") || startswith(token, "-D") || haskey(short_options, token)
 
@@ -238,20 +239,18 @@ function normalize_args(tokens; short_options = Dict{String, String}())
         token = tokens[i]
         i += 1
 
-        if !isoption(token, short_options)
-            push!(out, token => nothing)             # positional, or a stray value
-            continue
-        elseif haskey(short_options, token)          # boolean short flag, takes no value
+        if haskey(short_options, token)              # boolean short flag, takes no value
             push!(out, String(short_options[token]) => nothing)
             continue
-        elseif token == "--"                         # end-of-options marker
-            push!(out, "--" => nothing)
+        elseif token == "--" || !isoption(token, short_options)
+            push!(out, token => nothing)             # marker, positional, or a stray value
             continue
         end
 
         if startswith(token, "-D")
             option = "-D"
-            value = length(token) > 2 ? token[3:end] : nothing
+            payload = SubString(token, 3)            # "" for a bare -D, as in list_payload
+            value = isempty(payload) ? nothing : String(payload)
         else
             key, raw = splitpair(token)
             option = String(key)
@@ -274,11 +273,15 @@ function normalize_args(tokens; short_options = Dict{String, String}())
     return out
 end
 
+
+### Quoting
+
 """Remove one layer of matching outer quotes, if the shell left any behind."""
 function unquote(s::AbstractString)
     length(s) >= 2 || return s
-    (s[1] == s[end] && (s[1] == '"' || s[1] == '\'')) || return s
-    return s[nextind(s, 1):prevind(s, lastindex(s))]
+    q = first(s)
+    ((q == '"' || q == '\'') && last(s) == q) || return s
+    return chop(s, head = 1, tail = 1)
 end
 
 """
@@ -293,12 +296,7 @@ function isquoted(s::AbstractString)
     length(s) >= 2 || return false
     q = first(s)
     (q == '"' || q == '\'') || return false
-    i = nextind(s, firstindex(s))
-    while i <= lastindex(s)
-        s[i] == q && return i == lastindex(s)
-        i = nextind(s, i)
-    end
-    return false
+    return findnext(q, s, nextind(s, firstindex(s))) == lastindex(s)
 end
 
 """Whether `s` is written as an explicit bracketed list."""
@@ -307,7 +305,15 @@ islist(s::AbstractString) = startswith(s, '[') && endswith(s, ']')
 
 ### Coercion against the schema
 
-function parse_extra_args(defines, schema::Dict)
+"""
+    parse_extra_args(defines, schema) -> Dict{String, Any}
+
+Read `key=value` payloads against the schema. An unknown key is an error with
+near misses suggested; a known one has its value coerced to the type of its
+default. A bare `key` stands for `key=true` and is only allowed where that
+default is a `Bool`.
+"""
+function parse_extra_args(defines, schema::AbstractDict)
     overrides = Dict{String, Any}()
 
     for define in defines
@@ -350,7 +356,7 @@ function coerce(value::AbstractString, default::AbstractVector, key)
         body = inner
     end
 
-    islist(body) && (body = strip(body[nextind(body, 1):prevind(body, lastindex(body))]))
+    islist(body) && (body = strip(chop(body, head = 1, tail = 1)))
     isempty(body) && return similar(default, 0)
 
     return [coerce(p, elem_default, key) for p in split_elements(body)]
@@ -385,6 +391,7 @@ coerce(::AbstractString, default, key) =
 """Trim a scalar and take one layer of quotes off it — the last step before parsing."""
 unwrap(value::AbstractString) = unquote(strip(value))
 
+"""How the type of a default is named in an error message."""
 type_name(::AbstractString) = "a string"
 type_name(::Bool) = "true or false"
 type_name(::Integer) = "an integer"
@@ -392,6 +399,7 @@ type_name(::AbstractFloat) = "a number"
 type_name(::AbstractVector) = "a list"
 type_name(x) = "a $(typeof(x))"
 
+"""Report an unknown preference, naming any schema key within a few edits of it."""
 function unknown_key_message(key, schema)
     threshold = max(2, length(key) ÷ 4)
     near = sort!([string(k) for k in keys(schema) if edit_distance(key, k) <= threshold])
@@ -400,6 +408,7 @@ function unknown_key_message(key, schema)
     return msg
 end
 
+"""Levenshtein distance between `a` and `b`, carried on two rolling rows."""
 function edit_distance(a, b)
     prev = collect(0:length(b))
     curr = similar(prev)
@@ -425,7 +434,7 @@ coercion — and, before that, decide which values may be rejoined across a shel
 split. `short_options` maps single-dash aliases to their long form, as in
 `Dict("-h" => "--help")`.
 """
-function parse_args(raw_args; schema::Dict = Dict{String, Any}(), short_options = Dict{String, String}())
+function parse_args(raw_args; schema::AbstractDict = Dict{String, Any}(), short_options = Dict{String, String}())
     options = Arg[]
     defines = String[]
 
