@@ -7,7 +7,7 @@ using ..Resources: get_module_name
 
 import AppEnv
 
-function juliac()
+function juliac_shim()
 
     juliac_exe = Sys.iswindows() ? "juliac.bat" : "juliac"
 
@@ -26,8 +26,40 @@ function juliac()
         return path
     end
 
-    error("Commmadn juliac not found")
+    return nothing
 end
+
+function get_juliac()
+
+    if haskey(ENV, "JULIAC")
+        return Cmd([ENV["JULIAC"]])
+    else
+        if isnothing(Base.ACTIVE_PROJECT[])
+
+            shim = juliac_shim()
+            if isnothing(shim)
+                error("Could not resolve juliac shim. Alternativelly launch appbundler with `julia --porject=meta -m AppBundler` where in the meta project add `JuliaC` which is recommended as it pins JuliaC and AppBundler in it's manifest.")
+            end
+
+            return Cmd(shim)
+        else
+            meta_project = Base.ACTIVE_PROJECT[]
+            
+            # Need to check that the current project indeed has JULIAC
+            if Base.identify_package("JuliaC") == Base.PkgId(Base.UUID("acedd4c2-ced6-4a15-accc-2607eb759ba2"), "JuliaC")
+                         
+                julia_exe = Base.julia_cmd()[1]
+                return `$julia_exe --startup-file=no --project=$meta_project -m JuliaC`
+
+
+            else
+                error("JuliaC is not available in the active project $meta_project environment.")
+
+            end
+        end
+    end
+end
+
 
 """
     JuliaCBundle(project; kwargs...)
@@ -45,8 +77,6 @@ entry of `DEPOT_PATH`, with `~/.julia/bin` as a final fallback.
 # Keyword Arguments
 - `juliac_cmd::Cmd = Cmd([juliac()])`: Command used to invoke `juliac`. Defaults to the
   first `juliac` executable found on `DEPOT_PATH`
-- `executable_name::String`: Name of the produced executable. Defaults to the lowercase
-  module name derived from `Project.toml`
 - `trim::Bool = false`: When `true`, passes `--trim=safe` to `juliac`, removing unreachable
   code from the output binary
 - `args::Cmd = \`\``: Additional arguments forwarded verbatim to `juliac`
@@ -65,8 +95,7 @@ pkg = JuliaCBundle("path/to/app"; executable_name = "myapp", trim = true)
 """
 @kwdef struct JuliaCBundle <: BuildSpec
     project::String
-    juliac_cmd::Cmd = Cmd([juliac()])
-#    executable_name::String = lowercase(get_module_name(project))
+    juliac_cmd::Cmd = get_juliac()
     trim::Bool = false
     args::Cmd = ``
     asset_rpath::String = "assets"

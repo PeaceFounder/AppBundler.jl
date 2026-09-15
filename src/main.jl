@@ -3,9 +3,6 @@ import LibGit2
 
 function (@main)(ARGS)
 
-
-    @show ARGS
-    
     if length(ARGS) == 0 
         error("No command provided. See `--help` for available commands.")
     end
