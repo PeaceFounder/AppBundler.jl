@@ -39,6 +39,9 @@ Resolve the command used to invoke juliac:
 function get_juliac()
     project = Base.active_project()
 
+    @show dirname(project)
+    @show pkgdir(@__MODULE__)
+
     if haskey(ENV, "JULIAC")
         return Cmd([ENV["JULIAC"]])
 
