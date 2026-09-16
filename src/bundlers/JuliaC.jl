@@ -39,13 +39,10 @@ Resolve the command used to invoke juliac:
 function get_juliac()
     project = Base.active_project()
 
-    @show dirname(project)
-    @show pkgdir(@__MODULE__)
-
     if haskey(ENV, "JULIAC")
         return Cmd([ENV["JULIAC"]])
 
-    elseif isnothing(project) || samefile(dirname(project), pkgdir(@__MODULE__))
+    elseif isnothing(Base.ACTIVE_PROJECT[]) || samefile(dirname(project), pkgdir(@__MODULE__))
         shim = juliac_shim()
         isnothing(shim) && error("""
             Could not resolve the juliac shim. Install it with `pkg> app add JuliaC`, or
