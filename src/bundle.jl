@@ -49,6 +49,8 @@ struct MSIX
     appxmanifest::String 
     msixinstallerdata::String 
     resources_pri::String
+    bootstrap::String
+    exeinstaller::Bool
     path_length_threshold::Int 
     skip_long_paths::Bool 
     skip_symlinks::Bool
@@ -70,10 +72,12 @@ function MSIX(;
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
               resources_pri = get_path(prefix, "msix/resources.pri"),
               msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml"),
+              bootstrap = get_path(prefix, "msix/bootstrap.ps1"),
               path_length_threshold = preferences["msix_path_length_threshold"],
               skip_long_paths = preferences["msix_skip_long_paths"],
               skip_symlinks = preferences["msix_skip_symlinks"],
               skip_unicode_paths = preferences["msix_skip_unicode_paths"],
+              exeinstaller = preferences["msix_exeinstaller"],
               selfsign = preferences["selfsign"],              
               publisher = preferences["msix_publisher"] |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
               pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
@@ -83,8 +87,16 @@ function MSIX(;
               predicate = preferences["bundler"],
               parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher)
               )
+
+    if exeinstaller && !compress
+        error("Compression must be enabled with exe installer")
+    end
     
-    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
+    #return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, bootstrap, exeinstaller, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, exeinstaller, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
+
+    #return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, exeinstaller, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
+
+    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, bootstrap, exeinstaller, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
 end
 
 function MSIX(overlay; preferences = preferences(), kwargs...)
@@ -177,10 +189,6 @@ function Snap(overlay; preferences = preferences(), kwargs...)
 
     return snap
 end
-
-
-
-
 
 
 # TODO: mention that application needs to be notarized by Apple. That can be done outside the build process by stapling already signed DMG archive. 
@@ -551,8 +559,6 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
     return
 end
 
-"""
-"""
 function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "")
 
     if ispath(destination)
@@ -582,8 +588,12 @@ function bundle(setup::Function, msix::MSIX, destination::String; force = false,
         end        
         @info "Packaging staging area into MSIX..."
         MSIXPack.pack(app_stage, destination; pfx_path, password)        
+
+        if msix.exeinstaller
+            MSIX2EXE.pack(destination, msix.bootstrap, join((destination, ".exe")); title = "Installer")
+        end
     end
-    
+
     return
 end
 

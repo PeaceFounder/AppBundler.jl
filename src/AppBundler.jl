@@ -34,6 +34,7 @@ include("AppImage/AppImagePack.jl")
 include("MSIX/MSIXPack.jl")
 include("MSIX/MSIXIcons.jl")
 include("MSIX/WinSubsystem.jl")
+include("MSIX/MSIX2EXE.jl")
 
 include("bundlers/Resources.jl") # JuliaC needs assets and pkgorigins_index which is shared between JuliaImg and JuliaC
 include("bundlers/JuliaImg/JuliaImg.jl") 

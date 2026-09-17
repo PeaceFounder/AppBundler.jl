@@ -100,6 +100,8 @@ function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force 
 end
 
 
+# Need to specify password
+# Also deriving from active project does not work unless that is a meta
 function generate_signing_certificates(; root = dirname(Base.ACTIVE_PROJECT[]), person_name = "AppBundler", country = "XX", validity_days = 365, force = false)
 
     password_macos = generate_macos_signing_certificate(root; person_name, country, validity_days, force)
