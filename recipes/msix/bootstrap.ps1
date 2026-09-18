@@ -6,15 +6,19 @@ param(
 $ErrorActionPreference = "Stop"
 
 # ----------------------------------------------------------------------
-# Resolve MSIX path
+# Configuration
 # ----------------------------------------------------------------------
 
-$Msix = (Resolve-Path -LiteralPath $Msix).Path
+# Set this to your known thumbprint to refuse anything else. Without it, this
+# script trusts whatever certificate the package happens to carry.
+$ExpectedThumbprint = ""
 
-Write-Host "Installing: $Msix"
+# ======================================================================
+# Functions
+# ======================================================================
 
 # ----------------------------------------------------------------------
-# Read the signing certificate out of the package directly
+# Get-MsixInfo: read the signing certificate out of the package directly
 # ----------------------------------------------------------------------
 #
 # Get-AuthenticodeSignature is avoided on the fast path because it does two
@@ -32,10 +36,6 @@ Write-Host "Installing: $Msix"
 #
 # An MSIX is an OPC zip, so AppxSignature.p7x can be read directly -- a few
 # kilobytes instead of the whole package.
-
-# Set this to your known thumbprint to refuse anything else. Without it, this
-# script trusts whatever certificate the package happens to carry.
-$ExpectedThumbprint = ""
 
 # AppxSignature.p7x is a PKCS#7 blob behind a short fixed header. Rather than
 # assume the header length, find the offset at which a DER SEQUENCE's declared
@@ -140,6 +140,82 @@ function Get-MsixInfo {
     }
 }
 
+# ----------------------------------------------------------------------
+# Install-TrustedCertificate: trust the signer, elevating only if needed
+# ----------------------------------------------------------------------
+#
+# Reading LocalMachine\TrustedPeople needs no elevation; only adding to it
+# does. So check first, unelevated, and only raise a UAC prompt when the
+# certificate is actually missing.
+
+# Ensures the certificate is in LocalMachine\TrustedPeople and returns the
+# store copy. Elevates only if the certificate is not already there.
+function Install-TrustedCertificate {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate
+    )
+
+    $thumbprint = $Certificate.Thumbprint
+    $storeEntry = "Cert:\LocalMachine\TrustedPeople\$thumbprint"
+
+    if (Test-Path -LiteralPath $storeEntry) {
+        Write-Host "Certificate is already trusted; no elevation needed."
+        return Get-Item -LiteralPath $storeEntry
+    }
+
+    $certPath = Join-Path $env:TEMP "AppBundler-$thumbprint.cer"
+
+    # The certificate may come from the CMS rather than from a store, so write
+    # the DER bytes directly instead of using Export-Certificate.
+    [System.IO.File]::WriteAllBytes($certPath, $Certificate.Export("Cert"))
+
+    Write-Host "Installing certificate into LocalMachine\TrustedPeople (requires elevation)..."
+
+    try {
+        # A single pre-quoted argument string: Windows PowerShell 5.1 does not
+        # quote array elements passed to -ArgumentList, which breaks on paths
+        # containing spaces.
+        $process = Start-Process `
+            -FilePath "certutil.exe" `
+            -Verb RunAs `
+            -WindowStyle Hidden `
+            -ArgumentList "-f -addstore TrustedPeople `"$certPath`"" `
+            -Wait `
+            -PassThru
+    }
+    catch {
+        throw "Certificate installation was cancelled or could not be elevated: $($_.Exception.Message)"
+    }
+    finally {
+        Remove-Item -LiteralPath $certPath -Force -ErrorAction SilentlyContinue
+    }
+
+    # Verify unelevated, the same way we checked.
+    if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $storeEntry)) {
+        throw "Failed to install the certificate (certutil exit code $($process.ExitCode))."
+    }
+
+    Write-Host "Certificate installed and verified."
+    return Get-Item -LiteralPath $storeEntry
+}
+
+# ======================================================================
+# Main
+# ======================================================================
+
+# ----------------------------------------------------------------------
+# Resolve MSIX path
+# ----------------------------------------------------------------------
+
+$Msix = (Resolve-Path -LiteralPath $Msix).Path
+
+Write-Host "Installing: $Msix"
+
+# ----------------------------------------------------------------------
+# Read the signing certificate
+# ----------------------------------------------------------------------
+
 $stopwatch = [Diagnostics.Stopwatch]::StartNew()
 
 $identityName = $null
@@ -187,189 +263,13 @@ if ($ExpectedThumbprint -and $thumbprint -ne $ExpectedThumbprint) {
 }
 
 # ----------------------------------------------------------------------
-# Export signing certificate
+# Ensure the signing certificate is trusted
 # ----------------------------------------------------------------------
 
-$certPath = Join-Path `
-    $env:TEMP `
-    "AppBundler-$thumbprint.cer"
-
-# $cert here may be an X509Certificate2 from the CMS rather than from a store,
-# so write the DER bytes directly instead of using Export-Certificate.
-[System.IO.File]::WriteAllBytes($certPath, $cert.Export("Cert"))
-
-Write-Host "Certificate: $certPath"
-
-# ----------------------------------------------------------------------
-# Paths for elevated helper and log
-# ----------------------------------------------------------------------
-
-$scriptPath = Join-Path `
-    $env:TEMP `
-    "AppBundler-InstallCert-$thumbprint.ps1"
-
-$logPath = Join-Path `
-    $env:TEMP `
-    "AppBundler-InstallCert-$thumbprint.log"
-
-# ----------------------------------------------------------------------
-# Create elevated certificate-installation script
-# ----------------------------------------------------------------------
-
-@'
-param(
-    [Parameter(Mandatory = $true)]
-    [string]$CertPath,
-
-    [Parameter(Mandatory = $true)]
-    [string]$Thumbprint,
-
-    [Parameter(Mandatory = $true)]
-    [string]$LogPath
-)
-
-$ErrorActionPreference = "Stop"
-
-function Write-Log {
-    param(
-        [string]$Message
-    )
-
-    $Message | Tee-Object -FilePath $LogPath -Append
-}
-
-try {
-
-    $storePath = "Cert:\LocalMachine\TrustedPeople"
-
-    Write-Log "Running elevated certificate installation..."
-    Write-Log "Certificate: $CertPath"
-    Write-Log "Expected thumbprint: $Thumbprint"
-    Write-Log "Store: $storePath"
-
-    $installed = Get-ChildItem $storePath |
-        Where-Object {
-            $_.Thumbprint -eq $Thumbprint
-        }
-
-    if ($installed) {
-
-        Write-Log ""
-        Write-Log "Certificate is already trusted."
-        Write-Log "Subject:    $($installed.Subject)"
-        Write-Log "Thumbprint: $($installed.Thumbprint)"
-        Write-Log "Valid from: $($installed.NotBefore)"
-        Write-Log "Valid to:   $($installed.NotAfter)"
-
-        exit 0
-    }
-
-    if (-not (Test-Path -LiteralPath $CertPath)) {
-        throw "Certificate file does not exist: $CertPath"
-    }
-
-    Write-Log ""
-    Write-Log "Certificate file found."
-
-    Write-Log "Importing certificate..."
-
-    $imported = Import-Certificate `
-        -FilePath $CertPath `
-        -CertStoreLocation $storePath
-
-    Write-Log "Certificate imported."
-    Write-Log "Subject:    $($imported.Subject)"
-    Write-Log "Thumbprint: $($imported.Thumbprint)"
-
-    Write-Log ""
-    Write-Log "Verifying certificate in $storePath..."
-
-    $installed = Get-ChildItem $storePath |
-        Where-Object {
-            $_.Thumbprint -eq $Thumbprint
-        }
-
-    if (-not $installed) {
-        throw "Certificate was NOT found in $storePath after import."
-    }
-
-    Write-Log ""
-    Write-Log "Certificate successfully verified."
-    Write-Log "Subject:    $($installed.Subject)"
-    Write-Log "Thumbprint: $($installed.Thumbprint)"
-    Write-Log "Valid from: $($installed.NotBefore)"
-    Write-Log "Valid to:   $($installed.NotAfter)"
-
-    exit 0
-}
-catch {
-    Write-Log ""
-    Write-Log "ERROR: $($_.Exception.Message)"
-    exit 1
-}
-'@ | Set-Content `
-    -LiteralPath $scriptPath `
-    -Encoding UTF8
-
-Remove-Item `
-    -LiteralPath $logPath `
-    -Force `
-    -ErrorAction SilentlyContinue
-
-try {
-
-    Write-Host ""
-    Write-Host "Checking/installing certificate in LocalMachine\TrustedPeople..."
-    Write-Host "Log: $logPath"
-
-    $process = Start-Process `
-        -FilePath "powershell.exe" `
-        -Verb RunAs `
-        -WindowStyle Hidden `
-        -ArgumentList @(
-            "-NoProfile"
-            "-ExecutionPolicy"
-            "Bypass"
-            "-File"
-            $scriptPath
-            $certPath
-            $thumbprint
-            $logPath
-        ) `
-        -Wait `
-        -PassThru
-
-    Write-Host ""
-    Write-Host "Elevated process exit code: $($process.ExitCode)"
-
-    if (Test-Path -LiteralPath $logPath) {
-
-        Write-Host ""
-        Write-Host "Certificate installer log:"
-        Write-Host "----------------------------------------"
-
-        Get-Content -LiteralPath $logPath
-
-        Write-Host "----------------------------------------"
-    }
-    else {
-        Write-Host "WARNING: Certificate installer did not produce a log."
-    }
-
-    if ($process.ExitCode -ne 0) {
-        throw "Failed to install and verify the AppBundler certificate."
-    }
-
-    Write-Host ""
-    Write-Host "Certificate installation completed successfully."
-}
-finally {
-
-    Remove-Item `
-        -LiteralPath $scriptPath `
-        -Force `
-        -ErrorAction SilentlyContinue
-}
+Write-Host ""
+$installed = Install-TrustedCertificate -Certificate $cert
+Write-Host "Valid from: $($installed.NotBefore)"
+Write-Host "Valid to:   $($installed.NotAfter)"
 
 # ----------------------------------------------------------------------
 # Hand off to App Installer
