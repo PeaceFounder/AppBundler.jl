@@ -190,15 +190,17 @@ function verify(exe::AbstractString, expected::Vector{String})
     occursin("Method = Copy", out) || @warn "payload is not store-only"
 end
 
-function pack(msix, bootstrap, output_exe; title = "MyApp Installer")
+function pack(msix, bootstrap, output_exe; title = "MyApp Installer", debug = true)
 
     inputs = String[bootstrap, msix]
     for p in inputs
         isfile(p) || error("missing input file: $p")
     end
 
+    window_style = debug ? "" : "-WindowStyle Hidden"
+
     run_program = string(
-        "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass",
+        "powershell.exe -NoProfile $window_style -ExecutionPolicy Bypass",
         " -File \"%%T\\", basename(bootstrap), "\"",
         " \"%%T\\", basename(msix), "\"",
     )

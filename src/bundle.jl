@@ -51,6 +51,7 @@ struct MSIX
     resources_pri::String
     bootstrap::String
     exeinstaller::Bool
+    exewindowed::Bool
     path_length_threshold::Int 
     skip_long_paths::Bool 
     skip_symlinks::Bool
@@ -78,6 +79,7 @@ function MSIX(;
               skip_symlinks = preferences["msix_skip_symlinks"],
               skip_unicode_paths = preferences["msix_skip_unicode_paths"],
               exeinstaller = preferences["msix_exeinstaller"],
+              exewindowed = preferences["msix_exewindowed"],
               selfsign = preferences["selfsign"],              
               publisher = preferences["msix_publisher"] |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
               pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
@@ -96,7 +98,7 @@ function MSIX(;
 
     #return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, exeinstaller, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
 
-    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, bootstrap, exeinstaller, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
+    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, bootstrap, exeinstaller, exewindowed, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
 end
 
 function MSIX(overlay; preferences = preferences(), kwargs...)
