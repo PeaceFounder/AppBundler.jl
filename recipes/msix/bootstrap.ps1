@@ -1,6 +1,10 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [string]$Msix
+    [string]$Msix,
+
+    # Install in the console with Add-AppxPackage instead of handing the
+    # package to the graphical App Installer.
+    [switch]$Console
 )
 
 $ErrorActionPreference = "Stop"
@@ -200,6 +204,90 @@ function Install-TrustedCertificate {
     return Get-Item -LiteralPath $storeEntry
 }
 
+# ----------------------------------------------------------------------
+# Install-MsixWindowed: hand off to the graphical App Installer
+# ----------------------------------------------------------------------
+#
+# App Installer is launched through the .msix file association and runs
+# detached, so this has to find its process, wait for it, and then confirm
+# that the package actually got registered.
+
+function Install-MsixWindowed {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [string]$IdentityName
+    )
+
+    # Note which App Installer instances are already running, so that if one is
+    # open from an earlier install we wait on the new one rather than that.
+    $existingIds = @(
+        Get-Process -Name 'AppInstaller' -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty Id
+    )
+
+    Write-Host "Launching App Installer..."
+
+    Start-Process -FilePath $Path
+
+    # The SFX deletes the temp folder as soon as this script exits, so hold on
+    # until App Installer has finished with the .msix.
+
+    $appearTimeout = 120
+    $deadline = (Get-Date).AddSeconds($appearTimeout)
+    $proc = $null
+
+    while (-not $proc -and (Get-Date) -lt $deadline) {
+
+        $proc = Get-Process -Name 'AppInstaller' -ErrorAction SilentlyContinue |
+            Where-Object { $existingIds -notcontains $_.Id } |
+            Select-Object -First 1
+
+        if (-not $proc) { Start-Sleep -Milliseconds 250 }
+    }
+
+    if ($proc) {
+        Write-Host "Waiting for App Installer to finish..."
+        $proc.WaitForExit()
+    }
+    else {
+        Write-Warning "App Installer did not appear within $appearTimeout s; not waiting."
+    }
+
+    # App Installer can exit slightly before deployment finishes -- and the user may
+    # close its window the moment it reports success. Confirm registration before
+    # letting the SFX delete the package out from under it.
+
+    if ($IdentityName) {
+
+        Write-Host "Confirming package registration..."
+
+        $registered = $null
+        $deadline = (Get-Date).AddSeconds(60)
+
+        while (-not $registered -and (Get-Date) -lt $deadline) {
+
+            $registered = Get-AppxPackage -Name $IdentityName -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+
+            if (-not $registered) { Start-Sleep -Milliseconds 500 }
+        }
+
+        if ($registered) {
+            Write-Host "Installed: $($registered.Name) $($registered.Version)"
+        }
+        else {
+            Write-Warning "Package '$IdentityName' is not registered. The install may have been cancelled or may have failed."
+        }
+    }
+    else {
+        # Without an identity name there is nothing to poll, so allow a short grace
+        # period for deployment to finish reading the file.
+        Start-Sleep -Seconds 3
+    }
+}
+
 # ======================================================================
 # Main
 # ======================================================================
@@ -272,73 +360,17 @@ Write-Host "Valid from: $($installed.NotBefore)"
 Write-Host "Valid to:   $($installed.NotAfter)"
 
 # ----------------------------------------------------------------------
-# Hand off to App Installer
+# Install the package
 # ----------------------------------------------------------------------
 
-# Note which App Installer instances are already running, so that if one is
-# open from an earlier install we wait on the new one rather than that.
-$existingIds = @(
-    Get-Process -Name 'AppInstaller' -ErrorAction SilentlyContinue |
-        Select-Object -ExpandProperty Id
-)
-
 Write-Host ""
-Write-Host "Launching App Installer..."
 
-Start-Process $Msix
-
-# The SFX deletes the temp folder as soon as this script exits, so hold on
-# until App Installer has finished with the .msix.
-
-$appearTimeout = 120
-$deadline = (Get-Date).AddSeconds($appearTimeout)
-$proc = $null
-
-while (-not $proc -and (Get-Date) -lt $deadline) {
-
-    $proc = Get-Process -Name 'AppInstaller' -ErrorAction SilentlyContinue |
-        Where-Object { $existingIds -notcontains $_.Id } |
-        Select-Object -First 1
-
-    if (-not $proc) { Start-Sleep -Milliseconds 250 }
-}
-
-if ($proc) {
-    Write-Host "Waiting for App Installer to finish..."
-    $proc.WaitForExit()
+if ($Console) {
+    # Synchronous: returns once deployment has finished, throws on failure.
+    Add-AppxPackage -Path $Msix
 }
 else {
-    Write-Warning "App Installer did not appear within $appearTimeout s; not waiting."
+    Install-MsixWindowed -Path $Msix -IdentityName $identityName
 }
 
-# App Installer can exit slightly before deployment finishes -- and the user may
-# close its window the moment it reports success. Confirm registration before
-# letting the SFX delete the package out from under it.
-
-if ($identityName) {
-
-    Write-Host "Confirming package registration..."
-
-    $registered = $null
-    $deadline = (Get-Date).AddSeconds(60)
-
-    while (-not $registered -and (Get-Date) -lt $deadline) {
-
-        $registered = Get-AppxPackage -Name $identityName -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-
-        if (-not $registered) { Start-Sleep -Milliseconds 500 }
-    }
-
-    if ($registered) {
-        Write-Host "Installed: $($registered.Name) $($registered.Version)"
-    }
-    else {
-        Write-Warning "Package '$identityName' is not registered. The install may have been cancelled or may have failed."
-    }
-}
-else {
-    # Without an identity name there is nothing to poll, so allow a short grace
-    # period for deployment to finish reading the file.
-    Start-Sleep -Seconds 3
-}
+exit 0

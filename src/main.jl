@@ -76,6 +76,7 @@ function main_build(ARGS; sources_dir)
     selfsign = preferences["selfsign"]
     skipsign = preferences["skipsign"]
     overwrite_target = preferences["overwrite_target"]
+    msix2exe = preferences["msix2exe"]
 
     bundler = preferences["bundler"]
 
@@ -128,7 +129,15 @@ function main_build(ARGS; sources_dir)
             password = readline() |> strip
         end
         
-        bundle(spec, msix, target_path(msix); force = overwrite_target, password)
+        target = target_path(msix)
+        bundle(spec, msix, target; force = overwrite_target, password)
+
+        if msix2exe # false by default because depends on external resources
+            
+            exespec = MSIX2EXE(sources_dir; preferences)
+            repack(target, exespec, join((first(splitext(target)), ".exe")); force)
+
+        end
 
     elseif :dmg == target_bundle
 

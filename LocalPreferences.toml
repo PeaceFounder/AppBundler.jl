@@ -15,8 +15,8 @@ msix_skip_long_paths = false
 msix_skip_symlinks = true
 msix_skip_unicode_paths = true
 msix_publisher = "CN=AppBundler, C=XX, O=PeaceFounder"
-msix_exeinstaller = false
-msix_exewindowed = false
+msix2exe = false
+msix2exe_windowed = false
 
 dmg_shallow_signing = true
 dmg_hardened_runtime = true

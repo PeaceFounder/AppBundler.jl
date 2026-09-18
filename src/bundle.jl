@@ -49,9 +49,6 @@ struct MSIX
     appxmanifest::String 
     msixinstallerdata::String 
     resources_pri::String
-    bootstrap::String
-    exeinstaller::Bool
-    exewindowed::Bool
     path_length_threshold::Int 
     skip_long_paths::Bool 
     skip_symlinks::Bool
@@ -73,13 +70,10 @@ function MSIX(;
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
               resources_pri = get_path(prefix, "msix/resources.pri"),
               msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml"),
-              bootstrap = get_path(prefix, "msix/bootstrap.ps1"),
               path_length_threshold = preferences["msix_path_length_threshold"],
               skip_long_paths = preferences["msix_skip_long_paths"],
               skip_symlinks = preferences["msix_skip_symlinks"],
               skip_unicode_paths = preferences["msix_skip_unicode_paths"],
-              exeinstaller = preferences["msix_exeinstaller"],
-              exewindowed = preferences["msix_exewindowed"],
               selfsign = preferences["selfsign"],              
               publisher = preferences["msix_publisher"] |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
               pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
@@ -90,15 +84,9 @@ function MSIX(;
               parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher)
               )
 
-    if exeinstaller && !compress
-        error("Compression must be enabled with exe installer")
-    end
     
-    #return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, bootstrap, exeinstaller, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, exeinstaller, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
+    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
 
-    #return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, exeinstaller, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
-
-    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, bootstrap, exeinstaller, exewindowed, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
 end
 
 function MSIX(overlay; preferences = preferences(), kwargs...)
@@ -115,6 +103,45 @@ function normalize_publisher(publisher)
     stripped_items = strip.(items)
     return join(items, ", ")
 end
+
+struct MSIX2EXE
+    bootstrap::String
+    windowed::Bool
+    sfx_stub::String # Can be configured via preferences
+    title::String
+end
+
+function MSIX2EXE(;
+    prefix = joinpath(dirname(@__DIR__), "recipes"),
+    preferences = preferences(),
+    bootstrap = get_path(prefix, "msix/bootstrap.ps1"),
+    windowed = preferences["msix2exe_windowed"],
+    sfx_stub = get(preferences, "msix2exe_sfx_stub", MSIX2EXEPack.extract_stub()),
+    title = "Installer" # Could be set from app_name from preferences
+    )
+    
+    return MSIX2EXE(bootstrap, windowed, sfx_stub, title)
+end
+
+function MSIX2EXE(overlay; preferences = preferences(), kwargs...)
+
+    prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+    spec = MSIX2EXE(; prefix, preferences, kwargs...)
+
+    return spec
+end
+
+function repack(msix_archive::String, msix2exe::MSIX2EXE, destination::String; force = false)
+
+    if force
+        rm(destination; force=true)
+    end
+    
+    MSIX2EXEPack.pack(msix_archive, msix2exe.bootstrap, destination; title = msix2exe.title, console = !msix2exe.windowed)
+
+    return
+end
+
 
 """
     Snap([overlay]; arch, compress, windowed, kwargs...)
@@ -591,9 +618,9 @@ function bundle(setup::Function, msix::MSIX, destination::String; force = false,
         @info "Packaging staging area into MSIX..."
         MSIXPack.pack(app_stage, destination; pfx_path, password)        
 
-        if msix.exeinstaller
-            MSIX2EXE.pack(destination, msix.bootstrap, join((destination, ".exe")); title = "Installer")
-        end
+        # if msix.exeinstaller
+        #     MSIX2EXE.pack(destination, msix.bootstrap, join((destination, ".exe")); title = "Installer", console = !msix.exewindowed)
+        # end
     end
 
     return

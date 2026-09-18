@@ -1,4 +1,4 @@
-module MSIX2EXE
+module MSIX2EXEPack
 
 using Scratch: @get_scratch!
 using p7zip_jll
@@ -144,7 +144,8 @@ function extract_stub()
               """)
     end
     @info "using SFX module" SFX_MEMBER bytes = filesize(stub)
-    return read(stub)
+    #return read(stub)
+    return stub
 end
 
 # ---------------------------------------------------------------------------
@@ -190,19 +191,21 @@ function verify(exe::AbstractString, expected::Vector{String})
     occursin("Method = Copy", out) || @warn "payload is not store-only"
 end
 
-function pack(msix, bootstrap, output_exe; title = "MyApp Installer", debug = true)
+function pack(msix, bootstrap, output_exe; title = "MyApp Installer", console = true)
 
     inputs = String[bootstrap, msix]
     for p in inputs
         isfile(p) || error("missing input file: $p")
     end
 
-    window_style = debug ? "" : "-WindowStyle Hidden"
+    window_style = console ? "" : "-WindowStyle Hidden"
+    console_flag = console ? " -Console" : ""
 
     run_program = string(
         "powershell.exe -NoProfile $window_style -ExecutionPolicy Bypass",
         " -File \"%%T\\", basename(bootstrap), "\"",
         " \"%%T\\", basename(msix), "\"",
+        console_flag
     )
 
     stub    = extract_stub()
@@ -210,7 +213,7 @@ function pack(msix, bootstrap, output_exe; title = "MyApp Installer", debug = tr
     payload = make_payload(inputs)
 
     open(output_exe, "w") do io
-        write(io, stub)
+        write(io, read(stub))
         write(io, config)
         write(io, payload)
     end
@@ -218,8 +221,6 @@ function pack(msix, bootstrap, output_exe; title = "MyApp Installer", debug = tr
     verify(output_exe, basename.(inputs))
     @info "done" output = output_exe bytes = filesize(output_exe)
 end
-
-#abspath(PROGRAM_FILE) == (@__FILE__) && main()
 
 
 end

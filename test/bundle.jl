@@ -68,6 +68,9 @@ predicate = "juliaimg"
         # @test hash_file(joinpath(stage_dir, "AppxBlockMap.xml")) == "70ff6695ec913326f645c1cd30e48f75f57545ee4ae546db5843bf0779e6ee7e"
         rm(joinpath(stage_dir, "AppxBlockMap.xml")) # AppxBlockMap.xml has a slight nondeterminism
 
+        msix2exe = AppBundler.MSIX2EXE(joinpath(@__DIR__, "../examples/GtkApp"))
+        AppBundler.repack(dest, msix2exe, join((dest, ".exe")))
+
     end == "4351935f32e1b0036bbf31c0f496b5734dd6a9496e8a0005675a097233a6d07e"
 end
 
