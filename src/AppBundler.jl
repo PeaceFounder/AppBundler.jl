@@ -28,10 +28,13 @@ include("DMG/HFS.jl")
 include("DMG/DMGPack.jl")
 
 include("Snap/SnapPack.jl")
+include("AppImage/AppImageRuntime.jl")
+include("AppImage/AppImagePack.jl")
 
 include("MSIX/MSIXPack.jl")
 include("MSIX/MSIXIcons.jl")
 include("MSIX/WinSubsystem.jl")
+include("MSIX/MSIX2EXEPack.jl")
 
 include("bundlers/Resources.jl") # JuliaC needs assets and pkgorigins_index which is shared between JuliaImg and JuliaC
 include("bundlers/JuliaImg/JuliaImg.jl") 
@@ -43,6 +46,8 @@ using .JuliaImg.Resources: merge_directories#, install
 include("utils.jl")
 include("bundle.jl")
 include("recipes.jl") 
+
+include("ArgTools.jl")
 include("main.jl")
 
 #bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)

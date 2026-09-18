@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>{{BUNDLE_IDENTIFIER}}</id>
+  <name>{{APP_DISPLAY_NAME}}</name>
+  <summary>{{APP_SUMMARY}}</summary>
+  <description>
+    <p>{{APP_DESCRIPTION}}</p>
+  </description>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <developer_name>{{PUBLISHER_DISPLAY_NAME}}</developer_name>
+  <launchable type="desktop-id">{{APP_NAME}}.desktop</launchable>
+  <releases>
+    <release version="{{APP_VERSION}}"/>
+  </releases>
+</component>

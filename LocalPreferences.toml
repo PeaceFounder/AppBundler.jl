@@ -7,6 +7,7 @@ app_description = "A longer description of the app"
 windowed = false
 compress = true
 selfsign = false
+skipsign = false
 overwrite_target = false
 
 msix_path_length_threshold = 260
@@ -14,11 +15,16 @@ msix_skip_long_paths = false
 msix_skip_symlinks = true
 msix_skip_unicode_paths = true
 msix_publisher = "CN=AppBundler, C=XX, O=PeaceFounder"
+msix2exe = false
+msix2exe_windowed = false
 
 dmg_shallow_signing = true
 dmg_hardened_runtime = true
 dmg_sandboxed_runtime = false
 dmg_compression = "lzma"
+
+appimage_compression = "zstd"
+
 
 bundler = "juliaimg"
 

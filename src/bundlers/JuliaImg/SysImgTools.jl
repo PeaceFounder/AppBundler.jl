@@ -80,7 +80,9 @@ function create_sysimg_object_file(script::String,
     @debug "running $cmd"
 
     spinner = TerminalSpinners.Spinner(msg = "Compiling system image")
-    @monitor_oom TerminalSpinners.@spin spinner run(cmd)
+    withenv("JULIA_LOAD_PATH"=>nothing, "JULIA_DEPOT_PATH"=>nothing) do
+        @monitor_oom TerminalSpinners.@spin spinner run(cmd)
+    end
     return
 end
 
@@ -89,7 +91,9 @@ function link_image(object_files, sysimg_path; julia_cmd = nothing)
     if isnothing(julia_cmd)
         Base.Linking.link_image(object_files, sysimg_path)
     else
-        run(`$julia_cmd --startup-file=no --eval "Base.Linking.link_image($(repr(object_files)), $(repr(sysimg_path)))"`)
+        withenv("JULIA_LOAD_PATH"=>nothing, "JULIA_DEPOT_PATH"=>nothing) do
+            run(`$julia_cmd --startup-file=no --eval "Base.Linking.link_image($(repr(object_files)), $(repr(sysimg_path)))"`)
+        end
     end
 
 end

@@ -1,0 +1,6 @@
+[deps]
+AppBundler = "40eb83ae-c93a-480c-8f39-f018b568f472"
+JuliaC = "acedd4c2-ced6-4a15-accc-2607eb759ba2"
+
+[sources]
+AppBundler = {path = "../../.."}

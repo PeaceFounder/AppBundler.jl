@@ -76,15 +76,17 @@ function MSIX(;
               skip_unicode_paths = preferences["msix_skip_unicode_paths"],
               selfsign = preferences["selfsign"],              
               publisher = preferences["msix_publisher"] |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
-              pfx_cert = get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
+              pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
               windowed = preferences["windowed"],
               compress = preferences["compress"],
               arch = Sys.ARCH,
               predicate = preferences["bundler"],
               parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher)
               )
+
     
     return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
+
 end
 
 function MSIX(overlay; preferences = preferences(), kwargs...)
@@ -101,6 +103,45 @@ function normalize_publisher(publisher)
     stripped_items = strip.(items)
     return join(items, ", ")
 end
+
+struct MSIX2EXE
+    bootstrap::String
+    windowed::Bool
+    sfx_stub::String # Can be configured via preferences
+    title::String
+end
+
+function MSIX2EXE(;
+    prefix = joinpath(dirname(@__DIR__), "recipes"),
+    preferences = preferences(),
+    bootstrap = get_path(prefix, "msix/bootstrap.ps1"),
+    windowed = preferences["msix2exe_windowed"],
+    sfx_stub = get(preferences, "msix2exe_sfx_stub", MSIX2EXEPack.extract_stub()),
+    title = "Installer" # Could be set from app_name from preferences
+    )
+    
+    return MSIX2EXE(bootstrap, windowed, sfx_stub, title)
+end
+
+function MSIX2EXE(overlay; preferences = preferences(), kwargs...)
+
+    prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+    spec = MSIX2EXE(; prefix, preferences, kwargs...)
+
+    return spec
+end
+
+function repack(msix_archive::String, msix2exe::MSIX2EXE, destination::String; force = false)
+
+    if force
+        rm(destination; force=true)
+    end
+    
+    MSIX2EXEPack.pack(msix_archive, msix2exe.bootstrap, destination; title = msix2exe.title, console = !msix2exe.windowed)
+
+    return
+end
+
 
 """
     Snap([overlay]; arch, compress, windowed, kwargs...)
@@ -178,6 +219,7 @@ function Snap(overlay; preferences = preferences(), kwargs...)
     return snap
 end
 
+
 # TODO: mention that application needs to be notarized by Apple. That can be done outside the build process by stapling already signed DMG archive. 
 
 """
@@ -247,12 +289,12 @@ function DMG(;
              prefix = joinpath(dirname(@__DIR__), "recipes"),
              preferences = preferences(),
              predicate = preferences["bundler"],
-             icon = get_path(prefix, ["dmg/icon.icns", "dmg/icon.png", "icon.icns"]),
+             icon = get_path(prefix, ["dmg/icon.icns", "icon.icns"]), # The "dmg/icon.png" is not yet supported
              info_config = get_path(prefix, "dmg/Info.plist"),
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
              dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
              selfsign = preferences["selfsign"],
-             pfx_cert = get_path(prefix, "dmg/certificate.pfx"),
+             pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "dmg/certificate.pfx"),
              shallow_signing = preferences["dmg_shallow_signing"],
              hardened_runtime = preferences["dmg_hardened_runtime"],
              sandboxed_runtime = preferences["dmg_sandboxed_runtime"],
@@ -546,8 +588,6 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
     return
 end
 
-"""
-"""
 function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "")
 
     if ispath(destination)
@@ -577,8 +617,12 @@ function bundle(setup::Function, msix::MSIX, destination::String; force = false,
         end        
         @info "Packaging staging area into MSIX..."
         MSIXPack.pack(app_stage, destination; pfx_path, password)        
+
+        # if msix.exeinstaller
+        #     MSIX2EXE.pack(destination, msix.bootstrap, join((destination, ".exe")); title = "Installer", console = !msix.exewindowed)
+        # end
     end
-    
+
     return
 end
 
@@ -602,6 +646,155 @@ function bundle(setup::Function, snap::Snap, destination::String; force = false)
     if snap.compress
         @info "Packaging staging area into Snap..."
         SnapPack.pack(app_stage, destination)
+    end
+
+    return
+end
+
+
+"""
+    AppImage([overlay]; arch, compress, compression, depot, runtime, kwargs...)
+
+Create an AppImage configuration object for Linux application packaging.
+
+An AppImage is a runtime ELF followed by a squashfs image. The runtime **mounts** that filesystem
+rather than extracting it, so a bundled Julia distribution — tens of thousands of small files —
+never lands on disk. That is what makes the format worth having on HPC, where unpacking a tarball
+onto a network filesystem is the expensive part.
+
+Mounting requires `fusermount` on the target machine. Where it is missing the runtime falls back to
+`--appimage-extract-and-run`, and [`AppBundler.AppImagePack.unpack`](@ref) reads the payload without
+running the runtime at all.
+
+# Arguments
+- `overlay`: Path to a project directory containing `Project.toml`, optional `LocalPreferences.toml`, and optional `meta/appimage/` overrides
+
+# Keyword Arguments
+- `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
+- `icon = get_path(prefix, ["appimage/icon.png", "icon.png"])`: Path to application icon file
+- `desktop_launcher = get_path(prefix, "appimage/main.desktop")`: Path to the desktop entry template
+- `metainfo = get_path(prefix, "appimage/metainfo.xml")`: Path to the AppStream metadata template
+- `main_launcher`: Path to the `AppRun` template; resolved from prefix using the bundler predicate
+- `startup_file = get_path(prefix, "appimage/startup.jl")`: Startup file used when `depot = "julia"`, which sets up the load path without replacing `DEPOT_PATH`
+- `depot`: Where a Julia payload keeps its depot. `"app"` (default) points `USER_DATA` at
+  `\$XDG_DATA_HOME/<app>`, giving a persistent per-user depot that leaves the host `~/.julia`
+  untouched; `"julia"` keeps the stock depot; defaults to the `appimage_depot` preference
+- `compression`: squashfs compressor, one of `:zstd` (default), `:gzip` or `:xz`; defaults to the
+  `appimage_compression` preference
+- `runtime`: Path to the AppImage runtime. When unset, `AppImageRuntime_jll` is used if installed;
+  defaults to the `appimage_runtime` preference
+- `windowed`: If `true`, the application runs without a console window; defaults to `windowed` preference
+- `compress`: If `true`, pack the AppDir into an `.AppImage`; defaults to `compress` preference
+- `arch = Sys.ARCH`: Target CPU architecture
+- `predicate`: Bundler predicate used for hook selection; defaults to `bundler` preference
+- `parameters`: Dictionary of parameters for Mustache template rendering. When `overlay` is provided, pre-populated from `Project.toml` and preferences
+
+# Examples
+```julia
+AppImage(app_dir)
+AppImage(app_dir; depot = "julia")                       # keep the stock ~/.julia depot
+AppImage(app_dir; runtime = "/path/to/runtime-x86_64")   # until AppImageRuntime_jll exists
+```
+"""
+struct AppImage
+    icon::String
+    desktop_launcher::String
+    metainfo::String
+    main_launcher::String # It is always AppRun.sh. 
+    compression::Symbol
+    windowed::Bool
+    compress::Bool
+    arch::Symbol
+    runtime::String
+    predicate::String
+    parameters::Dict{String, Any}
+end
+
+const APPIMAGE_DEPOTS = ["app", "julia"]
+
+function AppImage(;
+                  prefix = joinpath(dirname(@__DIR__), "recipes"),
+                  preferences = preferences(),
+                  predicate = preferences["bundler"],
+                  icon = get_path(prefix, ["appimage/icon.png", "icon.png"]),
+                  desktop_launcher = get_path(prefix, "appimage/main.desktop"),
+                  metainfo = get_path(prefix, "appimage/metainfo.xml"),
+                  main_launcher = get_path(prefix, hook("appimage/AppRun.sh", predicate); warn = false),
+                  compression = Symbol(get(preferences, "appimage_compression", "zstd")),
+                  windowed = preferences["windowed"],
+                  compress = preferences["compress"],
+                  arch = Sys.ARCH,
+                  runtime = AppImageRuntime.get_runtime(arch),
+                  parameters = Dict{String, Any}("WINDOWED" => windowed)
+                  )
+
+    compression in AppImagePack.COMPRESSORS ||
+        error("`appimage_compression` must be one of: " *
+              join(AppImagePack.COMPRESSORS, ", ") * ". Got `$compression`.")
+
+    return AppImage(icon, desktop_launcher, metainfo, main_launcher, compression, windowed, compress, arch, runtime, predicate, parameters)
+end
+
+function AppImage(overlay; preferences = preferences(), kwargs...)
+
+    prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+    appimage = AppImage(; prefix, preferences, kwargs...)
+    get_bundle_parameters!(appimage.parameters, joinpath(overlay, "Project.toml"); preferences)
+
+    return appimage
+end
+
+function stage(appimage::AppImage, destination::String)
+
+    (; predicate, parameters) = appimage
+    app_name = parameters["APP_NAME"]
+    bundle_identifier = get(parameters, "BUNDLE_IDENTIFIER", app_name)
+
+    # The spec looks for the desktop entry and the icon at the AppDir root, and the `Icon=` key
+    # names the icon with no path and no extension.
+    install(appimage.icon, joinpath(destination, "$app_name.png"))
+    install(appimage.desktop_launcher, joinpath(destination, "$app_name.desktop"); parameters, predicate)
+
+    # `.DirIcon` is what file managers read for the thumbnail. A copy rather than a symlink, since
+    # squashfs preserves symlinks but some extraction paths do not follow them.
+    #cp(joinpath(destination, "$app_name.png"), joinpath(destination, ".DirIcon"); force = true)
+    install(appimage.icon, joinpath(destination, ".DirIcon"))
+
+    # Freedesktop locations, so an AppImage the user installs integrates with the menu
+    install(appimage.icon, joinpath(destination, "usr/share/icons/hicolor/256x256/apps/$app_name.png"))
+    install(appimage.desktop_launcher, joinpath(destination, "usr/share/applications/$app_name.desktop"); parameters, predicate)
+    install(appimage.metainfo, joinpath(destination, "usr/share/metainfo/$bundle_identifier.appdata.xml"); parameters, predicate)
+
+    install(appimage.main_launcher, joinpath(destination, "AppRun"); parameters, executable = true, predicate)
+
+    return
+end
+
+function bundle(setup::Function, appimage::AppImage, destination::String; force = false)
+
+    if ispath(destination)
+        if force
+            rm(destination; force=true, recursive=true)
+        else
+            error("Destination $destination already exists. Use `force = true` argument.")
+        end
+    end
+
+    # Resolve the runtime before doing the expensive staging work, so a missing one fails in
+    # seconds rather than after a full image build.
+    #runtime = appimage.compress ? AppImageRuntime.resolve(appimage.arch; runtime = appimage.runtime) : nothing
+
+    appdir = appimage.compress ? mktempdir() : destination
+
+    @info "Initializing AppDir staging layout..."
+    stage(appimage, appdir)
+
+    @info "Installing app into staging area..."
+    setup(appdir)
+
+    if appimage.compress
+        @info "Packaging AppDir into AppImage..."
+        AppImagePack.pack(appdir, destination; compression = appimage.compression, runtime = appimage.runtime)
     end
 
     return

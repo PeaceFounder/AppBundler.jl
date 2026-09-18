@@ -1,6 +1,6 @@
 using Test
 
-import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack
+import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack, AppImage
 import AppBundler
 
 using osslsigncode_jll
@@ -67,6 +67,9 @@ predicate = "juliaimg"
 
         # @test hash_file(joinpath(stage_dir, "AppxBlockMap.xml")) == "70ff6695ec913326f645c1cd30e48f75f57545ee4ae546db5843bf0779e6ee7e"
         rm(joinpath(stage_dir, "AppxBlockMap.xml")) # AppxBlockMap.xml has a slight nondeterminism
+
+        msix2exe = AppBundler.MSIX2EXE(joinpath(@__DIR__, "../examples/GtkApp"))
+        AppBundler.repack(dest, msix2exe, join((dest, ".exe")))
 
     end == "4351935f32e1b0036bbf31c0f496b5734dd6a9496e8a0005675a097233a6d07e"
 end
@@ -178,5 +181,24 @@ if Sys.isunix()
 
         end == "f64997788eca9a5d020c4fe73921d4085fc07ea2266b1401276162efd4695678"
     end
+
+
+    # -------------------- AppImage -----------------
+
+    appimage = AppImage(joinpath(@__DIR__, "../examples/GtkApp"); predicate, windowed = false, arch = Sys.ARCH)
+
+
+    @test hash_stage() do stage_dir
+
+        dest = joinpath(mktempdir(), "gtkapp.appimage")
+
+        bundle(appimage, dest) do app_stage
+            @info "The AppImage app stage is $app_stage"
+        end
+
+        AppBundler.AppImagePack.unpack(dest, stage_dir)    
+
+    end == "f90ec4725a7a9ea9ffd4d2d8e86a8b8780731d2f520d3861443f863d40292352"
+
 
 end

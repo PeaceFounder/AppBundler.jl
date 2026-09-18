@@ -2,7 +2,7 @@ import TOML
 import LibGit2
 
 function (@main)(ARGS)
-    
+
     if length(ARGS) == 0 
         error("No command provided. See `--help` for available commands.")
     end
@@ -11,6 +11,8 @@ function (@main)(ARGS)
 
     if command in ["--help", "-h"]
 
+        # one may want to print a generic help here and then point user down to
+        # build --help and etc for concrete information
         print_help()
 
     elseif command == "build"
@@ -34,8 +36,9 @@ end
 suffix(msix::MSIX) = msix.compress ? ".msix" : ""
 suffix(dmg::DMG) = dmg.compress ? ".dmg" : ""
 suffix(snap::Snap) = snap.compress ? ".snap" : ""
+suffix(appimage::AppImage) = appimage.compress ? ".AppImage" : ""
 
-function canonical_target_name(spec::Union{MSIX, DMG, Snap})
+function canonical_target_name(spec::Union{MSIX, DMG, Snap, AppImage})
     version = spec.parameters["APP_VERSION"]
     app_name = spec.parameters["APP_NAME"]
     return "$(app_name)-$version-$(spec.arch)"
@@ -47,16 +50,33 @@ function main_build(ARGS; sources_dir)
     project_preferences = Resources.get_project_preferences(sources_dir)
     preferences = merge(project_preferences["AppBundler"], preference_overrides)
 
+
+    if config[:build_dir] == "@temp"
+        build_dir = mktempdir()
+    else
+        build_dir = abspath(expanduser(config[:build_dir]))
+        if !isdir(build_dir)
+            parent = dirname(build_dir)
+            if isdir(parent) || isempty(parent)  # Allow relative paths
+                mkpath(build_dir)  # Use mkpath instead of mkdir
+            else
+                error("Parent directory '$parent' does not exist. Aborting...")
+            end
+        end
+    end
+        
     target_arch = config[:target_arch]
     target_bundle = config[:target_bundle]
-    build_dir = config[:build_dir]
+        #build_dir = config[:build_dir]
     password = config[:password]
 
     # Theese could be substituted with preferences
     #compress = config[:compress]
     #windowed = config[:windowed]
     selfsign = preferences["selfsign"]
+    skipsign = preferences["skipsign"]
     overwrite_target = preferences["overwrite_target"]
+    msix2exe = preferences["msix2exe"]
 
     bundler = preferences["bundler"]
 
@@ -100,7 +120,7 @@ function main_build(ARGS; sources_dir)
 
         msix = MSIX(sources_dir; arch = target_arch, preferences)
 
-        if selfsign
+        if selfsign || skipsign
             password = ""
         elseif isnothing(msix.pfx_cert)
             error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
@@ -109,13 +129,21 @@ function main_build(ARGS; sources_dir)
             password = readline() |> strip
         end
         
-        bundle(spec, msix, target_path(msix); force = overwrite_target, password)
+        target = target_path(msix)
+        bundle(spec, msix, target; force = overwrite_target, password)
+
+        if msix2exe # false by default because depends on external resources
+            
+            exespec = MSIX2EXE(sources_dir; preferences)
+            repack(target, exespec, join((first(splitext(target)), ".exe")); force)
+
+        end
 
     elseif :dmg == target_bundle
 
         dmg = DMG(sources_dir; arch = target_arch, preferences)
 
-        if selfsign
+        if selfsign || skipsign
             password = ""
         elseif isnothing(dmg.pfx_cert)
             error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
@@ -130,6 +158,11 @@ function main_build(ARGS; sources_dir)
 
         snap = Snap(sources_dir; arch = target_arch, preferences)
         bundle(spec, snap, target_path(snap); force = overwrite_target)
+
+    elseif :appimage == target_bundle
+        
+        appimage = AppImage(sources_dir; arch = target_arch, preferences)
+        bundle(spec, appimage, target_path(appimage); force = overwrite_target)
 
     else
         error("Got unsupported bundle type $target_bundle")
@@ -220,29 +253,16 @@ function get_bundle_parameters!(parameters::Dict{String, Any}, project_toml; pre
     return parameters
 end
 
-# ToDo: Revise this function for accepting values that contain " "
-# ToDo: Add tests for this funciton
-function normalize_args(args)
-    normalized = String[]
-    for arg in args
-        if startswith(arg, "--") && contains(arg, '=')
-            flag, value = split(arg, '=', limit=2)
-            push!(normalized, flag)
-            push!(normalized, strip(value, ['"', '\'']))
-        elseif startswith(arg, "-D")
-            push!(normalized, "-D")
-            push!(normalized, arg[3:end])
-        else
-            push!(normalized, arg)
-        end
-    end
-    return normalized
-end
+# Short options, mapped to their long form. Listed explicitly because a leading
+# single dash is otherwise a value: `--password -secret` must keep -secret.
+const SHORT_OPTIONS = Dict("-h" => "--help")
 
-#function parse_args(raw_args; preferences = Base.get_preferences()["AppBundler"])
-function parse_args(raw_args) #; preferences = Base.get_preferences()["AppBundler"])
+require(option, value) = value === nothing ? error("$option requires a value") : value
+forbid(option, value)  = value === nothing || error("$option does not take a value, got '$value'")
 
-    args = normalize_args(raw_args)
+function parse_args(raw_args) 
+
+    args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
 
     # Default values
     config = Dict(
@@ -253,72 +273,44 @@ function parse_args(raw_args) #; preferences = Base.get_preferences()["AppBundle
         :password => nothing
     )
 
-    preference_overrides = []
     preferences = Dict()
 
-    i = 1
-    while i <= length(args)
-        arg = args[i]
-        if arg in ["--help", "-h"]
+    for (option, value) in args
+        if option == "--help"
             print_help()
             exit(0)
-        elseif arg == "--build-dir"
-            i += 1
-            if i > length(args)
-                error("--build-dir requires a value")
-            end
-            build_dir = expanduser(args[i])
-            if build_dir == "@temp"
-                config[:build_dir] = mktempdir()
-            else
-                if !isdir(build_dir)
-                    parent = dirname(build_dir)
-                    if isdir(parent) || isempty(parent)  # Allow relative paths
-                        mkpath(build_dir)  # Use mkpath instead of mkdir
-                    else
-                        error("Parent directory '$parent' does not exist. Aborting...")
-                    end
-                end
-                config[:build_dir] = abspath(build_dir)  # Store absolute path
-            end
-        elseif arg == "-D"
-            i += 1
-            push!(preference_overrides, args[i])
-        elseif arg == "--force"
-            preferences["overwrite_target"] = true
-        elseif arg == "--debug"
+        elseif option == "--build-dir"
+            config[:build_dir] = require(option, value)
+        elseif option == "--target-name"
+            config[:target_name] = require(option, value)
+        elseif option == "--password"
+            config[:password] = strip(require(option, value))
+        elseif option == "--target-arch"
+            config[:target_arch] = Symbol(require(option, value))
+        elseif option == "--target-bundle"
+            config[:target_bundle] = Symbol(require(option, value))
+        elseif option == "--force"
+            forbid(option, value); preferences["overwrite_target"] = true
+        elseif option == "--selfsign"
+            forbid(option, value)
+            preferences["selfsign"] = true
+        elseif option == "--skipsign"
+            forbid(option, value)
+            preferences["skipsign"] = true
+        elseif option == "--debug"
+            forbid(option, value)
             preferences["compress"] = false
             preferences["selfsign"] = true
             preferences["windowed"] = false
-        elseif arg == "--target-name"
-            i += 1
-            config[:target_name] = args[i]
-        elseif arg == "--selfsign"
-            preferences["selfsign"] = true
-        elseif arg == "--password"
-            i += 1
-            config[:password] = args[i] |> strip
-        elseif arg == "--target-arch"
-            i += 1
-            if i > length(args)
-                error("--target-arch requires a value")
-            end
-            config[:target_arch] = Symbol(args[i])
-        elseif arg == "--target-bundle"
-            i += 1
-            if i > length(args)
-                error("--target-bundle requires a value")
-            end
-            config[:target_bundle] = Symbol(args[i])
         else
-            @warn "Unknown argument: $arg"
+            @warn "Unknown argument: $option"
         end
-        i += 1
     end
 
-    preference_overrides_dict = TOML.parse(join(preference_overrides, "\n"))
-    merged_preferences = merge(preferences, preference_overrides_dict)
-
+    schema = TOML.parse(String(read(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))))["AppBundler"]
+    overrides = ArgTools.parse_preferences(defines, schema)
+    
+    merged_preferences = merge(preferences, overrides)
     return config, merged_preferences
 end
 
@@ -333,7 +325,8 @@ Options:
   --build-dir DIR                   Output directory for the bundle
                                     (default: temporary directory)
                                     Use '@temp' to explicitly request a temp dir
-  --target-bundle {dmg|snap|msix}   Package format to produce
+  --target-bundle {dmg|snap|appimage|msix}   
+                                    Package format to produce
                                     (default: platform native — dmg on macOS,
                                     snap on Linux, msix on Windows)
   --target-arch {x86_64|aarch64}    Target CPU architecture
