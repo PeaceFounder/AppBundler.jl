@@ -198,7 +198,6 @@ if Sys.isunix()
 
         AppBundler.AppImagePack.unpack(dest, stage_dir)    
 
-    end == "67583932eda165a7ae8d6da9682ec5c800af20e0c8610003826d539442a30557"
-
+    end == "2bd5ce09eeebf1aca5642913587b3870a96bf3b2c4a849c1557480afc10419a4"
 
 end
