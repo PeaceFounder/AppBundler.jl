@@ -56,6 +56,11 @@ finally
 end
 
 
-# JuliaC example
-app_dir = joinpath(dirname(@__DIR__), "examples/CmdApp")
-AppBundler.main(["build", app_dir, "--selfsign"])
+# # JuliaC example
+# app_dir = joinpath(dirname(@__DIR__), "examples/CmdApp")
+# AppBundler.main(["build", app_dir, "--selfsign"])
+
+# if Sys.islinux()
+#     app_dir = joinpath(dirname(@__DIR__), "examples/CmdApp")
+#     AppBundler.main(["build", app_dir, "--selfsign", "--target-bundle=appimage"])
+# end

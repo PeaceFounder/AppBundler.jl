@@ -51,11 +51,12 @@ The `password` argument is the certificate password used to decrypt the signing 
 ```@docs
 AppBundler.JuliaImgBundle
 AppBundler.JuliaCBundle
+```
+
 AppBundler.DMG
-AppBundler.MSIX
 AppBundler.Snap
 AppBundler.AppImage
-```
+
 
 ## Functions
 

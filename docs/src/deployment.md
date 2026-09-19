@@ -34,21 +34,6 @@ appbundler build . --build-dir=build --password="{{MACOS_PFX_PASSWORD}}"
 
 Alternatively, omitting `--password` will prompt for it interactively.
 
-### macOS Notarization
-
-macOS codesigning has an additional requirement beyond certificate signing: Apple requires all distributed applications to be *notarized*. Notarization means submitting the bundle to Apple's servers, where it is checked for proper structure and the absence of malware. Two settings must be enabled in `LocalPreferences.toml` for a bundle to pass notarization:
-
-```toml
-dmg_shallow_signing = false
-dmg_hardened_runtime = true
-```
-
-> **Note on shallow vs. deep signing:** Deep signing is disabled by default because it takes considerable time for Julia applications and currently tends to fail with `rcodesign` deep signing. Unfortunately, `codesign --verify --deep --verbose=4 myapp.app` passes even with shallow signing, so the only reliable way to verify that deep signing is correct is to submit the bundle to Apple's notary service and inspect the response. Budget some time for this when setting up notarization for the first time.
-
-### Custom Signing Solutions
-
-Some certificate providers deliver keys inside secure hardware tokens rather than as a `.pfx` file. Hardware token integration is planned for a future release. In the meantime, users needing custom signing workflows can use the lower-level signing API described in [reference.md](reference.md).
-
 ## GitHub Actions Workflow
 
 GitHub Actions is the recommended CI solution for cross-platform Julia application deployment. It provides hosted runners for Windows, macOS, and Linux across all common architectures, making it straightforward to build and sign for every platform from a single workflow.

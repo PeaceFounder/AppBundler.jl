@@ -135,7 +135,7 @@ function main_build(ARGS; sources_dir)
         if msix2exe # false by default because depends on external resources
             
             exespec = MSIX2EXE(sources_dir; preferences)
-            repack(target, exespec, join((first(splitext(target)), ".exe")); force)
+            repack(target, exespec, join((first(splitext(target)), ".exe")); force = overwrite_target)
 
         end
 

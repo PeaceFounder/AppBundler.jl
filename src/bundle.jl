@@ -104,6 +104,37 @@ function normalize_publisher(publisher)
     return join(items, ", ")
 end
 
+
+
+"""
+    MSIX2EXE([overlay]; prefix, preferences, bootstrap, windowed, sfx_stub, title)
+
+Create an MSIX-to-EXE configuration object for creating self-extracting Windows installers from MSIX packages.
+
+The resulting installer is a 7-Zip-based self-extracting executable. When launched, the executable extracts the MSIX package and the configured PowerShell bootstrap script to a temporary directory and then executes the bootstrap script with the extracted MSIX package as its argument.
+
+This is useful for distributing self-signed MSIX packages, since the bootstrap script can extract and install the package's signing certificate in the system's root, before launching installer on the MSIX installer.
+
+When `overlay` is provided, configuration files are searched in `overlay`, then `overlay/meta`, then the built-in recipes directory. Without `overlay`, only the built-in recipes and the active project's `LocalPreferences.toml` are used.
+
+# Arguments
+- `overlay`: Path to a project directory containing optional `Project.toml`, `LocalPreferences.toml`, and optional `meta/msix/` overrides
+
+# Keyword Arguments
+- `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
+- `bootstrap: Path to the bootstrap script which is embedded in the self-extracting installer. The script is invoked with the extracted MSIX package as its first argument
+- `windowed = preferences["msix2exe_windowed"]`: If `true`, run the bootstrap process without displaying a console window and launch graphical MSIX installer
+- `sfx_stub = get(preferences, "msix2exe_sfx_stub", MSIX2EXEPack.extract_stub())`: Path to the 7-Zip self-extracting executable stub used to construct the installer
+- `title = "Installer"`: Title displayed by the self-extracting installer
+
+# Bootstrap Script
+
+The bootstrap script is invoked after the embedded files have been extracted, with the MSIX package path supplied as its first argument. For example:
+
+```powershell
+powershell.exe bootstrap.ps1 msix_archive.msix
+```
+"""
 struct MSIX2EXE
     bootstrap::String
     windowed::Bool
@@ -131,6 +162,28 @@ function MSIX2EXE(overlay; preferences = preferences(), kwargs...)
     return spec
 end
 
+"""
+    repack(msix_archive, msix2exe, destination; force=false)
+
+Repackage an existing MSIX archive as a self-extracting EXE installer.
+
+The MSIX archive and the PowerShell bootstrap script configured by `msix2exe::MSIX2EXE` are embedded into a 7-Zip self-extracting executable. When the resulting executable is launched, it extracts its contents to a temporary directory and runs the bootstrap script with the extracted MSIX archive as its argument.
+
+# Arguments
+- `msix_archive::String`: Path to the existing MSIX package to embed in the installer
+- `msix2exe::MSIX2EXE`: configuration object describing the bootstrap script,
+  SFX stub, window mode, and installer title
+- `destination::String`: Path of the output self-extracting EXE
+
+# Keyword Arguments
+- `force = false`: If `true`, remove an existing file at `destination` before creating the installer
+
+# Examples
+```julia
+spec = MSIX2EXE(project)
+repack("MyApplication.msix", spec, "MyApplication.exe"; force = true)
+```
+"""
 function repack(msix_archive::String, msix2exe::MSIX2EXE, destination::String; force = false)
 
     if force
@@ -653,32 +706,25 @@ end
 
 
 """
-    AppImage([overlay]; arch, compress, compression, depot, runtime, kwargs...)
+    AppImage([overlay]; arch, compress, compression, runtime, kwargs...)
 
 Create an AppImage configuration object for Linux application packaging.
 
-An AppImage is a runtime ELF followed by a squashfs image. The runtime **mounts** that filesystem
-rather than extracting it, so a bundled Julia distribution — tens of thousands of small files —
-never lands on disk. That is what makes the format worth having on HPC, where unpacking a tarball
-onto a network filesystem is the expensive part.
+AppImage is a single executable file for Linux that is mounted rather than installed. It suits applications made of thousands of small files, which are slow to unpack and hydrate on the network filesystems used by HPC clusters.
 
 Mounting requires `fusermount` on the target machine. Where it is missing the runtime falls back to
 `--appimage-extract-and-run`, and [`AppBundler.AppImagePack.unpack`](@ref) reads the payload without
 running the runtime at all.
+
+The staged AppDir contains only the `AppRun` entry point and the application payload; no desktop
+entry, icon or AppStream metadata is included, so the AppImage does not integrate with desktop menus.
 
 # Arguments
 - `overlay`: Path to a project directory containing `Project.toml`, optional `LocalPreferences.toml`, and optional `meta/appimage/` overrides
 
 # Keyword Arguments
 - `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
-- `icon = get_path(prefix, ["appimage/icon.png", "icon.png"])`: Path to application icon file
-- `desktop_launcher = get_path(prefix, "appimage/main.desktop")`: Path to the desktop entry template
-- `metainfo = get_path(prefix, "appimage/metainfo.xml")`: Path to the AppStream metadata template
 - `main_launcher`: Path to the `AppRun` template; resolved from prefix using the bundler predicate
-- `startup_file = get_path(prefix, "appimage/startup.jl")`: Startup file used when `depot = "julia"`, which sets up the load path without replacing `DEPOT_PATH`
-- `depot`: Where a Julia payload keeps its depot. `"app"` (default) points `USER_DATA` at
-  `\$XDG_DATA_HOME/<app>`, giving a persistent per-user depot that leaves the host `~/.julia`
-  untouched; `"julia"` keeps the stock depot; defaults to the `appimage_depot` preference
 - `compression`: squashfs compressor, one of `:zstd` (default), `:gzip` or `:xz`; defaults to the
   `appimage_compression` preference
 - `runtime`: Path to the AppImage runtime. When unset, `AppImageRuntime_jll` is used if installed;
@@ -691,18 +737,16 @@ running the runtime at all.
 
 # Examples
 ```julia
-AppImage(app_dir)
-AppImage(app_dir; depot = "julia")                       # keep the stock ~/.julia depot
-AppImage(app_dir; runtime = "/path/to/runtime-x86_64")   # until AppImageRuntime_jll exists
+appimage_config = AppImage(app_dir)
+
+bundle(appimage_config, appimage_archive) do app_stage
+    # install application into app_stage
+end
 ```
 """
 struct AppImage
-    icon::String
-    desktop_launcher::String
-    metainfo::String
     main_launcher::String # It is always AppRun.sh. 
     compression::Symbol
-    windowed::Bool
     compress::Bool
     arch::Symbol
     runtime::String
@@ -710,15 +754,10 @@ struct AppImage
     parameters::Dict{String, Any}
 end
 
-const APPIMAGE_DEPOTS = ["app", "julia"]
-
 function AppImage(;
                   prefix = joinpath(dirname(@__DIR__), "recipes"),
                   preferences = preferences(),
                   predicate = preferences["bundler"],
-                  icon = get_path(prefix, ["appimage/icon.png", "icon.png"]),
-                  desktop_launcher = get_path(prefix, "appimage/main.desktop"),
-                  metainfo = get_path(prefix, "appimage/metainfo.xml"),
                   main_launcher = get_path(prefix, hook("appimage/AppRun.sh", predicate); warn = false),
                   compression = Symbol(get(preferences, "appimage_compression", "zstd")),
                   windowed = preferences["windowed"],
@@ -732,7 +771,7 @@ function AppImage(;
         error("`appimage_compression` must be one of: " *
               join(AppImagePack.COMPRESSORS, ", ") * ". Got `$compression`.")
 
-    return AppImage(icon, desktop_launcher, metainfo, main_launcher, compression, windowed, compress, arch, runtime, predicate, parameters)
+    return AppImage(main_launcher, compression, compress, arch, runtime, predicate, parameters)
 end
 
 function AppImage(overlay; preferences = preferences(), kwargs...)
@@ -747,23 +786,6 @@ end
 function stage(appimage::AppImage, destination::String)
 
     (; predicate, parameters) = appimage
-    app_name = parameters["APP_NAME"]
-    bundle_identifier = get(parameters, "BUNDLE_IDENTIFIER", app_name)
-
-    # The spec looks for the desktop entry and the icon at the AppDir root, and the `Icon=` key
-    # names the icon with no path and no extension.
-    install(appimage.icon, joinpath(destination, "$app_name.png"))
-    install(appimage.desktop_launcher, joinpath(destination, "$app_name.desktop"); parameters, predicate)
-
-    # `.DirIcon` is what file managers read for the thumbnail. A copy rather than a symlink, since
-    # squashfs preserves symlinks but some extraction paths do not follow them.
-    #cp(joinpath(destination, "$app_name.png"), joinpath(destination, ".DirIcon"); force = true)
-    install(appimage.icon, joinpath(destination, ".DirIcon"))
-
-    # Freedesktop locations, so an AppImage the user installs integrates with the menu
-    install(appimage.icon, joinpath(destination, "usr/share/icons/hicolor/256x256/apps/$app_name.png"))
-    install(appimage.desktop_launcher, joinpath(destination, "usr/share/applications/$app_name.desktop"); parameters, predicate)
-    install(appimage.metainfo, joinpath(destination, "usr/share/metainfo/$bundle_identifier.appdata.xml"); parameters, predicate)
 
     install(appimage.main_launcher, joinpath(destination, "AppRun"); parameters, executable = true, predicate)
 
@@ -779,10 +801,6 @@ function bundle(setup::Function, appimage::AppImage, destination::String; force 
             error("Destination $destination already exists. Use `force = true` argument.")
         end
     end
-
-    # Resolve the runtime before doing the expensive staging work, so a missing one fails in
-    # seconds rather than after a full image build.
-    #runtime = appimage.compress ? AppImageRuntime.resolve(appimage.arch; runtime = appimage.runtime) : nothing
 
     appdir = appimage.compress ? mktempdir() : destination
 

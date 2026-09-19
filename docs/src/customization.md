@@ -1,5 +1,7 @@
 # Customization
 
+![](assets/configuration-slide-striped.png)
+
 Every operating system has made unique design choices for application distribution. On macOS, applications are placed in the Applications folder via DMG containers. Windows supports many installer formats, with MSIX being the most modern. Linux uses Snap and Flatpak for distributing external software. Creating an installer on each platform involves a common set of tasks:
 
 - Producing icon assets in the format the installer or operating system expects

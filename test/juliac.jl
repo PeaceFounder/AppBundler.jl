@@ -1,6 +1,6 @@
 using Test
 import AppBundler.JuliaC: JuliaCBundle, get_juliac, juliac_shim
-import AppBundler: stage, Snap, MSIX, DMG, bundle
+import AppBundler: stage, Snap, MSIX, DMG, AppImage, MSIX2EXE, bundle, repack
 
 # If we set environment variable JuliaC 
 withenv("JULIAC"=>"juliac_backup") do
@@ -31,25 +31,34 @@ asset_spec = Dict{Symbol, Vector{String}}(
     :AppEnv => ["LICENSE"]
 )
 
-spec = JuliaCBundle(project; trim = true, asset_spec)
-build_dir = mktempdir()
-#build_dir = joinpath(dirname(@__DIR__), "build")
+#build_dir = mktempdir()
+build_dir = joinpath(dirname(@__DIR__), "build")
 
-if isfile(spec.juliac_cmd.exec[1])
+try
+    spec = JuliaCBundle(project; trim = true, asset_spec)
+    predicate = "juliac"
 
     if Sys.islinux()
-        snap = Snap(project; windowed = false)
-        bundle(spec, snap, joinpath(build_dir, "cmdapp.snap"); force=true)
+        snap = Snap(project; windowed = false, predicate)
+        bundle(spec, snap, joinpath(build_dir, "cmdapp-juliac.snap"); force=true)
+
+        appimage = AppImage(project; windowed = false, predicate)
+        bundle(spec, appimage, joinpath(build_dir, "cmdapp-juliac.appimage"); force=true)
     elseif Sys.isapple()
-        dmg = DMG(project; windowed = false, selfsign = true)
-        bundle(spec, dmg, joinpath(build_dir, "cmdapp.dmg"); force=true)
+        dmg = DMG(project; windowed = false, selfsign = true, predicate)
+        bundle(spec, dmg, joinpath(build_dir, "cmdapp-juliac.dmg"); force=true)
     elseif Sys.iswindows()
-        msix = MSIX(project; windowed = false, selfsign = true)
-        bundle(spec, msix, joinpath(build_dir, "cmdappwin.msix"); force=true)
+        msix = MSIX(project; windowed = false, selfsign = true, predicate)
+        msix_path = joinpath(build_dir, "cmdapp-juliac.msix")
+        bundle(spec, msix, msix_path; force=true)
+
+        exe_spec = MSIX2EXE(project; windowed = false)
+        exe_path = joinpath(build_dir, "cmdapp-juliac.exe")
+        repack(msix_path, exe_spec, exe_path)
     else
         @warn "Nothing tested for JuliaC on this platform"
     end
 
-else
+catch
     @warn "JuliaC tests are skipped because juliac can't be found in ~/.julia/juliac"
 end
