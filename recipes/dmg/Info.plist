@@ -23,7 +23,7 @@
     <string>icon.icns</string>
 
     <key>CFBundleExecutable</key>
-    <string>{{APP_NAME}}</string>
+    <string>{{APP_EXE}}</string>
 
     <!-- The principal class that serves as the entry point for the app. (For Cocoa apps) -->
     <key>NSPrincipalClass</key>

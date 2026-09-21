@@ -3,6 +3,8 @@ using Pkg.BinaryPlatforms: MacOS
 using AppBundlerUtils_jll
 import Mustache
 
+#preferences(project) = get_project_preferences(overlay)["AppBundler"]
+
 """
     MSIX([overlay]; arch, compress, windowed, kwargs...)
  
@@ -234,9 +236,10 @@ Snap(; prefix = ["custom/", "recipes/"]) # explicit search path
 struct Snap # by extensions files could have multiple modes that are set via stage command
     icon::String
     snap_config::String
+    command::String
     desktop_launcher::String
     configure_hook::Union{String, Nothing} # needs to be enabled when staging
-    main_launcher::Union{String, Nothing}
+    #main_launcher::Union{String, Nothing}
     windowed::Bool
     compress::Bool
     arch::Symbol
@@ -250,23 +253,24 @@ function Snap(;
               predicate = preferences["bundler"],
               icon = get_path(prefix, ["snap/icon.png", "icon.png"]),
               snap_config = get_path(prefix, "snap/snap.yaml"),
+              command = preferences["snap_command"],
               desktop_launcher = get_path(prefix, "snap/main.desktop"),
               configure_hook = get_path(prefix, hook("snap/configure.sh", predicate); warn = false),
-              main_launcher = get_path(prefix, hook("snap/main.sh", predicate); warn = false),
+              #main_launcher = get_path(prefix, hook("snap/main.sh", predicate); warn = false),
               windowed = preferences["windowed"],
               compress = preferences["compress"],
               arch = Sys.ARCH,
-              parameters = Dict("WINDOWED" => windowed)
+              parameters = Dict("WINDOWED" => windowed, "COMMAND" => command)
               )
 
-    return Snap(icon, snap_config, desktop_launcher, configure_hook, main_launcher, windowed, compress, arch, predicate, parameters)
+    #return Snap(icon, snap_config, desktop_launcher, configure_hook, main_launcher, windowed, compress, arch, predicate, parameters)
+    return Snap(icon, snap_config, command, desktop_launcher, configure_hook, windowed, compress, arch, predicate, parameters)
 end
 
 function Snap(overlay; preferences = get_project_preferences(overlay), kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     snap = Snap(; prefix, preferences, kwargs...)
-    #parameters = get_bundle_parameters!(snap.parameters, joinpath(overlay, "Project.toml"); preferences)
     parameters = get_bundle_parameters!(snap.parameters, preferences)
 
     return snap
@@ -320,6 +324,7 @@ DMG(; prefix = ["custom/", "recipes/"]) # explicit search path
 struct DMG
     icon::String
     info_config::String
+    #command::String
     entitlements::String
     dsstore::String # if it's toml then use it as source for parsing
     selfsign::Bool
@@ -336,6 +341,8 @@ struct DMG
     predicate::String
     parameters::Dict{String, Any}
 end
+
+
 
 # soft link can be used in case one needs to use png source. The issue here is of communicating intent.
 function DMG(;
@@ -528,10 +535,10 @@ function stage(snap::Snap, destination::String)
         install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters, executable = true, predicate)
     end
 
-    if !isnothing(snap.main_launcher)
-        app_name = snap.parameters["APP_NAME"]
-        install(snap.main_launcher, joinpath(destination, "bin/$app_name"); parameters, executable = true, predicate)
-    end
+    # if !isnothing(snap.main_launcher)
+    #     app_name = snap.parameters["APP_NAME"]
+    #     install(snap.main_launcher, joinpath(destination, "bin/$app_name"); parameters, executable = true, predicate)
+    # end
 
     return
 end
@@ -746,6 +753,7 @@ end
 """
 struct AppImage
     main_launcher::String # It is always AppRun.sh. 
+    command::String
     compression::Symbol
     compress::Bool
     arch::Symbol
@@ -759,19 +767,20 @@ function AppImage(;
                   preferences = preferences(),
                   predicate = preferences["bundler"],
                   main_launcher = get_path(prefix, hook("appimage/AppRun.sh", predicate); warn = false),
+                  command = preferences["appimage_command"],
                   compression = Symbol(get(preferences, "appimage_compression", "zstd")),
                   windowed = preferences["windowed"],
                   compress = preferences["compress"],
                   arch = Sys.ARCH,
                   runtime = AppImageRuntime.get_runtime(arch),
-                  parameters = Dict{String, Any}("WINDOWED" => windowed)
+                  parameters = Dict{String, Any}("WINDOWED" => windowed, "COMMAND" => command)
                   )
 
     compression in AppImagePack.COMPRESSORS ||
         error("`appimage_compression` must be one of: " *
               join(AppImagePack.COMPRESSORS, ", ") * ". Got `$compression`.")
 
-    return AppImage(main_launcher, compression, compress, arch, runtime, predicate, parameters)
+    return AppImage(main_launcher, command, compression, compress, arch, runtime, predicate, parameters)
 end
 
 function AppImage(overlay; preferences = get_project_preferences(overlay), kwargs...)

@@ -26,6 +26,23 @@ mkpath(build_dir)
 # args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "--target-name=qmlapp-juliac", "-Dbundler=\"juliac\""]
 # AppBundler.main(args)
 
+
 app_dir = joinpath(root_dir, "examples/CmdApp")
 args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg", "--debug"]
 AppBundler.main(args)
+
+# app_dir = joinpath(root_dir, "examples/CmdApp")
+# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg", "--debug", "-Dapp_name=cmdapp-snap-juliaimg"]
+# AppBundler.main(args)
+
+# app_dir = joinpath(root_dir, "examples/CmdApp")
+# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg", "--target-bundle=appimage", "--debug", "-Dapp_name=cmdapp-appimage-juliaimg"]
+# AppBundler.main(args)
+
+# app_dir = joinpath(root_dir, "examples/CmdApp")
+# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliac", "--debug", "-Dapp_name=cmdapp-snap-juliac"]
+# AppBundler.main(args)
+
+# app_dir = joinpath(root_dir, "examples/CmdApp")
+# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliac", "--target-bundle=appimage", "--debug", "-Dapp_name=cmdapp-appimage-juliac"]
+# AppBundler.main(args)

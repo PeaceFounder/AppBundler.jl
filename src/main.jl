@@ -47,9 +47,8 @@ end
 function main_build(ARGS; sources_dir)
 
     config, preference_overrides = parse_args(ARGS)
-    project_preferences = get_project_preferences(sources_dir)
-    #preferences = merge(project_preferences["AppBundler"], preference_overrides)
-    preferences = merge(project_preferences, preference_overrides)
+    extended_preferences = get_extended_preferences(sources_dir; preference_overrides) 
+    preferences = extended_preferences["AppBundler"]
 
     if config[:build_dir] == "@temp"
         build_dir = mktempdir()
@@ -84,7 +83,7 @@ function main_build(ARGS; sources_dir)
 
         if preferences["juliaimg_selective_assets"]
             remove_sources = true
-            asset_spec = Resources.extract_asset_spec(sources_dir; project_preferences) 
+            asset_spec = Resources.extract_asset_spec(sources_dir; project_preferences=extended_preferences) 
         else
             remove_sources = false
             asset_spec = Dict{Symbol, Vector{String}}()
@@ -100,7 +99,7 @@ function main_build(ARGS; sources_dir)
         
     elseif bundler == "juliac"
 
-        asset_spec = Resources.extract_asset_spec(sources_dir; project_preferences)
+        asset_spec = Resources.extract_asset_spec(sources_dir; project_preferences=extended_preferences)
         spec = JuliaCBundle(sources_dir; trim = preferences["juliac_trim"], asset_spec) 
 
     else
@@ -157,6 +156,8 @@ function main_build(ARGS; sources_dir)
     elseif :snap == target_bundle
 
         snap = Snap(sources_dir; arch = target_arch, preferences)
+        @show preferences["snap_command"]
+        @show snap.parameters["COMMAND"]
         bundle(spec, snap, target_path(snap); force = overwrite_target)
 
     elseif :appimage == target_bundle
@@ -229,8 +230,8 @@ function parse_args(raw_args)
 
     schema = get_preferences_schema()
     overrides = ArgTools.parse_preferences(defines, schema)
-    
     merged_preferences = merge(preferences, overrides)
+    
     return config, merged_preferences
 end
 
