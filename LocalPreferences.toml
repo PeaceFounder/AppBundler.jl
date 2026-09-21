@@ -25,6 +25,7 @@ dmg_compression = "lzma"
 
 appimage_compression = "zstd"
 
+snap_main_command = ""
 
 bundler = "juliaimg"
 

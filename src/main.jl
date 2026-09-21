@@ -47,9 +47,9 @@ end
 function main_build(ARGS; sources_dir)
 
     config, preference_overrides = parse_args(ARGS)
-    project_preferences = Resources.get_project_preferences(sources_dir)
-    preferences = merge(project_preferences["AppBundler"], preference_overrides)
-
+    project_preferences = get_project_preferences(sources_dir)
+    #preferences = merge(project_preferences["AppBundler"], preference_overrides)
+    preferences = merge(project_preferences, preference_overrides)
 
     if config[:build_dir] == "@temp"
         build_dir = mktempdir()
@@ -171,87 +171,7 @@ function main_build(ARGS; sources_dir)
     return
 end
 
-function get_project_name(project_toml)
 
-    toml_dict = TOML.parsefile(project_toml)
-    if haskey(toml_dict, "name") 
-        return toml_dict["name"]
-    else
-        return nothing
-    end
-end
-
-function get_module_name(project_toml)
-
-    project_name = get_project_name(project_toml)
-
-    if !isnothing(project_name) && isfile(joinpath(dirname(project_toml), "src", project_name * ".jl"))
-        return project_name
-    else
-        error("Main module name can't be infered from the project. In case thats intentiional use `juliaimg_mainless = true` in LocalPrefereces.toml")
-    end
-end
-
-function get_project_version(project_toml)
-    toml_dict = TOML.parsefile(project_toml)
-    return get(toml_dict, "version", "0.0.1")
-end
-
-function commit_count(repo_path = ".")
-    
-    local repo
-    try
-        repo = LibGit2.GitRepo(repo_path)
-    catch
-        return 0
-    end
-
-    try
-        head = LibGit2.head_oid(repo)
-        walker = LibGit2.GitRevWalker(repo)
-        LibGit2.push!(walker, head)
-        count = 0
-        for _ in walker
-            count += 1
-        end
-        return count
-    finally
-        close(repo)
-    end
-end
-
-get_bundle_parameters(project_toml) = get_bundle_parameters!(Dict{String, Any}(), project_toml)
-
-function get_bundle_parameters!(parameters::Dict{String, Any}, project_toml; preferences = preferences())
-
-    # The parameter resolution can differ depending on what is being bundled. 
-    # For instance MODULE_NAME is Julia specific only.
-
-    if preferences["juliaimg_mainless"]
-        project_name = get_project_name(project_toml)
-        app_name = get(preferences, "app_name", project_name)
-    else
-        module_name = get_module_name(project_toml)
-        parameters["MODULE_NAME"] = module_name
-        app_name = get(preferences, "app_name", module_name) 
-    end
-
-    parameters["APP_NAME"] = lowercase(join(split(app_name, " "), "-"))
-
-    parameters["APP_DISPLAY_NAME"] = get(preferences, "app_display_name", get(preferences, "app_name", app_name))
-
-    parameters["APP_VERSION"] = get_project_version(project_toml)
-    parameters["BUILD_NUMBER"] = get(preferences,"build_number", commit_count(dirname(project_toml)))
-    
-    parameters["APP_SUMMARY"] = preferences["app_summary"]
-    parameters["APP_DESCRIPTION"] = preferences["app_description"]
-    
-    parameters["BUNDLE_IDENTIFIER"] = get(preferences, "bundle_identifier", "org.appbundler." * parameters["APP_NAME"])
-
-    parameters["PUBLISHER_DISPLAY_NAME"] = preferences["publisher_name"]
-
-    return parameters
-end
 
 # Short options, mapped to their long form. Listed explicitly because a leading
 # single dash is otherwise a value: `--password -secret` must keep -secret.
@@ -307,7 +227,7 @@ function parse_args(raw_args)
         end
     end
 
-    schema = TOML.parse(String(read(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))))["AppBundler"]
+    schema = get_preferences_schema()
     overrides = ArgTools.parse_preferences(defines, schema)
     
     merged_preferences = merge(preferences, overrides)

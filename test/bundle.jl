@@ -80,7 +80,7 @@ if Sys.isunix()
 
     @time @testset "DMG bundling tests" begin
 
-        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true, selfsign = true, predicate, arch = :x86_64)
+        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true, selfsign = true, predicate, arch = :x86_64, windowed = false)
 
         @test hash_stage() do dest
             stage(dmg, joinpath(dest, "GtkApp.app"); dsstore=true)
@@ -116,7 +116,7 @@ if Sys.isunix()
                 @test occursin(r"flags=0x[0-9a-f]+\(runtime\)", output)
             end
 
-            @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
+            AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
             rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
 
         end == "340323df33e9f976003cb5b8e6059f3a09226c6eb93d489a406feae39ef3345d"
@@ -125,7 +125,7 @@ if Sys.isunix()
         if Sys.isapple()
             @test hash_stage() do stage_dir
 
-                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false, selfsign = true, predicate, arch = :x86_64)
+                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false, selfsign = true, predicate, arch = :x86_64, windowed = false)
                 dest = joinpath(mktempdir(), "gtkapp.dmg")
                 bundle(dmg, dest) do app_stage
                     @info "The DMG app stage is $app_stage"
@@ -153,7 +153,7 @@ if Sys.isunix()
                     unmount_dmg(mount_point)
                 end
 
-                @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
+                AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
                 rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
 
             end == "340323df33e9f976003cb5b8e6059f3a09226c6eb93d489a406feae39ef3345d"

@@ -48,6 +48,7 @@ include("bundle.jl")
 include("recipes.jl") 
 
 include("ArgTools.jl")
+include("preferences.jl")
 include("main.jl")
 
 #bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)

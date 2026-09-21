@@ -43,6 +43,8 @@ try
         bundle(spec, snap, joinpath(build_dir, "cmdapp-juliac.snap"); force=true)
 
         appimage = AppImage(project; windowed = false, predicate)
+        #appimage = AppImage(project; windowed = false, predicate, runtime = joinpath(dirname(@__DIR__), "build/AppImageRuntime.v2025.11.8.aarch64-linux-gnu/bin/runtime"))
+        #appimage = AppImage(project; windowed = false, predicate, runtime = joinpath(dirname(@__DIR__), "build/AppImageRuntime.v2025.11.8.aarch64-linux-musl/bin/runtime"))
         bundle(spec, appimage, joinpath(build_dir, "cmdapp-juliac.appimage"); force=true)
     elseif Sys.isapple()
         dmg = DMG(project; windowed = false, selfsign = true, predicate)

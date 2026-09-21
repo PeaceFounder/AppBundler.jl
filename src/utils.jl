@@ -70,11 +70,14 @@ end
 # instantiation of self signed keys could be done at a seperate command!
 function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force = false)
 
-    if !isfile(joinpath(root, "Project.toml"))
-        error("It appears $root does not contain a valid Julia project")
-    else
-        parameters = get_bundle_parameters(joinpath(root, "Project.toml"))
-    end
+    preferences = get_project_preferences(root)
+    parameters = get_bundle_parameters(preferences)
+
+    # if !isfile(joinpath(root, "Project.toml"))
+    #     error("It appears $root does not contain a valid Julia project")
+    # else
+    #     parameters = get_bundle_parameters(joinpath(root, "Project.toml"))
+    # end
 
     mkpath(joinpath(root, ".github/workflows"))
 

@@ -89,11 +89,11 @@ function MSIX(;
 
 end
 
-function MSIX(overlay; preferences = preferences(), kwargs...)
+function MSIX(overlay; preferences = get_project_preferences(overlay), kwargs...)
     
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     msix = MSIX(; prefix, preferences, kwargs...)
-    get_bundle_parameters!(msix.parameters, joinpath(overlay, "Project.toml"); preferences)
+    get_bundle_parameters!(msix.parameters, preferences)
 
     return msix
 end
@@ -244,7 +244,6 @@ struct Snap # by extensions files could have multiple modes that are set via sta
     parameters::Dict{String, Any}
 end
 
-
 function Snap(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
               preferences = preferences(),
@@ -263,11 +262,12 @@ function Snap(;
     return Snap(icon, snap_config, desktop_launcher, configure_hook, main_launcher, windowed, compress, arch, predicate, parameters)
 end
 
-function Snap(overlay; preferences = preferences(), kwargs...)
+function Snap(overlay; preferences = get_project_preferences(overlay), kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     snap = Snap(; prefix, preferences, kwargs...)
-    parameters = get_bundle_parameters!(snap.parameters, joinpath(overlay, "Project.toml"); preferences)
+    #parameters = get_bundle_parameters!(snap.parameters, joinpath(overlay, "Project.toml"); preferences)
+    parameters = get_bundle_parameters!(snap.parameters, preferences)
 
     return snap
 end
@@ -363,11 +363,11 @@ function DMG(;
     return DMG(icon, info_config, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, hfsplus, windowed, compress, compression, arch, predicate, parameters)
 end
 
-function DMG(overlay; preferences = preferences(), kwargs...)
+function DMG(overlay; preferences = get_project_preferences(overlay), kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     dmg = DMG(; prefix, preferences, kwargs...)
-    get_bundle_parameters!(dmg.parameters, joinpath(overlay, "Project.toml"); preferences)
+    get_bundle_parameters!(dmg.parameters, preferences)
     
     return dmg
 end
@@ -774,11 +774,11 @@ function AppImage(;
     return AppImage(main_launcher, compression, compress, arch, runtime, predicate, parameters)
 end
 
-function AppImage(overlay; preferences = preferences(), kwargs...)
+function AppImage(overlay; preferences = get_project_preferences(overlay), kwargs...)
 
     prefix = [overlay, joinpath(overlay, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     appimage = AppImage(; prefix, preferences, kwargs...)
-    get_bundle_parameters!(appimage.parameters, joinpath(overlay, "Project.toml"); preferences)
+    get_bundle_parameters!(appimage.parameters, preferences)
 
     return appimage
 end
