@@ -236,7 +236,7 @@ Snap(; prefix = ["custom/", "recipes/"]) # explicit search path
 struct Snap # by extensions files could have multiple modes that are set via stage command
     icon::String
     snap_config::String
-    command::String
+    command::Cmd
     desktop_launcher::String
     configure_hook::Union{String, Nothing} # needs to be enabled when staging
     #main_launcher::Union{String, Nothing}
@@ -253,14 +253,14 @@ function Snap(;
               predicate = preferences["bundler"],
               icon = get_path(prefix, ["snap/icon.png", "icon.png"]),
               snap_config = get_path(prefix, "snap/snap.yaml"),
-              command = preferences["snap_command"],
+              command = Cmd(preferences["snap_command"]),
               desktop_launcher = get_path(prefix, "snap/main.desktop"),
               configure_hook = get_path(prefix, hook("snap/configure.sh", predicate); warn = false),
               #main_launcher = get_path(prefix, hook("snap/main.sh", predicate); warn = false),
               windowed = preferences["windowed"],
               compress = preferences["compress"],
               arch = Sys.ARCH,
-              parameters = Dict("WINDOWED" => windowed, "COMMAND" => command)
+              parameters = Dict("WINDOWED" => windowed, "COMMAND" => Base.shell_escape_posixly(command))
               )
 
     #return Snap(icon, snap_config, desktop_launcher, configure_hook, main_launcher, windowed, compress, arch, predicate, parameters)
@@ -324,7 +324,7 @@ DMG(; prefix = ["custom/", "recipes/"]) # explicit search path
 struct DMG
     icon::String
     info_config::String
-    #command::String
+    command::Cmd
     entitlements::String
     dsstore::String # if it's toml then use it as source for parsing
     selfsign::Bool
@@ -351,6 +351,7 @@ function DMG(;
              predicate = preferences["bundler"],
              icon = get_path(prefix, ["dmg/icon.icns", "icon.icns"]), # The "dmg/icon.png" is not yet supported
              info_config = get_path(prefix, "dmg/Info.plist"),
+             command = Cmd(preferences["dmg_command"]),
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
              dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
              selfsign = preferences["selfsign"],
@@ -364,10 +365,10 @@ function DMG(;
              compress = preferences["compress"],
              compression = preferences["dmg_compression"] |> Symbol,
              arch = Sys.ARCH,
-             parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => string(sandboxed_runtime))
+             parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => string(sandboxed_runtime), "COMMAND"=>Base.shell_escape_posixly(command))
              )
 
-    return DMG(icon, info_config, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, hfsplus, windowed, compress, compression, arch, predicate, parameters)
+    return DMG(icon, info_config, command, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, hfsplus, windowed, compress, compression, arch, predicate, parameters)
 end
 
 function DMG(overlay; preferences = get_project_preferences(overlay), kwargs...)
@@ -497,7 +498,7 @@ end
 function stage(dmg::DMG, destination::String; dsstore = false) 
 
     (; predicate, parameters) = dmg
-    app_name = parameters["APP_NAME"]
+    app_exe = parameters["APP_EXE"]
 
     install(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns"))
     install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)
@@ -514,7 +515,7 @@ function stage(dmg::DMG, destination::String; dsstore = false)
 
     if !isnothing(dmg.main_launcher)
         launcher = retrieve_macos_launcher(MacOS(dmg.arch))
-        install(launcher, joinpath(destination, "Contents/MacOS/$app_name"); executable = true)
+        install(launcher, joinpath(destination, "Contents/MacOS/$app_exe"); executable = true)
 
         install(dmg.main_launcher, joinpath(destination, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
     end
@@ -525,11 +526,12 @@ end
 function stage(snap::Snap, destination::String)
 
     (; predicate, parameters) = snap
-    app_name = parameters["APP_NAME"]
+    #app_name = parameters["APP_NAME"]
+    app_exe = parameters["APP_EXE"]
 
     install(snap.icon, joinpath(destination, "meta/icon.png"))
     install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters, predicate)
-    install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_name.desktop"); parameters, predicate)
+    install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_exe.desktop"); parameters, predicate)
     
     if !isnothing(snap.configure_hook)
         install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters, executable = true, predicate)
@@ -752,8 +754,8 @@ end
 ```
 """
 struct AppImage
-    main_launcher::String # It is always AppRun.sh. 
-    command::String
+    apprun::String # It is always AppRun.sh. 
+    command::Cmd
     compression::Symbol
     compress::Bool
     arch::Symbol
@@ -766,21 +768,21 @@ function AppImage(;
                   prefix = joinpath(dirname(@__DIR__), "recipes"),
                   preferences = preferences(),
                   predicate = preferences["bundler"],
-                  main_launcher = get_path(prefix, hook("appimage/AppRun.sh", predicate); warn = false),
-                  command = preferences["appimage_command"],
+                  apprun = get_path(prefix, hook("appimage/AppRun.sh", predicate); warn = false),
+                  command = Cmd(preferences["appimage_command"]),
                   compression = Symbol(get(preferences, "appimage_compression", "zstd")),
                   windowed = preferences["windowed"],
                   compress = preferences["compress"],
                   arch = Sys.ARCH,
                   runtime = AppImageRuntime.get_runtime(arch),
-                  parameters = Dict{String, Any}("WINDOWED" => windowed, "COMMAND" => command)
+                  parameters = Dict{String, Any}("WINDOWED" => windowed, "COMMAND" => Base.shell_escape_posixly(command))
                   )
 
     compression in AppImagePack.COMPRESSORS ||
         error("`appimage_compression` must be one of: " *
               join(AppImagePack.COMPRESSORS, ", ") * ". Got `$compression`.")
 
-    return AppImage(main_launcher, command, compression, compress, arch, runtime, predicate, parameters)
+    return AppImage(apprun, command, compression, compress, arch, runtime, predicate, parameters)
 end
 
 function AppImage(overlay; preferences = get_project_preferences(overlay), kwargs...)
@@ -796,7 +798,7 @@ function stage(appimage::AppImage, destination::String)
 
     (; predicate, parameters) = appimage
 
-    install(appimage.main_launcher, joinpath(destination, "AppRun"); parameters, executable = true, predicate)
+    install(appimage.apprun, joinpath(destination, "AppRun"); parameters, executable = true, predicate)
 
     return
 end

@@ -30,7 +30,7 @@
     {{#JULIAIMG}}
     <Application EntryPoint="Windows.FullTrustApplication" 
 		 Executable="bin\julia.exe" 
-		 Id="{{APP_NAME}}" 
+		 Id="{{APP_EXE}}" 
 		 uap10:RuntimeBehavior="packagedClassicApp" 
 		 uap10:Subsystem="{{#WINDOWED}}windows{{/WINDOWED}}{{^WINDOWED}}console{{/WINDOWED}}" 
 		 uap10:SupportsMultipleInstances="true" 
@@ -52,7 +52,7 @@
                         EntryPoint="Windows.FullTrustApplication" 
                         Executable="bin\julia.exe">
           <uap3:AppExecutionAlias>
-            <desktop:ExecutionAlias Alias="{{APP_NAME}}.exe" />
+            <desktop:ExecutionAlias Alias="{{APP_EXE}}.exe" />
           </uap3:AppExecutionAlias>
         </uap3:Extension>
       </Extensions>
@@ -60,8 +60,8 @@
     {{/JULIAIMG}}
     {{#JULIAC}}
     <Application EntryPoint="Windows.FullTrustApplication" 
-		 Executable="bin\{{APP_NAME}}.exe" 
-		 Id="{{APP_NAME}}" 
+		 Executable="bin\{{APP_EXE}}.exe" 
+		 Id="{{APP_EXE}}" 
 		 uap10:RuntimeBehavior="packagedClassicApp" 
 		 uap10:Subsystem="{{#WINDOWED}}windows{{/WINDOWED}}{{^WINDOWED}}console{{/WINDOWED}}" 
 		 uap10:SupportsMultipleInstances="true" 
@@ -80,9 +80,9 @@
       <Extensions>
         <uap3:Extension Category="windows.appExecutionAlias" 
                         EntryPoint="Windows.FullTrustApplication" 
-                        Executable="bin\{{APP_NAME}}.exe">
+                        Executable="bin\{{APP_EXE}}.exe">
           <uap3:AppExecutionAlias>
-            <desktop:ExecutionAlias Alias="{{APP_NAME}}.exe" />
+            <desktop:ExecutionAlias Alias="{{APP_EXE}}.exe" />
           </uap3:AppExecutionAlias>
         </uap3:Extension>
       </Extensions>

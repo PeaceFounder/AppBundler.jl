@@ -156,8 +156,6 @@ function main_build(ARGS; sources_dir)
     elseif :snap == target_bundle
 
         snap = Snap(sources_dir; arch = target_arch, preferences)
-        @show preferences["snap_command"]
-        @show snap.parameters["COMMAND"]
         bundle(spec, snap, target_path(snap); force = overwrite_target)
 
     elseif :appimage == target_bundle

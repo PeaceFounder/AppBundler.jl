@@ -86,7 +86,8 @@ if Sys.isunix()
             stage(dmg, joinpath(dest, "GtkApp.app"); dsstore=true)
             AppBundler.DMGPack.replace_binary_with_hash(joinpath(dest, "GtkApp.app/Contents/MacOS/gtkapp"))
             rm("$dest/Applications")
-        end == "340323df33e9f976003cb5b8e6059f3a09226c6eb93d489a406feae39ef3345d" 
+
+        end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898" 
 
         @test hash_stage() do stage_dir
 
@@ -119,7 +120,7 @@ if Sys.isunix()
             AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
             rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
 
-        end == "340323df33e9f976003cb5b8e6059f3a09226c6eb93d489a406feae39ef3345d"
+        end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898"
 
 
         if Sys.isapple()
@@ -156,7 +157,7 @@ if Sys.isunix()
                 AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
                 rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
 
-            end == "340323df33e9f976003cb5b8e6059f3a09226c6eb93d489a406feae39ef3345d"
+            end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898"
         end
     end
 
@@ -168,7 +169,7 @@ if Sys.isunix()
 
         @test hash_stage() do dest
             stage(snap, dest)
-        end == "f64997788eca9a5d020c4fe73921d4085fc07ea2266b1401276162efd4695678"
+        end == "cf6f6df039acd7ddc9900dd29d69ea5427d3e270bba0c72e77bd617d7b693f2c"
 
         @test hash_stage() do stage_dir
 
@@ -179,7 +180,7 @@ if Sys.isunix()
             
             AppBundler.SnapPack.unpack(dest, stage_dir)    
 
-        end == "f64997788eca9a5d020c4fe73921d4085fc07ea2266b1401276162efd4695678"
+        end == "cf6f6df039acd7ddc9900dd29d69ea5427d3e270bba0c72e77bd617d7b693f2c"
     end
 
 
@@ -198,6 +199,6 @@ if Sys.isunix()
 
         AppBundler.AppImagePack.unpack(dest, stage_dir)    
 
-    end == "2bd5ce09eeebf1aca5642913587b3870a96bf3b2c4a849c1557480afc10419a4"
+    end == "551e3d117db120b7238dfee04a3fc64682bf9285bd03cf97cf0c5432997f3286"
 
 end

@@ -28,7 +28,7 @@ mkpath(build_dir)
 
 
 app_dir = joinpath(root_dir, "examples/CmdApp")
-args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg", "--debug"]
+args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg"]
 AppBundler.main(args)
 
 # app_dir = joinpath(root_dir, "examples/CmdApp")

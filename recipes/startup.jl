@@ -20,7 +20,7 @@ if isinteractive() && !isempty("{{MODULE_NAME}}") && isempty(ARGS)
     println("No arguments provided. To display help, use:")
 
     if Sys.iswindows()
-        println("  {{APP_NAME}}.exe --eval \"using {{MODULE_NAME}}\" --help")
+        println("  {{APP_EXE}}.exe --eval \"using {{MODULE_NAME}}\" --help")
     else
         julia = relpath(joinpath(Sys.BINDIR, "julia"), pwd())
         println("  $julia --eval \"using {{MODULE_NAME}}\" --help")

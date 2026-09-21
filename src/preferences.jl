@@ -141,16 +141,17 @@ function merge_dynamic_defaults!(preferences, project_dir)
     if preferences["bundler"] == "juliaimg" && !preferences["juliaimg_mainless"]
         module_name = preferences["module_name"]
         if !haskey(preferences, "snap_command")
-            preferences["snap_command"] = "bin/julia -m $module_name"
+            preferences["snap_command"] = ["bin/julia", "-m", module_name]
         end
 
         if !haskey(preferences, "appimage_command")
-            preferences["appimage_command"] = "bin/julia -m $module_name"
+            preferences["appimage_command"] = ["bin/julia", "-m", module_name]
         end
 
-        # if !haskey(preferences, "dmg_command")
-        #     preferences["dmg_command"] = "Libraries/bin/julia -m $module_name"
-        # end
+        if !haskey(preferences, "dmg_command")
+            #preferences["dmg_command"] = ["Libraries/bin/julia", "-m", module_name]
+            preferences["dmg_command"] = ["Libraries/bin/julia", "--eval", "using $module_name", "--"]
+        end
 
         # if !haskey(preferences, "msix_command")
         #     preferences["msix_command"] = "bin/julia.exe -m $module_name"
@@ -158,16 +159,16 @@ function merge_dynamic_defaults!(preferences, project_dir)
     else
         app_exe = preferences["bundler"] == "juliaimg" ? "julia" : preferences["app_exe"]
         if !haskey(preferences, "snap_command")
-            preferences["snap_command"] = "bin/$app_exe"
+            preferences["snap_command"] = ["bin/$app_exe"]
         end
 
         if !haskey(preferences, "appimage_command")
-            preferences["appimage_command"] = "bin/$app_exe"
+            preferences["appimage_command"] = ["bin/$app_exe"]
         end
 
-        # if !haskey(preferences, "dmg_command")
-        #     preferences["dmg_command"] = "Libraries/bin/$app_exe"
-        # end
+        if !haskey(preferences, "dmg_command")
+            preferences["dmg_command"] = ["Libraries/bin/$app_exe"]
+        end
 
         # if !haskey(preferences, "msix_command")
         #     preferences["msix_command"] = "bin/$app_exe.exe"
@@ -189,7 +190,8 @@ function get_preferences_schema()
     preferences["bundle_identifier"] = ""
     preferences["version"] = ""
     preferences["build_number"] = 12
-    preferences["main_command"] = ""
+    preferences["snap_command"] = []
+    preferences["appimage_command"] = []
 
     return preferences
 end
