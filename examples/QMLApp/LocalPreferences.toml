@@ -5,7 +5,7 @@ assets = ["src/App.qml"]
 windowed = true
 bundler = "juliac"
 
-juliac_trim = false
+juliac.trim = false
 
-juliaimg_selective_assets = true
-juliaimg_sysimg = ["QMLApp"]
+juliaimg.selective_assets = true
+juliaimg.sysimg = ["QMLApp"]

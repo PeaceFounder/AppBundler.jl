@@ -36,7 +36,7 @@ makedocs(
     pages = [
         "Overview" => "index.md",
         "Customization" => "customization.md",
-        "Formats" => ["formats/appimage.md", "formats/msix.md", "formats/snap.md", "formats/dmg.md"],
+        "Formats" => ["formats/msix.md", "formats/dmg.md", "formats/snap.md", "formats/appimage.md"],
         "Deployment" => "deployment.md", # codesigning, GitHub CI,
         "Troubleshooting" => "troubleshooting.md",
         "Reference" => "reference.md" # Here I could also give an overview of the internal API on how it composes. Perhaps I shall madke that as documentation for the module here.

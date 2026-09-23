@@ -377,18 +377,25 @@ function parse_options(raw_args; short_options = Dict{String, String}())
     return options, defines
 end
 
+
+
+
 """
     parse_preferences(defines, schema; on_repeat) -> Dict{String, Any}
 
 Coerce the `key => value` pairs from [`parse_options`](@ref) against the schema.
+A key inside a table of the schema is written with dots, so `-Djuliaimg.sysimg=GtkApp`
+sets `sysimg` in the `juliaimg` table, and the result is nested the same way as
+the schema. A key naming a table rather than a value is unknown.
+
 An unknown key is an error with near misses suggested; a known one has its value
 read as the type of its default. A `nothing` value — a bare `-Dkey` — stands for
 `true` and is only allowed where that default is a `Bool`.
 
-A repeated key accumulates where its default is a list — `-Dsysimg=a -Dsysimg=b`
-is the two-element form that needs no whitespace repair — and an empty payload
-clears what came before, so `-Dsysimg=` starts the list over. A repeated scalar
-takes its last value, the way a repeated flag does.
+A repeated key accumulates where its default is a list — `-Djuliaimg.sysimg=a
+-Djuliaimg.sysimg=b` is the two-element form that needs no whitespace repair — and
+an empty payload clears what came before, so `-Djuliaimg.sysimg=` starts the list
+over. A repeated scalar takes its last value, the way a repeated flag does.
 
 `on_repeat = :error` makes a second mention of a key an error instead, lists
 included: every preference must then be written exactly once. That suits a build
@@ -400,11 +407,12 @@ function parse_preferences(defines, schema::AbstractDict; on_repeat::Symbol = :l
     on_repeat in (:last, :error) ||
         error("on_repeat must be :last or :error, got :$on_repeat")
 
+    flat_schema = flatten_schema(schema)
     overrides = Dict{String, Any}()
 
     for (key, raw) in defines
-        haskey(schema, key) || error(unknown_key_message(key, schema))
-        default = schema[key]
+        haskey(flat_schema, key) || error(unknown_key_message(key, flat_schema))
+        default = flat_schema[key]
 
         if raw === nothing
             default isa Bool || error("preference '$key' expects $(type_name(default)); " *
@@ -428,7 +436,99 @@ function parse_preferences(defines, schema::AbstractDict; on_repeat::Symbol = :l
         end
     end
 
-    return overrides
+    return nest_keys(overrides)
 end
+
+"""
+    flatten_schema(schema) -> Dict{String, Any}
+
+Map every value in a nested schema to its dotted path, `"juliaimg.sysimg" => []`.
+Tables themselves get no entry.
+"""
+function flatten_schema(schema::AbstractDict, prefix::AbstractString = "")
+    flat = Dict{String, Any}()
+    for (key, value) in schema
+        path = isempty(prefix) ? key : "$prefix.$key"
+        if value isa AbstractDict
+            merge!(flat, flatten_schema(value, path))
+        else
+            flat[path] = value
+        end
+    end
+    return flat
+end
+
+"""
+    nest_keys(flat) -> Dict{String, Any}
+
+Inverse of [`flatten_schema`](@ref): turn `"juliaimg.sysimg" => ["GtkApp"]` into
+`"juliaimg" => Dict("sysimg" => ["GtkApp"])`.
+"""
+function nest_keys(flat::AbstractDict)
+    nested = Dict{String, Any}()
+    for (key, value) in flat
+        parts = split(key, '.')
+        node = nested
+        for part in parts[1:end-1]
+            node = get!(Dict{String, Any}, node, String(part))
+        end
+        node[String(parts[end])] = value
+    end
+    return nested
+end
+
+# """
+#     parse_preferences(defines, schema; on_repeat) -> Dict{String, Any}
+
+# Coerce the `key => value` pairs from [`parse_options`](@ref) against the schema.
+# An unknown key is an error with near misses suggested; a known one has its value
+# read as the type of its default. A `nothing` value — a bare `-Dkey` — stands for
+# `true` and is only allowed where that default is a `Bool`.
+
+# A repeated key accumulates where its default is a list — `-Dsysimg=a -Dsysimg=b`
+# is the two-element form that needs no whitespace repair — and an empty payload
+# clears what came before, so `-Dsysimg=` starts the list over. A repeated scalar
+# takes its last value, the way a repeated flag does.
+
+# `on_repeat = :error` makes a second mention of a key an error instead, lists
+# included: every preference must then be written exactly once. That suits a build
+# where a wrong preference is expensive, since it changes the artifact silently;
+# it does not suit a wrapper script that prepends defaults for the user to
+# override.
+# """
+# function parse_preferences(defines, schema::AbstractDict; on_repeat::Symbol = :last)
+#     on_repeat in (:last, :error) ||
+#         error("on_repeat must be :last or :error, got :$on_repeat")
+
+#     overrides = Dict{String, Any}()
+
+#     for (key, raw) in defines
+#         haskey(schema, key) || error(unknown_key_message(key, schema))
+#         default = schema[key]
+
+#         if raw === nothing
+#             default isa Bool || error("preference '$key' expects $(type_name(default)); " *
+#                                       "bare keys are only allowed for booleans. Use -D$key=<value>.")
+#             value = true
+#         else
+#             value = coerce(strip(raw), typeof(default), key)
+#         end
+
+#         if !haskey(overrides, key)
+#             overrides[key] = value
+#         elseif on_repeat === :error
+#             error("preference '$key' is set more than once, to '$(overrides[key])' and then " *
+#                   "'$value'. Set it once.")
+#         elseif !(default isa AbstractVector)
+#             overrides[key] = value                   # a later scalar replaces
+#         elseif isempty(value)
+#             overrides[key] = value                   # an empty payload clears the list
+#         else
+#             append!(overrides[key], value)
+#         end
+#     end
+
+#     return overrides
+# end
 
 end

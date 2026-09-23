@@ -85,109 +85,71 @@ function get_bundle_parameters(preferences)
 end
 
 
-function merge_dynamic_defaults!(preferences, project_dir)
+
+section!(prefs::Dict, name) = get!(Dict{String,Any}, prefs, name)
+
+function merge_dynamic_defaults!(preferences::Dict, project_dir)
 
     project_toml = joinpath(project_dir, "Project.toml")
 
-
-    if preferences["bundler"] == "juliaimg" && !preferences["juliaimg_mainless"]
-        if !haskey(preferences, "module_name")
-            module_name = get_module_name(project_toml)
-            preferences["module_name"] = module_name
-        end
+    app_name = get!(preferences, "app_name") do
+        isfile(project_toml) || error("app_name not specified in LocalPreferences.toml and can't be inferred")
+        get_project_name(project_toml)
     end
 
-    if !haskey(preferences, "app_name")
-        if isfile(project_toml)
-            #if preferences["juliaimg_mainless"]
-            #project_name = get_project_name(project_toml)
-            preferences["app_name"] = get_project_name(project_toml)
-            # else
-            #     # A bit convoluted logic here
-            #     preferences["app_name"] = preferences["module_name"]
-            # end
-        else
-            error("app_name not specified in LocalPrefrences.toml and can't be infered")
-        end
+    get!(preferences, "app_exe") do
+        lowercase(join(split(app_name, " "), "-"))
     end
 
-    if !haskey(preferences, "app_exe")
-        preferences["app_exe"] = lowercase(join(split(preferences["app_name"], " "), "-")) 
+    get!(preferences, "app_display_name", app_name)
+
+    get!(preferences, "version") do
+        get_project_version(project_toml)
     end
 
-    if !haskey(preferences, "app_display_name")
-        preferences["app_display_name"] = preferences["app_name"]
+    get!(preferences, "build_number") do
+        commit_count(project_dir)
     end
 
-    if !haskey(preferences, "version")
-        preferences["version"] = get_project_version(project_toml)
+    get!(preferences, "bundle_identifier") do
+        "org.appbundler." * lowercase(app_name)
     end
 
-    if !haskey(preferences, "build_number")
-        preferences["build_number"] = commit_count(project_dir)
-    end
+    runs_module = preferences["bundler"] == "juliaimg" && !get(preferences["juliaimg"], "mainless", false)
 
-    if !haskey(preferences, "bundle_identifier")
-        preferences["bundle_identifier"] = "org.appbundler." * lowercase(preferences["app_name"])
-    end
-
-    # I need to run this after preferences are loaded to fill the voids!!!
-
-    if preferences["bundler"] == "juliaimg" && !preferences["juliaimg_mainless"]
-        module_name = preferences["module_name"]
-        if !haskey(preferences, "snap_command")
-            #preferences["snap_command"] = ["bin/julia", "--eval", "using $module_name", "--"]
-            preferences["snap_command"] = ["bin/julia", "-m", module_name]
+    # Could introduce getnested! method 
+    if runs_module
+        module_name = get!(preferences, "module_name") do
+            get_module_name(project_toml)
         end
 
-        if !haskey(preferences, "appimage_command")
-            preferences["appimage_command"] = ["bin/julia", "--eval", "using $module_name", "--"]
-        end
-
-        if !haskey(preferences, "dmg_command")
-            #preferences["dmg_command"] = ["Libraries/bin/julia", "-m", module_name]
-            preferences["dmg_command"] = ["Libraries/bin/julia", "--eval", "using $module_name", "--"]
-        end
-
-        if !haskey(preferences, "msix_command")
-            preferences["msix_command"] = ["bin\\julia.exe", "--eval", "using $module_name"]
-        end
+        get!(get!(Dict{String,Any}, preferences, "snap"), "command", ["bin/julia", "-m", module_name])
+        get!(get!(Dict{String,Any}, preferences, "appimage"), "command", ["bin/julia", "--eval", "using $module_name", "--"])
+        get!(get!(Dict{String,Any}, preferences, "dmg"), "command", ["Libraries/bin/julia", "--eval", "using $module_name", "--"])
+        get!(get!(Dict{String,Any}, preferences, "msix"), "command", ["bin\\julia.exe", "--eval", "using $module_name"])
     else
         app_exe = preferences["bundler"] == "juliaimg" ? "julia" : preferences["app_exe"]
-        if !haskey(preferences, "snap_command")
-            preferences["snap_command"] = ["bin/$app_exe"]
-        end
 
-        if !haskey(preferences, "appimage_command")
-            preferences["appimage_command"] = ["bin/$app_exe"]
-        end
-
-        if !haskey(preferences, "dmg_command")
-            preferences["dmg_command"] = ["Libraries/bin/$app_exe"]
-        end
-
-        if !haskey(preferences, "msix_command")
-            preferences["msix_command"] = ["bin\\$app_exe.exe"]
-        end
+        get!(get!(Dict{String,Any}, preferences, "snap"), "command", ["bin/$app_exe"])
+        get!(get!(Dict{String,Any}, preferences, "appimage"), "command", ["bin/$app_exe"])
+        get!(get!(Dict{String,Any}, preferences, "dmg"), "command", ["Libraries/bin/$app_exe"])
+        get!(get!(Dict{String,Any}, preferences, "msix"), "command", ["bin\\$app_exe.exe"])
     end
 
     return
 end
-
 
 function get_preferences_schema()
 
     preferences = TOML.parse(String(read(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))))["AppBundler"]
     #merge_dynamic_defaults!(preferences, project) # this is not a good option
 
-    preferences["module_name"] = "module_name"
-    preferences["app_name"] = "app_name"
-    preferences["app_display_name"] = ""
-    preferences["bundle_identifier"] = ""
-    preferences["version"] = ""
-    preferences["build_number"] = 12
-    preferences["snap_command"] = []
-    preferences["appimage_command"] = []
+    preferences["app_name"] = "myapp"
+    preferences["bundler"] = "juliac"
+    preferences["build_number"] = 1
+    preferences["version"] = "0.0.1"
+    
+    merge_dynamic_defaults!(preferences, "")
 
     return preferences
 end
@@ -195,13 +157,17 @@ end
 function get_extended_preferences(project; preference_overrides = Dict())
 
     # hopefully the right call here
-    preferences = Resources.get_project_preferences(project)
-    merge!(preferences["AppBundler"], preference_overrides)
+    preferences = deepcopy(Resources.get_project_preferences(project))
+    #merge!(preferences["AppBundler"], preference_overrides)
+
+    custom_merge(a::Dict, b::Dict) = merge(a, b)
+    custom_merge(a::T, b::T) where T = b
+    custom_merge(a, b) = error("Incompatable types")
+    mergewith!(custom_merge, preferences["AppBundler"], preference_overrides)
+
     merge_dynamic_defaults!(preferences["AppBundler"], project)
 
     return preferences
 end
 
 get_project_preferences(project) = get_extended_preferences(project)["AppBundler"]
-
-

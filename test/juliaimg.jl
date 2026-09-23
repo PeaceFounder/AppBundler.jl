@@ -3,7 +3,6 @@ import AppBundler: stage, JuliaImgBundle
 import AppBundler
 
 import AppBundler.Resources: julia_download_url
-#import AppBundler.Stage: julia_download_url
 import Pkg.BinaryPlatforms: Linux, Windows, MacOS
 
 using Test

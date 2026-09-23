@@ -46,7 +46,7 @@ end
 
 function main_build(ARGS; sources_dir)
 
-    config, preference_overrides = parse_args(ARGS)
+    config, preference_overrides = parse_build_args(ARGS)
     extended_preferences = get_extended_preferences(sources_dir; preference_overrides) 
     preferences = extended_preferences["AppBundler"]
 
@@ -66,22 +66,19 @@ function main_build(ARGS; sources_dir)
         
     target_arch = config[:target_arch]
     target_bundle = config[:target_bundle]
-        #build_dir = config[:build_dir]
     password = config[:password]
 
     # Theese could be substituted with preferences
-    #compress = config[:compress]
-    #windowed = config[:windowed]
     selfsign = preferences["selfsign"]
     skipsign = preferences["skipsign"]
     overwrite_target = preferences["overwrite_target"]
-    msix2exe = preferences["msix2exe"]
+    msix2exe = preferences["msix"]["bootstrapper"]
 
     bundler = preferences["bundler"]
 
     if bundler == "juliaimg"
 
-        if preferences["juliaimg_selective_assets"]
+        if preferences["juliaimg"]["selective_assets"]
             remove_sources = true
             asset_spec = Resources.extract_asset_spec(sources_dir; project_preferences=extended_preferences) 
         else
@@ -90,9 +87,9 @@ function main_build(ARGS; sources_dir)
         end
 
         spec = JuliaImgBundle(sources_dir; 
-                              precompile = preferences["juliaimg_precompile"],
-                              incremental = preferences["juliaimg_incremental"],
-                              sysimg_packages = preferences["juliaimg_sysimg"],
+                              precompile = preferences["juliaimg"]["precompile"],
+                              incremental = preferences["juliaimg"]["incremental"],
+                              sysimg_packages = preferences["juliaimg"]["sysimg"],
                               remove_sources,
                               asset_spec
                               ) 
@@ -100,7 +97,7 @@ function main_build(ARGS; sources_dir)
     elseif bundler == "juliac"
 
         asset_spec = Resources.extract_asset_spec(sources_dir; project_preferences=extended_preferences)
-        spec = JuliaCBundle(sources_dir; trim = preferences["juliac_trim"], asset_spec) 
+        spec = JuliaCBundle(sources_dir; trim = preferences["juliac"]["trim"], asset_spec) 
 
     else
         error("Got unsupported bundler type $bundler")
@@ -139,7 +136,7 @@ function main_build(ARGS; sources_dir)
         end
 
     elseif :dmg == target_bundle
-
+        
         dmg = DMG(sources_dir; arch = target_arch, preferences)
 
         if selfsign || skipsign
@@ -171,7 +168,6 @@ function main_build(ARGS; sources_dir)
 end
 
 
-
 # Short options, mapped to their long form. Listed explicitly because a leading
 # single dash is otherwise a value: `--password -secret` must keep -secret.
 const SHORT_OPTIONS = Dict("-h" => "--help")
@@ -179,7 +175,7 @@ const SHORT_OPTIONS = Dict("-h" => "--help")
 require(option, value) = value === nothing ? error("$option requires a value") : value
 forbid(option, value)  = value === nothing || error("$option does not take a value, got '$value'")
 
-function parse_args(raw_args) 
+function parse_build_args(raw_args::Vector{<:AbstractString}) 
 
     args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
 
@@ -228,7 +224,12 @@ function parse_args(raw_args)
 
     schema = get_preferences_schema()
     overrides = ArgTools.parse_preferences(defines, schema)
-    merged_preferences = merge(preferences, overrides)
+    #merged_preferences = merge(preferences, overrides)
+
+    custom_merge(a::Dict, b::Dict) = merge(a, b)
+    custom_merge(a::T, b::T) where T = b
+    custom_merge(a, b) = error("Incompatable types")
+    merged_preferences = mergewith(custom_merge, preferences, overrides)
     
     return config, merged_preferences
 end
@@ -269,7 +270,7 @@ Examples:
   appbundler build . --build-dir=@temp --debug
   appbundler build . --target-bundle=snap --target-arch=aarch64
   appbundler build . --selfsign --password=secret
-  appbundler build . -Dbundler="juliac" -Djuliac_trim=true
+  appbundler build . -Dbundler="juliac" -Djuliac.trim=true
 """
 
 function print_help()

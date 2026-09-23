@@ -146,6 +146,8 @@ stage(pkg, "build/staging"; runtime_mode = "SANDBOX")
 """
 function stage(spec::JuliaCBundle, destination::String; runtime_mode = "MIN", app_name = get_module_name(spec.project), bundle_identifier = "")
 
+    # We could accept platform keyword here in order to ensure that JuliaC builds application for the correct platform
+
     (; project, juliac_cmd) = spec
 
     trim_arg = spec.trim ? `--trim=safe` : ``

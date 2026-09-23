@@ -65,8 +65,8 @@ Notarization additionally requires an App Store Connect API key, created in [App
 macOS codesigning has an additional requirement beyond certificate signing: Apple requires all distributed applications to be *notarized*. Notarization means submitting the bundle to Apple's servers, where it is checked for proper structure and the absence of malware. Two settings must be enabled in `LocalPreferences.toml` for a bundle to pass notarization:
 
 ```toml
-dmg_shallow_signing = false
-dmg_hardened_runtime = true
+dmg.shallow_signing = false
+dmg.hardened_runtime = true
 ```
 
 > **Note on shallow vs. deep signing:** Deep signing is disabled by default because it takes considerable time for Julia applications and currently tends to fail with `rcodesign` deep signing. Unfortunately, `codesign --verify --deep --verbose=4 myapp.app` passes even with shallow signing, so the only reliable way to verify that deep signing is correct is to submit the bundle to Apple's notary service and inspect the response. Budget some time for this when setting up notarization for the first time.

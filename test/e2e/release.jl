@@ -8,51 +8,29 @@ root_dir = dirname(dirname(@__DIR__))
 build_dir = joinpath(root_dir, "build")
 mkpath(build_dir)
 
-# # Nonprecompiled option is interesting to test on linux
-# app_dir = joinpath(dirname(@__DIR__), "examples/modjulia")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--target-name=modjulia-uncompiled", "--force", "--selfsign", "-Djuliaimg_precompile=false", "-Djuliaimg_incremental=true", "-Djuliaimg_sysimg=[]"]
+# Nonprecompiled option is interesting to test on linux
+# app_dir = joinpath(root_dir, "examples/modjulia")
+# args = ["build", app_dir, "--build-dir=$build_dir", "-Dapp_name=modjuliauc", "--force", "--selfsign", "-Djuliaimg.precompile=false", "-Djuliaimg.incremental=true", "-Djuliaimg.sysimg=[]", "--debug"]
 # AppBundler.main(args)
 
 # Example with compiled sysimage and remaining modules precompiled
-# app_dir = joinpath(dirname(@__DIR__), "examples/modjulia")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign"]
-# AppBundler.main(args)
-
-# app_dir = joinpath(dirname(@__DIR__), "examples/QMLApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "--target-name=qmlapp-juliaimg", "-Dbundler=\"juliaimg\""]
-# AppBundler.main(args)
-
-# app_dir = joinpath(dirname(@__DIR__), "examples/QMLApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "--target-name=qmlapp-juliac", "-Dbundler=\"juliac\""]
-# AppBundler.main(args)
-
-
-# app_dir = joinpath(root_dir, "examples/CmdApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg"]
-# AppBundler.main(args)
-
-# app_dir = joinpath(root_dir, "examples/CmdApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg", "--debug", "-Dapp_name=cmdapp-snap-juliaimg"]
-# AppBundler.main(args)
-
-# app_dir = joinpath(root_dir, "examples/CmdApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg", "--target-bundle=appimage", "--debug", "-Dapp_name=cmdapp-appimage-juliaimg"]
-# AppBundler.main(args)
-
-# app_dir = joinpath(root_dir, "examples/CmdApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliac", "--debug", "-Dapp_name=cmdapp-snap-juliac"]
-# AppBundler.main(args)
-
-# app_dir = joinpath(root_dir, "examples/CmdApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliac", "--target-bundle=appimage", "--debug", "-Dapp_name=cmdapp-appimage-juliac"]
-# AppBundler.main(args)
-
-
-app_dir = joinpath(root_dir, "examples/CmdApp")
-args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg", "--target-bundle=appimage"] # "-Dapp_name=cmdappjuliaimg"
+app_dir = joinpath(root_dir, "examples/modjulia")
+args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign"]
 AppBundler.main(args)
 
-# app_dir = joinpath(root_dir, "examples/CmdApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliac", "-Dapp_name=cmdappjuliac", "--target-bundle=appimage"]
-# AppBundler.main(args)
+app_dir = joinpath(root_dir, "examples/QMLApp")
+args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg"]
+AppBundler.main(args)
+
+app_dir = joinpath(root_dir, "examples/QMLApp")
+args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dapp_name=qmlappjc", "-Dbundler=juliac"]
+AppBundler.main(args)
+
+app_dir = joinpath(root_dir, "examples/CmdApp")
+args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg", "-Dapp_name=cmdappjuliaimg"]
+AppBundler.main(args)
+
+app_dir = joinpath(root_dir, "examples/CmdApp")
+args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliac", "-Dapp_name=cmdappjuliac"]
+AppBundler.main(args)
 

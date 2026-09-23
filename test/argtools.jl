@@ -2,22 +2,22 @@
 #
 #   ArgTools.parse_options      argv -> ([option => value], defines).  No schema.
 #   ArgTools.parse_preferences  defines -> typed preferences.  Schema-driven.
-#   AppBundler.parse_args       wraps both and builds the config.
+#   AppBundler.parse_build_args       wraps both and builds the config.
 #
 # The invocation that motivated the parser, now writable without escapes:
 #
 #   appbundler build . --build-dir=build --selfsign \
-#       -Dbundler=juliaimg -Djuliaimg_selective_assets=true -Djuliaimg_sysimg=[QMLApp]
+#       -Dbundler=juliaimg -Djuliaimg.selective_assets=true -Djuliaimg.sysimg=[QMLApp]
 
 using AppBundler
 
 using Test
 
-using AppBundler: parse_args, ArgTools
+using AppBundler: parse_build_args, ArgTools
 using AppBundler.ArgTools: normalize_args
 
-config_of(argv...) = parse_args(String[argv...])[1]
-prefs_of(argv...) = parse_args(String[argv...])[2]
+config_of(argv...) = parse_build_args(String[argv...])[1]
+prefs_of(argv...) = parse_build_args(String[argv...])[2]
 
 """Preferences via ArgTools alone, against an explicit schema."""
 function argtools_prefs(argv, schema; kwargs...)
@@ -112,6 +112,16 @@ end
         @test defines == ["bundler" => "juliaimg", "selfsign" => nothing]
     end
 
+    @testset "dotted keys pass through whole and nest against the schema" begin
+        _, defines = ArgTools.parse_options(["-Djuliaimg.sysimg=a", "-D", "juliaimg.precompile=false"])
+        @test defines == ["juliaimg.sysimg" => "a", "juliaimg.precompile" => "false"]
+        schema = Dict{String, Any}("juliaimg" => Dict{String, Any}("sysimg" => String[], "precompile" => true))
+        @test ArgTools.parse_preferences(defines, schema) ==
+              Dict("juliaimg" => Dict("sysimg" => ["a"], "precompile" => false))
+        @test_throws ErrorException argtools_prefs(["-Djuliaimg=a"], schema)          # a table is not a value
+        @test_throws ErrorException argtools_prefs(["-Djuliaimg.sysimg.x=a"], schema) # nor a path through one
+    end
+
     @testset "strings are never type-guessed" begin
         @test prefs_of("-Dbundler=2026")["bundler"] === "2026"
         @test prefs_of("-Dbundler=true")["bundler"] === "true"
@@ -132,28 +142,28 @@ end
     end
 
     @testset "all list spellings converge" begin
-        for raw in ("-Djuliaimg_sysimg=[\"QMLApp\",\"AppEnv\"]",
-                    "-Djuliaimg_sysimg=[QMLApp,AppEnv]",
-                    "-Djuliaimg_sysimg=QMLApp,AppEnv",
-                    "-Djuliaimg_sysimg=[QMLApp, AppEnv]")   # one token: quoted by the shell
-            @test prefs_of(raw)["juliaimg_sysimg"] == ["QMLApp", "AppEnv"]
+        for raw in ("-Djuliaimg.sysimg=[\"QMLApp\",\"AppEnv\"]",
+                    "-Djuliaimg.sysimg=[QMLApp,AppEnv]",
+                    "-Djuliaimg.sysimg=QMLApp,AppEnv",
+                    "-Djuliaimg.sysimg=[QMLApp, AppEnv]")   # one token: quoted by the shell
+            @test prefs_of(raw)["juliaimg"]["sysimg"] == ["QMLApp", "AppEnv"]
         end
         # A bare scalar promotes to a one-element list; a wholly quoted payload
         # is one element, commas included.
-        @test prefs_of("-Djuliaimg_sysimg=QMLApp")["juliaimg_sysimg"] == ["QMLApp"]
-        @test prefs_of("-Djuliaimg_sysimg=\"sdsd,sds\"")["juliaimg_sysimg"] == ["sdsd,sds"]
-        for raw in ("-Djuliaimg_sysimg=", "-Djuliaimg_sysimg=[]")
-            @test isempty(prefs_of(raw)["juliaimg_sysimg"])
+        @test prefs_of("-Djuliaimg.sysimg=QMLApp")["juliaimg"]["sysimg"] == ["QMLApp"]
+        @test prefs_of("-Djuliaimg.sysimg=\"sdsd,sds\"")["juliaimg"]["sysimg"] == ["sdsd,sds"]
+        for raw in ("-Djuliaimg.sysimg=", "-Djuliaimg.sysimg=[]")
+            @test isempty(prefs_of(raw)["juliaimg"]["sysimg"])
         end
     end
 
     @testset "malformed lists abort the whole invocation" begin
         # A trailing comma inside brackets is conventional and ignored.
-        @test prefs_of("-Djuliaimg_sysimg=[a,b,]")["juliaimg_sysimg"] == ["a", "b"]
-        @test_throws ErrorException prefs_of("-Djuliaimg_sysimg=[,a]")
+        @test prefs_of("-Djuliaimg.sysimg=[a,b,]")["juliaimg"]["sysimg"] == ["a", "b"]
+        @test_throws ErrorException prefs_of("-Djuliaimg.sysimg=[,a]")
         # Unterminated: must not silently swallow the following option.
-        @test_throws Exception prefs_of("-Djuliaimg_sysimg=[QMLApp,", "--selfsign")
-        @test_throws ErrorException prefs_of("-Djuliaimg_sysimg=a,", "--selfsign")
+        @test_throws Exception prefs_of("-Djuliaimg.sysimg=[QMLApp,", "--selfsign")
+        @test_throws ErrorException prefs_of("-Djuliaimg.sysimg=a,", "--selfsign")
         # A quoted bracket is content, not an open delimiter.
         prefs = prefs_of("-Dbundler=\"[sdfsdffsdf\"", "--force")
         @test prefs["bundler"] == "[sdfsdffsdf"
@@ -164,14 +174,14 @@ end
         # Scalars take the last value, matching a repeated flag.
         @test prefs_of("-Dbundler=first", "-Dbundler=second")["bundler"] == "second"
         # Lists accumulate — the spelling that needs no quoting.
-        @test prefs_of("-Djuliaimg_sysimg=a", "-Djuliaimg_sysimg=b")["juliaimg_sysimg"] ==
+        @test prefs_of("-Djuliaimg.sysimg=a", "-Djuliaimg.sysimg=b")["juliaimg"]["sysimg"] ==
               ["a", "b"]
         # An empty payload clears rather than appends.
-        @test isempty(prefs_of("-Djuliaimg_sysimg=a", "-Djuliaimg_sysimg=")["juliaimg_sysimg"])
+        @test isempty(prefs_of("-Djuliaimg.sysimg=a", "-Djuliaimg.sysimg=")["juliaimg"]["sysimg"])
     end
 
     @testset "on_repeat = :error rejects every repeat" begin
-        # Tested against ArgTools directly: AppBundler's parse_args does not
+        # Tested against ArgTools directly: AppBundler's parse_build_args does not
         # forward the keyword unless you add it there.
         schema = Dict("bundler" => "juliaimg", "sysimg" => String[])
         @test_throws ErrorException argtools_prefs(["-Dbundler=a", "-Dbundler=b"], schema;
@@ -194,7 +204,7 @@ end
 
 ### Layer 3: flags, defaults and the AppBundler config they build.
 
-@testset "parse_args" begin
+@testset "parse_build_args" begin
 
     @testset "the motivating invocation, whole" begin
         # Every token of the documented command line, in one call: positionals,
@@ -202,11 +212,11 @@ end
         # temp dir because --build-dir is created as a side effect.
         mktempdir() do dir
             cd(dir) do
-                config, prefs = parse_args(String["--build-dir=build",
+                config, prefs = parse_build_args(String["--build-dir=build",
                                                   "--selfsign",
                                                   "-Dbundler=juliaimg",
-                                                  "-Djuliaimg_selective_assets=true",
-                                                  "-Djuliaimg_sysimg=[QMLApp]"])
+                                                  "-Djuliaimg.selective_assets=true",
+                                                  "-Djuliaimg.sysimg=[QMLApp]"])
                 @test basename(config[:build_dir]) == "build"
                 # Untouched flags keep their defaults alongside the ones given.
                 @test config[:target_name] === nothing
@@ -214,23 +224,23 @@ end
                 @test config[:target_arch] === Sys.ARCH
                 @test prefs["selfsign"] === true
                 @test prefs["bundler"] == "juliaimg"
-                @test prefs["juliaimg_selective_assets"] === true
-                @test prefs["juliaimg_sysimg"] == ["QMLApp"]
+                @test prefs["juliaimg"]["selective_assets"] === true
+                @test prefs["juliaimg"]["sysimg"] == ["QMLApp"]
             end
         end
     end
 
     @testset "the motivating invocation, escaped form still works" begin
         prefs = prefs_of("-Dbundler=\"juliaimg\"",
-                         "-Djuliaimg_selective_assets=true",
-                         "-Djuliaimg_sysimg=[\"QMLApp\"]")
+                         "-Djuliaimg.selective_assets=true",
+                         "-Djuliaimg.sysimg=[\"QMLApp\"]")
         @test prefs["bundler"] == "juliaimg"
-        @test prefs["juliaimg_selective_assets"] === true
-        @test prefs["juliaimg_sysimg"] == ["QMLApp"]
+        @test prefs["juliaimg"]["selective_assets"] === true
+        @test prefs["juliaimg"]["sysimg"] == ["QMLApp"]
     end
 
     @testset "defaults with no arguments" begin
-        config, prefs = parse_args(String[])
+        config, prefs = parse_build_args(String[])
         @test isdir(config[:build_dir])
         @test config[:target_name] === nothing
         @test config[:password] === nothing
@@ -239,18 +249,18 @@ end
     end
 
     @testset "flags carry their values into the config" begin
-        config, prefs = parse_args(String["--target-name", "My App",
+        config, prefs = parse_build_args(String["--target-name", "My App",
                                           "--target-arch", "aarch64",
                                           "--target-bundle", "dmg",
                                           "--password=  hunter2  ",
                                           "--force",
-                                          "-Djuliaimg_sysimg=[QMLApp, AppEnv]"])
+                                          "-Djuliaimg.sysimg=[QMLApp, AppEnv]"])
         @test config[:target_name] == "My App"
         @test config[:target_arch] === :aarch64
         @test config[:target_bundle] === :dmg
         @test config[:password] == "hunter2"          # stripped, attached or not
         @test prefs["overwrite_target"] === true
-        @test prefs["juliaimg_sysimg"] == ["QMLApp", "AppEnv"]
+        @test prefs["juliaimg"]["sysimg"] == ["QMLApp", "AppEnv"]
         # A repeated flag takes the last value, as -D does under on_repeat = :last.
         @test config_of("--target-arch", "x86_64",
                         "--target-arch", "aarch64")[:target_arch] === :aarch64
@@ -269,7 +279,7 @@ end
     end
 
     @testset "a value holding brackets does not disturb its neighbours" begin
-        config, prefs = parse_args(String["--password", "ab[cd", "--selfsign"])
+        config, prefs = parse_build_args(String["--password", "ab[cd", "--selfsign"])
         @test config[:password] == "ab[cd"
         @test prefs["selfsign"] === true
     end
@@ -278,8 +288,8 @@ end
         for flag in ("--target-name", "--password", "--target-arch",
                      "--target-bundle", "--build-dir", "-D")
             @testset "$flag" begin
-                @test_throws ErrorException parse_args(String[flag])
-                @test_throws ErrorException parse_args(String[flag, "--selfsign"])
+                @test_throws ErrorException parse_build_args(String[flag])
+                @test_throws ErrorException parse_build_args(String[flag, "--selfsign"])
             end
         end
     end

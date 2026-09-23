@@ -1,6 +1,6 @@
 # Customization
 
-![](assets/configuration-slide-striped.png)
+![](assets/configuration-slide.png)
 
 Every operating system has made unique design choices for application distribution. On macOS, applications are placed in the Applications folder via DMG containers. Windows supports many installer formats, with MSIX being the most modern. Linux uses Snap and Flatpak for distributing external software. Creating an installer on each platform involves a common set of tasks:
 
@@ -54,7 +54,7 @@ A typical `LocalPreferences.toml` is short:
 [AppBundler]
 windowed = false
 bundler = "juliac"
-juliac_trim = true
+juliac.trim = true
 ```
 
 ### Quick Reference
@@ -63,11 +63,12 @@ juliac_trim = true
 |-----------|---------|-------------|
 | **Metadata** | | |
 | `app_name` | from `Project.toml` | Application name |
+| `app_exe` | from `Project.toml` | Application exe name (lowercase) |
 | `version` | from `Project.toml` | Application version |
 | `app_summary` | — | Short description for MSIX and Snap |
 | `app_description` | — | Longer description for Snap |
 | `publisher_name` | — | Publisher name |
-| `bundle_identifier` | `org.appbundler.{{app_name}}` | Bundle identifier for DMG |
+| `bundle_identifier` | `org.appbundler.{{app_exe}}` | Bundle identifier for DMG |
 | `build_number` | git commit count | Falls back to `0` if git is unavailable |
 | **Common** | | |
 | `windowed` | `false` | Hide a console window at runtime |
@@ -76,29 +77,31 @@ juliac_trim = true
 | `overwrite_target` | `false` | Overwrite target path (`--force`) |
 | **Bundler** | | |
 | `bundler` | `juliaimg` | Bundler to use: `juliaimg` or `juliac` |
-| `juliaimg_mainless` | `false` | Launch `bin/julia` directly without calling `main` |
-| `juliaimg_precompile` | `true` | Precompile project modules |
-| `juliaimg_incremental` | `false` | Build cache on top of Julia's own rather than starting fresh |
-| `juliaimg_sysimg` | `[]` | Packages to bake into the system image |
-| `juliaimg_selective_assets` | `false` | Enable selective asset inclusion (see [AppEnv](#appenv)) |
-| `juliac_trim` | `false` | Enable trimming when compiling with `juliac` |
+| `juliaimg.mainless` | `false` | Launch `bin/julia` directly without calling `main` |
+| `juliaimg.precompile` | `true` | Precompile project modules |
+| `juliaimg.incremental` | `false` | Build cache on top of Julia's own rather than starting fresh |
+| `juliaimg.sysimg` | `[]` | Packages to bake into the system image |
+| `juliaimg.selective_assets` | `false` | Enable selective asset inclusion (see [AppEnv](#appenv)) |
+| `juliac.trim` | `false` | Enable trimming when compiling with `juliac` |
 | **MSIX** | | |
-| `msix_path_length_threshold` | `260` | Maximum allowed path length within the bundle |
-| `msix_skip_long_paths` | `false` | Skip paths exceeding the threshold instead of erroring |
-| `msix_skip_symlinks` | `true` | Skip symlinks |
-| `msix_skip_unicode_paths` | `true` | Skip Unicode paths instead of erroring |
-| `msix_publisher` | `"CN=AppBundler, C=XX, O=PeaceFounder"` | Publisher string for `AppxManifest.xml` |
+| `msix.path_length_threshold` | `260` | Maximum allowed path length within the bundle |
+| `msix.skip_long_paths` | `false` | Skip paths exceeding the threshold instead of erroring |
+| `msix.skip_symlinks` | `true` | Skip symlinks |
+| `msix.skip_unicode_paths` | `true` | Skip Unicode paths instead of erroring |
+| `msix.publisher` | `"CN=AppBundler, C=XX, O=PeaceFounder"` | Publisher string for `AppxManifest.xml` |
+| `msix.bootstrapper` | `false` | Create an exe installer from msix |
+| `msix.bootstrapper_windowed` | `false` | Hide console window at installation |
 | **DMG** | | |
-| `dmg_shallow_signing` | `true` | Sign only the top-level binary |
-| `dmg_hardened_runtime` | `true` | Enable hardened runtime during signing |
-| `dmg_sandboxed_runtime` | `false` | Restrict access to peripherals and system directories |
-| `dmg_compression` | `lzma` | Compression algorithm: `bzip2`, `zlib`, `lzma`, or `lzfse` |
+| `dmg.shallow_signing` | `true` | Sign only the top-level binary |
+| `dmg.hardened_runtime` | `true` | Enable hardened runtime during signing |
+| `dmg.sandboxed_runtime` | `false` | Restrict access to peripherals and system directories |
+| `dmg.compression` | `lzma` | Compression algorithm: `bzip2`, `zlib`, `lzma`, or `lzfse` |
 
-**Bundler.** The `bundler` choice determines which recipe files are applied and which `juliaimg_*` or `juliac_*` parameters are relevant. `juliaimg_mainless` is intended for Julia distributions that launch `bin/julia` directly rather than calling an application `main`. `juliaimg_sysimg` only needs top-level packages — dependencies are baked in automatically. `juliaimg_selective_assets` requires modules to be in the sysimage, since it removes all source files from the bundle; with the `juliac` bundler, selective assets are always used.
+**Bundler.** The `bundler` choice determines which recipe files are applied and which `juliaimg.*` or `juliac.*` parameters are relevant. `juliaimg.mainless` is intended for Julia distributions that launch `bin/julia` directly rather than calling an application `main`. `juliaimg.sysimg` only needs top-level packages — dependencies are baked in automatically. `juliaimg.selective_assets` requires modules to be in the sysimage, since it removes all source files from the bundle; with the `juliac` bundler, selective assets are always used.
 
-**MSIX.** Windows does not support long paths inside bundles, so `msix_path_length_threshold` and `msix_skip_long_paths` exist to either warn or skip offending paths rather than erroring out. The `msix_publisher` string must match the signing certificate exactly; AppBundler reads it from the certificate at bundle time and inlines it into `AppxManifest.xml` automatically, so manual edits are rarely needed.
+**MSIX.** Windows does not support long paths inside bundles, so `msix.path_length_threshold` and `msix.skip_long_paths` exist to either warn or skip offending paths rather than erroring out. The `msix.publisher` string must match the signing certificate exactly; AppBundler reads it from the certificate at bundle time and inlines it into `AppxManifest.xml` automatically, so manual edits are rarely needed.
 
-**DMG.** `dmg_shallow_signing` must be set to `false` when submitting for Apple notarization, as all binaries must be signed individually. `dmg_sandboxed_runtime` restricts access to peripherals and system directories and should only be enabled if your application is designed to run in a sandbox.
+**DMG.** `dmg.shallow_signing` must be set to `false` when submitting for Apple notarization, as all binaries must be signed individually. `dmg.sandboxed_runtime` restricts access to peripherals and system directories and should only be enabled if your application is designed to run in a sandbox.
 
 ## AppEnv
 
@@ -177,7 +180,7 @@ Configuration files are Mustache templates. Variables are inlined at bundle time
 ```desktop
 [Desktop Entry]
 Name={{APP_DISPLAY_NAME}}
-Exec={{APP_NAME}}
+Exec={{APP_EXE}}
 Icon=${SNAP}/meta/icon.png
 Version={{APP_VERSION}}
 Comment={{APP_SUMMARY}}
@@ -192,18 +195,7 @@ Some files are not installed directly into the bundle but are used as inputs dur
 
 ### Bundler-Specific Files
 
-Some files only apply to a specific bundler, indicated by a `juliac_` or `juliaimg_` prefix. For instance, `meta/snap/juliaimg_main.sh` is picked up only when using `juliaimg`:
-
-```bash
-#!/bin/bash
-
-SCRIPT_DIR=$(dirname "$0")
-
-JULIA="$SCRIPT_DIR/julia"
-$JULIA {{#MODULE_NAME}}--eval="using {{MODULE_NAME}}" -- {{/MODULE_NAME}} $@
-```
-
-The equivalent for `juliac` is `meta/snap/juliac_main.sh` (and `meta/dmg/juliac_main.sh` on macOS), which can point directly to the compiled binary. To override a launcher, place a replacement at the prefixed path (e.g. `meta/snap/juliaimg_main.sh`) to target only that bundler, or at the unprefixed path (e.g. `meta/snap/main.sh`) to apply to both. `meta/startup.jl` is specific to `juliaimg` bundles — it is placed in `etc/julia/` inside the bundle and is responsible for calling `AppEnv.init()` implicitly.
+Some files only apply to a specific bundler, indicated by a `juliac_` or `juliaimg_` prefix. For instance, `meta/snap/juliaimg_configure.sh` is picked up only when using `juliaimg`. The equivalent for `juliac` is `meta/snap/juliac_configure.sh` which does not exist hence is ignored at stagging. `meta/startup.jl` is specific to `juliaimg` bundles — it is placed in `etc/julia/` inside the bundle and is responsible for calling `AppEnv.init()` implicitly.
 
 ### Sandboxing and Capabilities
 
