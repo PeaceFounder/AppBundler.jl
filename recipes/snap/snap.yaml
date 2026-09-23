@@ -1,4 +1,4 @@
-name: {{APP_NAME}}
+name: {{APP_EXE}}
 title: {{APP_DISPLAY_NAME}}
 base: core22
 version: '{{APP_VERSION}}'

@@ -65,7 +65,7 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
         println("Compressing iso to dmg with $compression algorithm at $destination")
         run(`$(dmg()) dmg $iso_stage $destination --compression=$compression`)
 
-        if !isnothing(pfx_path)
+        if !isnothing(pfx_path) && !shallow_signing
             println("Codesigning DMG bundle with certificate at $pfx_path")
             run(`$(rcodesign()) sign --p12-file "$pfx_path" --p12-password "$password" "$destination"`)
         end

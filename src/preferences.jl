@@ -131,21 +131,17 @@ function merge_dynamic_defaults!(preferences, project_dir)
         preferences["bundle_identifier"] = "org.appbundler." * lowercase(preferences["app_name"])
     end
 
-    @show preferences["bundler"] == "juliaimg" 
-    @show preferences["juliaimg_mainless"]
-
-
     # I need to run this after preferences are loaded to fill the voids!!!
-    
 
     if preferences["bundler"] == "juliaimg" && !preferences["juliaimg_mainless"]
         module_name = preferences["module_name"]
         if !haskey(preferences, "snap_command")
+            #preferences["snap_command"] = ["bin/julia", "--eval", "using $module_name", "--"]
             preferences["snap_command"] = ["bin/julia", "-m", module_name]
         end
 
         if !haskey(preferences, "appimage_command")
-            preferences["appimage_command"] = ["bin/julia", "-m", module_name]
+            preferences["appimage_command"] = ["bin/julia", "--eval", "using $module_name", "--"]
         end
 
         if !haskey(preferences, "dmg_command")
@@ -153,9 +149,9 @@ function merge_dynamic_defaults!(preferences, project_dir)
             preferences["dmg_command"] = ["Libraries/bin/julia", "--eval", "using $module_name", "--"]
         end
 
-        # if !haskey(preferences, "msix_command")
-        #     preferences["msix_command"] = "bin/julia.exe -m $module_name"
-        # end
+        if !haskey(preferences, "msix_command")
+            preferences["msix_command"] = ["bin\\julia.exe", "--eval", "using $module_name"]
+        end
     else
         app_exe = preferences["bundler"] == "juliaimg" ? "julia" : preferences["app_exe"]
         if !haskey(preferences, "snap_command")
@@ -170,9 +166,9 @@ function merge_dynamic_defaults!(preferences, project_dir)
             preferences["dmg_command"] = ["Libraries/bin/$app_exe"]
         end
 
-        # if !haskey(preferences, "msix_command")
-        #     preferences["msix_command"] = "bin/$app_exe.exe"
-        # end
+        if !haskey(preferences, "msix_command")
+            preferences["msix_command"] = ["bin\\$app_exe.exe"]
+        end
     end
 
     return

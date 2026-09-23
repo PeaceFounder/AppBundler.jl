@@ -25,71 +25,35 @@
   <Resources>
     <Resource Language="en-us" />
   </Resources>
-
   <Applications>
-    {{#JULIAIMG}}
     <Application EntryPoint="Windows.FullTrustApplication" 
-		 Executable="bin\julia.exe" 
+		 Executable="{{{COMMAND_EXE}}}" 
 		 Id="{{APP_EXE}}" 
 		 uap10:RuntimeBehavior="packagedClassicApp" 
 		 uap10:Subsystem="{{#WINDOWED}}windows{{/WINDOWED}}{{^WINDOWED}}console{{/WINDOWED}}" 
 		 uap10:SupportsMultipleInstances="true" 
 		 uap10:TrustLevel="mediumIL"
-                 {{#MODULE_NAME}}uap11:Parameters="--eval=&quot;using {{MODULE_NAME}}&quot;"{{/MODULE_NAME}}>
-
+                 {{#COMMAND_ARGS}}uap11:Parameters="{{{COMMAND_ARGS}}}"{{/COMMAND_ARGS}}>
       <uap:VisualElements BackgroundColor="transparent" Description="{{APP_DESCRIPTION}}" DisplayName="{{APP_DISPLAY_NAME}}" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:SplashScreen BackgroundColor="gray" Image="Assets\SplashScreen.png"/>
         <uap:InitialRotationPreference>
           <uap:Rotation Preference="portrait"/>
           <uap:Rotation Preference="landscape"/>
         </uap:InitialRotationPreference>
-        <uap:DefaultTile ShortName="{{APP_DISPLAY_NAME}}" Square310x310Logo="Assets\Square310x310Logo.png" Square71x71Logo="Assets\Square71x71Logo.png" Wide310x150Logo="Assets\Wide310x150Logo.png"/>
+        <uap:DefaultTile ShortName="{{APP_NAME}}" Square310x310Logo="Assets\Square310x310Logo.png" Square71x71Logo="Assets\Square71x71Logo.png" Wide310x150Logo="Assets\Wide310x150Logo.png"/>
         <uap:LockScreen BadgeLogo="Assets\BadgeLogo.png" Notification="badge"/>
       </uap:VisualElements>
-
       <Extensions>
         <uap3:Extension Category="windows.appExecutionAlias" 
                         EntryPoint="Windows.FullTrustApplication" 
-                        Executable="bin\julia.exe">
+                        Executable="{{{COMMAND_EXE}}}">
           <uap3:AppExecutionAlias>
             <desktop:ExecutionAlias Alias="{{APP_EXE}}.exe" />
           </uap3:AppExecutionAlias>
         </uap3:Extension>
       </Extensions>
     </Application>
-    {{/JULIAIMG}}
-    {{#JULIAC}}
-    <Application EntryPoint="Windows.FullTrustApplication" 
-		 Executable="bin\{{APP_EXE}}.exe" 
-		 Id="{{APP_EXE}}" 
-		 uap10:RuntimeBehavior="packagedClassicApp" 
-		 uap10:Subsystem="{{#WINDOWED}}windows{{/WINDOWED}}{{^WINDOWED}}console{{/WINDOWED}}" 
-		 uap10:SupportsMultipleInstances="true" 
-		 uap10:TrustLevel="mediumIL">
-
-      <uap:VisualElements BackgroundColor="transparent" Description="{{APP_DESCRIPTION}}" DisplayName="{{APP_DISPLAY_NAME}}" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
-        <uap:SplashScreen BackgroundColor="gray" Image="Assets\SplashScreen.png"/>
-        <uap:InitialRotationPreference>
-          <uap:Rotation Preference="portrait"/>
-          <uap:Rotation Preference="landscape"/>
-        </uap:InitialRotationPreference>
-        <uap:DefaultTile ShortName="{{APP_DISPLAY_NAME}}" Square310x310Logo="Assets\Square310x310Logo.png" Square71x71Logo="Assets\Square71x71Logo.png" Wide310x150Logo="Assets\Wide310x150Logo.png"/>
-        <uap:LockScreen BadgeLogo="Assets\BadgeLogo.png" Notification="badge"/>
-      </uap:VisualElements>
-
-      <Extensions>
-        <uap3:Extension Category="windows.appExecutionAlias" 
-                        EntryPoint="Windows.FullTrustApplication" 
-                        Executable="bin\{{APP_EXE}}.exe">
-          <uap3:AppExecutionAlias>
-            <desktop:ExecutionAlias Alias="{{APP_EXE}}.exe" />
-          </uap3:AppExecutionAlias>
-        </uap3:Extension>
-      </Extensions>
-    </Application>
-    {{/JULIAC}}
   </Applications>
-
   <Capabilities>
     <rescap:Capability Name="runFullTrust"/>
   </Capabilities>

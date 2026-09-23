@@ -34,7 +34,8 @@ function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = 
     bundle(dmg, destination; force, password) do app_stage
         # app_stage always points to app directory
         # app_stage always points to app directory
-        app_name = dmg.parameters["APP_NAME"]
+        #app_name = dmg.parameters["APP_NAME"]
+        app_name = dmg.parameters["APP_EXE"]
         bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
 
         stage(product, joinpath(app_stage, "Contents/Libraries"); platform = MacOS(dmg.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
@@ -53,7 +54,8 @@ function bundle(product::JuliaImgBundle, snap::Snap, destination::String; force 
 
     bundle(snap, destination; force) do app_stage
 
-        app_name = snap.parameters["APP_NAME"]
+        #app_name = snap.parameters["APP_NAME"]
+        app_name = snap.parameters["APP_EXE"]
         bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
         
         stage(product, app_stage; platform = Linux(snap.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
@@ -78,7 +80,8 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; force 
 
     bundle(msix, destination; force, password) do app_stage
         
-        app_name = msix.parameters["APP_NAME"]
+        #app_name = msix.parameters["APP_NAME"]
+        app_name = msix.parameters["APP_EXE"]
         bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
 
         stage(product, app_stage; platform = Windows(msix.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
@@ -114,7 +117,8 @@ function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = fa
 
     bundle(dmg, destination; force, password) do app_stage
         # app_stage always points to app directory
-        app_name = dmg.parameters["APP_NAME"]
+        #app_name = dmg.parameters["APP_NAME"]
+        app_name = dmg.parameters["APP_EXE"]
         bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
         stage(product, joinpath(app_stage, "Contents/Libraries"); runtime_mode = "SANDBOX", app_name, bundle_identifier)
     end
@@ -129,7 +133,8 @@ function bundle(product::JuliaCBundle, snap::Snap, destination::String; force = 
     end
 
     bundle(snap, destination; force) do app_stage
-        app_name = snap.parameters["APP_NAME"]
+        #app_name = snap.parameters["APP_NAME"]
+        app_name = snap.parameters["APP_EXE"]
         bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
         stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)
     end
@@ -145,7 +150,8 @@ function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password
     # I need to pass down the arguments here somehow for the template
     bundle(msix, destination; password, force) do app_stage
 
-        app_name = msix.parameters["APP_NAME"]
+        #app_name = msix.parameters["APP_NAME"]
+        app_name = msix.parameters["APP_EXE"]
         bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
         stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)        
 
@@ -175,7 +181,8 @@ function bundle(product::JuliaImgBundle, appimage::AppImage, destination::String
 
     bundle(appimage, destination; force) do appdir
 
-        app_name = appimage.parameters["APP_NAME"]
+        #app_name = appimage.parameters["APP_NAME"]
+        app_name = appimage.parameters["APP_EXE"]
         bundle_identifier = appimage.parameters["BUNDLE_IDENTIFIER"]
 
         stage(product, appdir; platform = Linux(appimage.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
@@ -206,7 +213,8 @@ function bundle(product::JuliaCBundle, appimage::AppImage, destination::String; 
     end
 
     bundle(appimage, destination; force) do appdir
-        app_name = appimage.parameters["APP_NAME"]
+        #app_name = appimage.parameters["APP_NAME"]
+        app_name = appimage.parameters["APP_EXE"]
         bundle_identifier = appimage.parameters["BUNDLE_IDENTIFIER"]
         stage(product, appdir; runtime_mode = "SANDBOX", app_name, bundle_identifier)
     end

@@ -3,26 +3,26 @@ using Pkg.BinaryPlatforms: MacOS
 using AppBundlerUtils_jll
 import Mustache
 
-#preferences(project) = get_project_preferences(overlay)["AppBundler"]
-
 """
     MSIX([overlay]; arch, compress, windowed, kwargs...)
- 
+
 Create an MSIX configuration object for Windows application packaging.
- 
+
 When `overlay` is provided, configuration files are searched in `overlay`, then `overlay/meta`,
 then the built-in recipes directory. Application parameters (`APP_NAME`, `APP_VERSION`, etc.) are
 read from `overlay/Project.toml`, and packaging defaults (`path_length_threshold`, `selfsign`,
 etc.) are read from `overlay/LocalPreferences.toml`. Without `overlay`, only the built-in recipes
 and the active project's `LocalPreferences.toml` are used.
- 
+
 # Arguments
 - `overlay`: Path to a project directory containing `Project.toml`, optional `LocalPreferences.toml`, and optional `meta/msix/` overrides
- 
+
 # Keyword Arguments
 - `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
+- `preferences`: Dictionary of packaging preferences used for the defaults below; read from `overlay` when given, otherwise from the active project
 - `icon = get_path(prefix, ["msix/Assets", "msix/icon.png", "icon.png"]; dir = true)`: Path to application icon file or Assets directory
 - `appxmanifest = get_path(prefix, "msix/AppxManifest.xml")`: Path to MSIX application manifest template
+- `command::Cmd`: Command launching the application; defaults to `msix_command` preference. Its executable and escaped arguments are exposed to the manifest template as `COMMAND_EXE` and `COMMAND_ARGS`
 - `resources_pri = get_path(prefix, "msix/resources.pri")`: Path to package resource index file
 - `msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml")`: Path to installer configuration template
 - `path_length_threshold`: Maximum allowed path length; defaults to `msix_path_length_threshold` preference
@@ -30,25 +30,31 @@ and the active project's `LocalPreferences.toml` are used.
 - `skip_symlinks`: If `true`, skip file and directory symlinks; defaults to `msix_skip_symlinks` preference
 - `skip_unicode_paths`: If `true`, skip files with non-ASCII paths; defaults to `msix_skip_unicode_paths` preference
 - `selfsign`: If `true`, generate a temporary self-signed certificate instead of using `pfx_cert`; defaults to `selfsign` preference
-- `publisher`: Publisher string embedded in the manifest; defaults to `msix_publisher` preference
-- `pfx_cert = get_path(prefix, "msix/certificate.pfx")`: Path to code signing certificate
+- `publisher`: Publisher string embedded in the manifest (e.g. `"CN=Example, O=Example Ltd"`); defaults to `msix_publisher` preference, normalized to `", "`-separated fields
+- `pfx_cert = get_path(prefix, "msix/certificate.pfx")`: Path to code signing certificate; `nothing` when the `skipsign` preference is set
 - `windowed`: If `true`, the application runs without a console window; defaults to `windowed` preference
 - `compress`: If `true`, pack the staging directory into an `.msix` archive; defaults to `compress` preference
 - `arch = Sys.ARCH`: Target CPU architecture
 - `predicate`: Bundler predicate used for hook selection; defaults to `bundler` preference
-- `parameters`: Dictionary of parameters for Mustache template rendering. When `overlay` is provided, pre-populated from `Project.toml` and preferences: `APP_NAME`, `APP_DISPLAY_NAME`, `APP_VERSION`, `BUILD_NUMBER`, `APP_SUMMARY`, `APP_DESCRIPTION`, `BUNDLE_IDENTIFIER`, `PUBLISHER_DISPLAY_NAME`, `MODULE_NAME` (Julia-based bundles only), `WINDOWED`, and `PUBLISHER`
- 
+- `parameters`: Dictionary of parameters for Mustache template rendering. Always contains `WINDOWED`,
+  `PUBLISHER`, `COMMAND_EXE` and `COMMAND_ARGS`, derived from the keywords above. When `overlay` is
+  provided, it is further populated from `Project.toml` and preferences: `APP_NAME`,
+  `APP_DISPLAY_NAME`, `APP_VERSION`, `BUILD_NUMBER`, `APP_SUMMARY`, `APP_DESCRIPTION`,
+  `BUNDLE_IDENTIFIER`, `PUBLISHER_DISPLAY_NAME`, and `MODULE_NAME` (Julia-based bundles only)
+
 # Examples
 ```julia
 MSIX()                                    # default recipes only
 MSIX(app_dir)                             # overlay with Project.toml parameters
 MSIX(app_dir; skip_long_paths = true)     # overlay with keyword overrides
-MSIX(; prefix = ["custom/", "recipes/"]) # explicit search path
+MSIX(app_dir; command = `bin\\myapp.exe --flag "a b"`)  # custom launch command
+MSIX(; prefix = ["custom/", "recipes/"])  # explicit search path
 ```
 """
 struct MSIX
     icon::String # direcotry reading is something to look into here
     appxmanifest::String 
+    command::Cmd
     msixinstallerdata::String 
     resources_pri::String
     path_length_threshold::Int 
@@ -65,11 +71,48 @@ struct MSIX
     parameters::Dict{String, Any}
 end
 
+
+"""
+    xml_escape_args(args) -> String
+
+Turn an argument list (or a `Cmd`) into a string suitable for an
+AppxManifest `Parameters="..."` attribute.
+"""
+function xml_escape_args(args::AbstractVector{<:AbstractString})
+    isempty(args) && return ""
+    cmdline = Base.escape_microsoft_c_args(args...)   # Windows argv quoting
+    return xml_escape_attr(cmdline)                   # XML attribute escaping
+end
+
+xml_escape_args(cmd::Cmd) = xml_escape_args(cmd[2:end])
+
+function xml_escape_attr(s::AbstractString)
+    io = IOBuffer()
+    for c in s
+        if     c == '&'  print(io, "&amp;")
+        elseif c == '<'  print(io, "&lt;")
+        elseif c == '>'  print(io, "&gt;")
+        elseif c == '"'  print(io, "&quot;")
+        elseif c == '\'' print(io, "&apos;")
+        elseif c == '\t' print(io, "&#9;")    # otherwise normalized to a space
+        elseif c == '\n' print(io, "&#10;")
+        elseif c == '\r' print(io, "&#13;")
+        elseif c < ' '
+            throw(ArgumentError("control character $(repr(c)) cannot appear in XML 1.0"))
+        else
+            print(io, c)
+        end
+    end
+    return String(take!(io))
+end
+
+
 function MSIX(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
               preferences = preferences(),
               icon = get_path(prefix, ["msix/Assets", "msix/icon.png", "icon.png"]; dir = true),
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
+              command = Cmd(preferences["msix_command"]),
               resources_pri = get_path(prefix, "msix/resources.pri"),
               msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml"),
               path_length_threshold = preferences["msix_path_length_threshold"],
@@ -83,11 +126,10 @@ function MSIX(;
               compress = preferences["compress"],
               arch = Sys.ARCH,
               predicate = preferences["bundler"],
-              parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher)
+              parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher, "COMMAND_EXE" => first(command), "COMMAND_ARGS" => xml_escape_args(command))
               )
-
     
-    return MSIX(icon, appxmanifest, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
+    return MSIX(icon, appxmanifest, command, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
 
 end
 
@@ -198,6 +240,13 @@ function repack(msix_archive::String, msix2exe::MSIX2EXE, destination::String; f
 end
 
 
+const SNAP_COMMAND_RE = r"^[A-Za-z0-9/. _#:$-]*$"
+
+function is_valid_snap_command(cmd::Cmd)
+    s = Base.shell_escape_posixly(cmd)
+    occursin(SNAP_COMMAND_RE, s)
+end
+
 """
     Snap([overlay]; arch, compress, windowed, kwargs...)
  
@@ -216,6 +265,7 @@ project's `LocalPreferences.toml` are used.
 - `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
 - `icon = get_path(prefix, ["snap/icon.png", "icon.png"])`: Path to application icon file
 - `snap_config = get_path(prefix, "snap/snap.yaml")`: Path to Snap package metadata template
+- `command::Cmd`: Command launching the application; defaults to `msix_command` preference. Its executable and escaped arguments are exposed to the templates as `COMMAND`
 - `desktop_launcher = get_path(prefix, "snap/main.desktop")`: Path to desktop entry file template for GUI integration
 - `configure_hook`: Path to configuration hook script run on `snap set`; resolved from prefix using the bundler predicate; omitted if not found
 - `main_launcher`: Path to main launcher script installed into `bin/`; resolved from prefix using the bundler predicate; omitted if not found
@@ -239,7 +289,6 @@ struct Snap # by extensions files could have multiple modes that are set via sta
     command::Cmd
     desktop_launcher::String
     configure_hook::Union{String, Nothing} # needs to be enabled when staging
-    #main_launcher::Union{String, Nothing}
     windowed::Bool
     compress::Bool
     arch::Symbol
@@ -256,14 +305,17 @@ function Snap(;
               command = Cmd(preferences["snap_command"]),
               desktop_launcher = get_path(prefix, "snap/main.desktop"),
               configure_hook = get_path(prefix, hook("snap/configure.sh", predicate); warn = false),
-              #main_launcher = get_path(prefix, hook("snap/main.sh", predicate); warn = false),
               windowed = preferences["windowed"],
               compress = preferences["compress"],
               arch = Sys.ARCH,
               parameters = Dict("WINDOWED" => windowed, "COMMAND" => Base.shell_escape_posixly(command))
               )
 
-    #return Snap(icon, snap_config, desktop_launcher, configure_hook, main_launcher, windowed, compress, arch, predicate, parameters)
+    # Instead of an error one can create a wrapper and then link to it
+    if !is_valid_snap_command(command)
+        error(raw"command contains illegal characters (legal: '^[A-Za-z0-9/. _#:$-]*$')")
+    end
+
     return Snap(icon, snap_config, command, desktop_launcher, configure_hook, windowed, compress, arch, predicate, parameters)
 end
 
@@ -297,6 +349,7 @@ active project's `LocalPreferences.toml` are used.
 - `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
 - `icon = get_path(prefix, ["dmg/icon.icns", "dmg/icon.png", "icon.icns"])`: Path to application icon (.icns or .png)
 - `info_config = get_path(prefix, "dmg/Info.plist")`: Path to Info.plist template with app metadata
+- `command::Cmd`: Command launching the application; defaults to `msix_command` preference. Its executable and escaped arguments are exposed to the templates as `COMMAND`
 - `entitlements = get_path(prefix, "dmg/Entitlements.plist")`: Path to entitlements file for code signing
 - `dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"])`: Path to DS_Store file or TOML template for Finder window appearance
 - `selfsign`: If `true`, generate a temporary self-signed certificate instead of using `pfx_cert`; defaults to `selfsign` preference
@@ -341,8 +394,6 @@ struct DMG
     predicate::String
     parameters::Dict{String, Any}
 end
-
-
 
 # soft link can be used in case one needs to use png source. The issue here is of communicating intent.
 function DMG(;
@@ -503,11 +554,6 @@ function stage(dmg::DMG, destination::String; dsstore = false)
     install(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns"))
     install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)
 
-    # if dmg.main_redirect
-    #     launcher = retrieve_macos_launcher(MacOS(dmg.arch))
-    #     install(launcher, joinpath(destination, "Contents/MacOS/$app_name"); executable = true)
-    # end
-
     if dsstore
         symlink("/Applications", joinpath(dirname(destination), "Applications"); dir_target=true)
         install_dsstore(dmg.dsstore, joinpath(dirname(destination), ".DS_Store"); parameters)
@@ -526,7 +572,6 @@ end
 function stage(snap::Snap, destination::String)
 
     (; predicate, parameters) = snap
-    #app_name = parameters["APP_NAME"]
     app_exe = parameters["APP_EXE"]
 
     install(snap.icon, joinpath(destination, "meta/icon.png"))
@@ -536,11 +581,6 @@ function stage(snap::Snap, destination::String)
     if !isnothing(snap.configure_hook)
         install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters, executable = true, predicate)
     end
-
-    # if !isnothing(snap.main_launcher)
-    #     app_name = snap.parameters["APP_NAME"]
-    #     install(snap.main_launcher, joinpath(destination, "bin/$app_name"); parameters, executable = true, predicate)
-    # end
 
     return
 end
@@ -610,7 +650,6 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
 
     @info "Initializing DMG staging layout..."
     if dmg.compress
-        #appname = parameters["APP_NAME"]
         appname = parameters["APP_DISPLAY_NAME"]
         app_stage = joinpath(mktempdir(), "$appname.app")
         stage(dmg, app_stage; dsstore = true)        
@@ -679,10 +718,6 @@ function bundle(setup::Function, msix::MSIX, destination::String; force = false,
         end        
         @info "Packaging staging area into MSIX..."
         MSIXPack.pack(app_stage, destination; pfx_path, password)        
-
-        # if msix.exeinstaller
-        #     MSIX2EXE.pack(destination, msix.bootstrap, join((destination, ".exe")); title = "Installer", console = !msix.exewindowed)
-        # end
     end
 
     return
@@ -733,7 +768,8 @@ entry, icon or AppStream metadata is included, so the AppImage does not integrat
 
 # Keyword Arguments
 - `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
-- `main_launcher`: Path to the `AppRun` template; resolved from prefix using the bundler predicate
+- `apprun`: Path to the `AppRun` template; resolved from prefix using the bundler predicate
+- `command::Cmd`: Command launching the application; defaults to `msix_command` preference. Its executable and escaped arguments are exposed to the templates as `COMMAND`
 - `compression`: squashfs compressor, one of `:zstd` (default), `:gzip` or `:xz`; defaults to the
   `appimage_compression` preference
 - `runtime`: Path to the AppImage runtime. When unset, `AppImageRuntime_jll` is used if installed;
