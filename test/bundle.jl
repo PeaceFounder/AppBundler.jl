@@ -1,6 +1,6 @@
 using Test
 
-import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack
+import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack, AppImage
 import AppBundler
 
 using osslsigncode_jll
@@ -47,7 +47,7 @@ predicate = "juliaimg"
 
     @test hash_stage() do dest
         stage(msix, dest)
-    end == "4351935f32e1b0036bbf31c0f496b5734dd6a9496e8a0005675a097233a6d07e"
+    end == "268e73a3c6bcf2043a8fad59af54a2a8885322cf1da35c8a6f0d64be5c1c8dbc"
 
     @test hash_stage() do stage_dir
 
@@ -68,7 +68,10 @@ predicate = "juliaimg"
         # @test hash_file(joinpath(stage_dir, "AppxBlockMap.xml")) == "70ff6695ec913326f645c1cd30e48f75f57545ee4ae546db5843bf0779e6ee7e"
         rm(joinpath(stage_dir, "AppxBlockMap.xml")) # AppxBlockMap.xml has a slight nondeterminism
 
-    end == "4351935f32e1b0036bbf31c0f496b5734dd6a9496e8a0005675a097233a6d07e"
+        msix2exe = AppBundler.MSIX2EXE(joinpath(@__DIR__, "../examples/GtkApp"))
+        AppBundler.repack(dest, msix2exe, join((dest, ".exe")))
+
+    end == "268e73a3c6bcf2043a8fad59af54a2a8885322cf1da35c8a6f0d64be5c1c8dbc"
 end
 
 if Sys.isunix()
@@ -77,13 +80,14 @@ if Sys.isunix()
 
     @time @testset "DMG bundling tests" begin
 
-        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true, selfsign = true, predicate, arch = :x86_64)
+        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true, selfsign = true, predicate, arch = :x86_64, windowed = false)
 
         @test hash_stage() do dest
             stage(dmg, joinpath(dest, "GtkApp.app"); dsstore=true)
             AppBundler.DMGPack.replace_binary_with_hash(joinpath(dest, "GtkApp.app/Contents/MacOS/gtkapp"))
             rm("$dest/Applications")
-        end == "340323df33e9f976003cb5b8e6059f3a09226c6eb93d489a406feae39ef3345d" 
+
+        end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898" 
 
         @test hash_stage() do stage_dir
 
@@ -113,16 +117,16 @@ if Sys.isunix()
                 @test occursin(r"flags=0x[0-9a-f]+\(runtime\)", output)
             end
 
-            @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
+            AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
             rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
 
-        end == "340323df33e9f976003cb5b8e6059f3a09226c6eb93d489a406feae39ef3345d"
+        end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898"
 
 
         if Sys.isapple()
             @test hash_stage() do stage_dir
 
-                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false, selfsign = true, predicate, arch = :x86_64)
+                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false, selfsign = true, predicate, arch = :x86_64, windowed = false)
                 dest = joinpath(mktempdir(), "gtkapp.dmg")
                 bundle(dmg, dest) do app_stage
                     @info "The DMG app stage is $app_stage"
@@ -150,10 +154,10 @@ if Sys.isunix()
                     unmount_dmg(mount_point)
                 end
 
-                @show AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
+                AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
                 rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
 
-            end == "340323df33e9f976003cb5b8e6059f3a09226c6eb93d489a406feae39ef3345d"
+            end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898"
         end
     end
 
@@ -165,7 +169,7 @@ if Sys.isunix()
 
         @test hash_stage() do dest
             stage(snap, dest)
-        end == "f64997788eca9a5d020c4fe73921d4085fc07ea2266b1401276162efd4695678"
+        end == "cf6f6df039acd7ddc9900dd29d69ea5427d3e270bba0c72e77bd617d7b693f2c"
 
         @test hash_stage() do stage_dir
 
@@ -176,7 +180,25 @@ if Sys.isunix()
             
             AppBundler.SnapPack.unpack(dest, stage_dir)    
 
-        end == "f64997788eca9a5d020c4fe73921d4085fc07ea2266b1401276162efd4695678"
+        end == "cf6f6df039acd7ddc9900dd29d69ea5427d3e270bba0c72e77bd617d7b693f2c"
     end
+
+
+    # -------------------- AppImage -----------------
+
+    appimage = AppImage(joinpath(@__DIR__, "../examples/GtkApp"); predicate, windowed = false, arch = Sys.ARCH)
+
+
+    @test hash_stage() do stage_dir
+
+        dest = joinpath(mktempdir(), "gtkapp.appimage")
+
+        bundle(appimage, dest) do app_stage
+            @info "The AppImage app stage is $app_stage"
+        end
+
+        AppBundler.AppImagePack.unpack(dest, stage_dir)    
+
+    end == "65fa67c7cbb11b0087fe759b87c90023a70261f20ea3db6c86b50828d4252a55"
 
 end

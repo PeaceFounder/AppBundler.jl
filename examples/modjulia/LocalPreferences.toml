@@ -1,6 +1,6 @@
 [AppBundler]
 windowed = false
-juliaimg_mainless = true
-juliaimg_incremental = false
-juliaimg_precompile = true
-juliaimg_sysimg = ["Mods"]
+juliaimg.mainless = true
+juliaimg.incremental = false
+juliaimg.precompile = true
+juliaimg.sysimg = ["Mods"]

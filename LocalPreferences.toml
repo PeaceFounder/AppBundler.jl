@@ -1,31 +1,38 @@
 [AppBundler]
-# app_name, app_display_name, bundle_identifier
 publisher_name = "AppBundler"
 app_summary = "This is a default app summary"
 app_description = "A longer description of the app"
-
 windowed = false
 compress = true
-selfsign = false
 overwrite_target = false
-
-msix_path_length_threshold = 260
-msix_skip_long_paths = false
-msix_skip_symlinks = true
-msix_skip_unicode_paths = true
-msix_publisher = "CN=AppBundler, C=XX, O=PeaceFounder"
-
-dmg_shallow_signing = true
-dmg_hardened_runtime = true
-dmg_sandboxed_runtime = false
-dmg_compression = "lzma"
-
 bundler = "juliaimg"
+selfsign = false
+skipsign = false
 
-juliaimg_mainless = false
-juliaimg_precompile = true
-juliaimg_incremental = false
-juliaimg_sysimg = []
-juliaimg_selective_assets = false
+[AppBundler.msix]
+publisher = "CN=AppBundler, C=XX, O=PeaceFounder"
+path_length_threshold = 260
+skip_long_paths = false
+skip_symlinks = true
+skip_unicode_paths = true
+bootstrapper = false
+bootstrapper_windowed = false
 
-juliac_trim = false
+[AppBundler.dmg]
+shallow_signing = true
+hardened_runtime = true
+sandboxed_runtime = false
+compression = "lzma"
+
+[AppBundler.appimage]
+compression = "zstd"
+
+[AppBundler.juliaimg]
+mainless = false
+precompile = true
+incremental = false
+sysimg = []
+selective_assets = false
+
+[AppBundler.juliac]
+trim = false

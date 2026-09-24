@@ -242,7 +242,9 @@ function compile_sysimg(destination, project;
     # Precompile packages before sysimage creation to avoid segfaults. The sysimage builder's
     # aggressive AOT compilation can trigger LLVM codegen bugs on certain constant expressions
     # (e.g., matrix inversions in Colors.jl) that don't occur during regular precompilation.
-    run(`$julia_cmd --startup-file=no --pkgimages=no --project=$project --eval "import Pkg; Pkg.precompile( $(repr(string.(sysimg_packages))) )"`)
+    withenv("JULIA_LOAD_PATH"=>nothing, "JULIA_DEPOT_PATH"=>nothing) do
+        run(`$julia_cmd --startup-file=no --pkgimages=no --project=$project --eval "import Pkg; Pkg.precompile( $(repr(string.(sysimg_packages))) )"`)
+    end
 
     base_sysimg = "$destination/lib/julia/sys" * ".$(Libdl.dlext)"
     tmp_sysimg = tempname() * ".$(Libdl.dlext)"
@@ -281,7 +283,7 @@ function compile_pkgimgs(destination, project;
         push!(LOAD_PATH, "@stdlib", joinpath(Sys.STDLIB, $(repr(stdlib_project_name))))
         push!(DEPOT_PATH, joinpath(dirname(Sys.BINDIR), "share/julia"))
     """
-    withenv("JULIA_PROJECT" => project, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => cpu_target) do
+    withenv("JULIA_PROJECT" => project, "USER_DATA" => mktempdir(), "JULIA_CPU_TARGET" => cpu_target, "JULIA_LOAD_PATH"=>nothing, "JULIA_DEPOT_PATH"=>nothing) do
         if use_pkg
             run(`$julia_cmd --eval "$init_script; import AppEnv; import Pkg; Pkg.precompile( $(repr(string.(precompiled_modules))) ) "`)
         else

@@ -34,7 +34,8 @@ function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = 
     bundle(dmg, destination; force, password) do app_stage
         # app_stage always points to app directory
         # app_stage always points to app directory
-        app_name = dmg.parameters["APP_NAME"]
+        #app_name = dmg.parameters["APP_NAME"]
+        app_name = dmg.parameters["APP_EXE"]
         bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
 
         stage(product, joinpath(app_stage, "Contents/Libraries"); platform = MacOS(dmg.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
@@ -53,7 +54,8 @@ function bundle(product::JuliaImgBundle, snap::Snap, destination::String; force 
 
     bundle(snap, destination; force) do app_stage
 
-        app_name = snap.parameters["APP_NAME"]
+        #app_name = snap.parameters["APP_NAME"]
+        app_name = snap.parameters["APP_EXE"]
         bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
         
         stage(product, app_stage; platform = Linux(snap.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
@@ -78,7 +80,8 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; force 
 
     bundle(msix, destination; force, password) do app_stage
         
-        app_name = msix.parameters["APP_NAME"]
+        #app_name = msix.parameters["APP_NAME"]
+        app_name = msix.parameters["APP_EXE"]
         bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
 
         stage(product, app_stage; platform = Windows(msix.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
@@ -114,7 +117,8 @@ function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = fa
 
     bundle(dmg, destination; force, password) do app_stage
         # app_stage always points to app directory
-        app_name = dmg.parameters["APP_NAME"]
+        #app_name = dmg.parameters["APP_NAME"]
+        app_name = dmg.parameters["APP_EXE"]
         bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
         stage(product, joinpath(app_stage, "Contents/Libraries"); runtime_mode = "SANDBOX", app_name, bundle_identifier)
     end
@@ -129,7 +133,8 @@ function bundle(product::JuliaCBundle, snap::Snap, destination::String; force = 
     end
 
     bundle(snap, destination; force) do app_stage
-        app_name = snap.parameters["APP_NAME"]
+        #app_name = snap.parameters["APP_NAME"]
+        app_name = snap.parameters["APP_EXE"]
         bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
         stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)
     end
@@ -145,13 +150,73 @@ function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password
     # I need to pass down the arguments here somehow for the template
     bundle(msix, destination; password, force) do app_stage
 
-        app_name = msix.parameters["APP_NAME"]
+        #app_name = msix.parameters["APP_NAME"]
+        app_name = msix.parameters["APP_EXE"]
         bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
         stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)        
 
         if msix.windowed
             WinSubsystem.change_subsystem_inplace(joinpath(app_stage, "bin", "$app_name.exe"); subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
         end
+    end
+
+    return
+end
+
+"""
+    bundle(product::JuliaImgBundle, appimage::AppImage, destination::String; force = false)
+
+Stage a Julia application into a mountable AppImage.
+
+The distribution is placed at the AppDir root — `bin/`, `lib/`, `share/`, `etc/` — exactly as the
+Snap target stages it, and `AppRun` execs `bin/julia` from the mount point. Because the mounted
+filesystem is read-only and vanishes when the application exits, the depot is redirected to a
+per-user directory; see the `depot` field of [`AppImage`](@ref).
+"""
+function bundle(product::JuliaImgBundle, appimage::AppImage, destination::String; force = false)
+
+    if !Sys.islinux()
+        @warn "AppImages only run on Linux and the payload is staged for the host platform"
+    end
+
+    bundle(appimage, destination; force) do appdir
+
+        #app_name = appimage.parameters["APP_NAME"]
+        app_name = appimage.parameters["APP_EXE"]
+        bundle_identifier = appimage.parameters["BUNDLE_IDENTIFIER"]
+
+        stage(product, appdir; platform = Linux(appimage.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
+
+        # "julia" mode needs a startup file that leaves DEPOT_PATH alone; every set_depot_path_*
+        # in AppEnv begins with `empty!(DEPOT_PATH)`, so AppEnv.init() cannot be used there.
+        # startup_file = appimage.depot == "julia" ? appimage.startup_file : product.startup_file
+
+        # isnothing(startup_file) &&
+        #     error("No startup.jl available for `appimage_depot = \"julia\"`.")
+
+        install(product.startup_file, joinpath(appdir, "etc/julia/startup.jl");
+                parameters = appimage.parameters, force = true)
+    end
+
+    return
+end
+
+"""
+    bundle(product::JuliaCBundle, appimage::AppImage, destination::String; force = false)
+
+Package a juliac-compiled executable as a mountable AppImage.
+"""
+function bundle(product::JuliaCBundle, appimage::AppImage, destination::String; force = false)
+
+    if !Sys.islinux()
+        @warn "AppImages only run on Linux and juliac compiles with the host toolchain"
+    end
+
+    bundle(appimage, destination; force) do appdir
+        #app_name = appimage.parameters["APP_NAME"]
+        app_name = appimage.parameters["APP_EXE"]
+        bundle_identifier = appimage.parameters["BUNDLE_IDENTIFIER"]
+        stage(product, appdir; runtime_mode = "SANDBOX", app_name, bundle_identifier)
     end
 
     return

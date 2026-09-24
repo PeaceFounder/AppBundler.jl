@@ -4,4 +4,4 @@ assets = ["LICENSE"]
 [AppBundler]
 windowed = false
 bundler = "juliac"
-juliac_trim = true
+juliac.trim = true
