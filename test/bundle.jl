@@ -1,6 +1,6 @@
 using Test
 
-import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack, AppImage
+import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack, AppImage, DMGPack
 import AppBundler
 
 using osslsigncode_jll
@@ -14,7 +14,9 @@ if isdir(joinpath(pkgdir(AppBundler), ".git")) && Sys.isunix()
     @test AppBundler.commit_count(pkgdir(AppBundler)) > 0
 end
 
-# # ------------------------ MSIX -------------------
+const APP_DIR = joinpath(@__DIR__, "../examples/GtkApp")
+
+# ------------------------ MSIX -------------------
 
 function verify_msix_signature(msix_file)
     # First try standard verification (likely to fail with self-signed certs)
@@ -39,11 +41,45 @@ function verify_msix_signature(msix_file)
     return
 end
 
+# ------------------------ DMG -------------------
+
+function build_dmg(dmg)
+    dest = joinpath(mktempdir(), "gtkapp.dmg")
+    bundle(dmg, dest; verbose = true) do app_stage
+        @info "The DMG app stage is $app_stage"
+    end
+    if Sys.isapple()
+        @info "Verifying integrity of the DMG archive"
+        run(`hdiutil verify $dest`)
+    end
+    return dest
+end
+
+function verify_codesign(app; strict = false)
+    @info "Verifying that the application is correctly codesigned"
+    strict_flag = strict ? ["--strict"] : String[]
+    run(`codesign --verify --deep $strict_flag --verbose=4 $app`)
+
+    @info "Verifying if the application has hardened runtime enabled"
+    io = IOBuffer()
+    run(pipeline(`codesign -dvv $app`, stderr = io))
+    output = String(take!(io))
+
+    @test occursin(r"Timestamp=", output)
+    @test occursin(r"flags=0x[0-9a-f]+\(runtime\)", output)
+end
+
+function normalize_app!(stage_dir; signed = true)
+    app = joinpath(stage_dir, "GtkApp.app")
+    replace_binary_with_hash(joinpath(app, "Contents/MacOS/gtkapp"))
+    signed && rm(joinpath(app, "Contents/_CodeSignature"); recursive = true)
+end
+
 predicate = "juliaimg"
 
 @time @testset "MSIX bundling tests" begin
 
-    msix = MSIX(joinpath(@__DIR__, "../examples/GtkApp"); selfsign=true, predicate, windowed = true)
+    msix = MSIX(APP_DIR; selfsign=true, predicate, windowed = true)
 
     @test hash_stage() do dest
         stage(msix, dest)
@@ -80,83 +116,27 @@ if Sys.isunix()
 
     @time @testset "DMG bundling tests" begin
 
-        dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = true, selfsign = true, predicate, arch = :x86_64, windowed = false)
+        gtkapp_dmg(backend) = DMG(APP_DIR; backend, selfsign = true, predicate, arch = :x86_64, windowed = false)
 
         @test hash_stage() do dest
-            stage(dmg, joinpath(dest, "GtkApp.app"); dsstore=true)
-            AppBundler.DMGPack.replace_binary_with_hash(joinpath(dest, "GtkApp.app/Contents/MacOS/gtkapp"))
-            rm("$dest/Applications")
-
-        end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898" 
-
-        @test hash_stage() do stage_dir
-
-            dest = joinpath(mktempdir(), "gtkapp.dmg")
-            bundle(dmg, dest) do app_stage
-                @info "The DMG app stage is $app_stage"
-            end
-            
-            if Sys.isapple()
-                @info "Verifying integrity of the DMG archive"
-                run(`hdiutil verify $dest`)
-            end
-
-            AppBundler.DMGPack.unpack(dest, stage_dir)
-
-            if Sys.isapple()
-                # This check is also important for stagging
-                @info "Verifying that the application is correctly codesigned"
-                run(`codesign --verify --deep --verbose=4 "$stage_dir/GtkApp.app"`)
-
-                @info "Verifying if the application has hardened runtime enabled"
-                io = IOBuffer()
-                run(pipeline(`codesign -dvv $stage_dir/GtkApp.app`, stderr=io))
-                output = String(take!(io))
-
-                @test occursin(r"Timestamp=", output)
-                @test occursin(r"flags=0x[0-9a-f]+\(runtime\)", output)
-            end
-
-            AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
-            rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
-
+            stage(gtkapp_dmg(DMGPack.XorrisoBackend(true)), joinpath(dest, "GtkApp.app"); dsstore = true)
+            normalize_app!(dest; signed = false)
+            rm(joinpath(dest, "Applications"))
         end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898"
 
+        backends = [DMGPack.XorrisoBackend(true), DMGPack.HFSPlusBackend(0.02)]
 
-        if Sys.isapple()
+        @testset "$backend" for backend in backends
+
+            dmg = gtkapp_dmg(backend)
+            dmg_path = build_dmg(dmg)
+
+            Sys.isapple() && run(`hdiutil verify $dmg_path`)
+
             @test hash_stage() do stage_dir
-
-                dmg = DMG(joinpath(@__DIR__, "../examples/GtkApp"); hfsplus = false, selfsign = true, predicate, arch = :x86_64, windowed = false)
-                dest = joinpath(mktempdir(), "gtkapp.dmg")
-                bundle(dmg, dest) do app_stage
-                    @info "The DMG app stage is $app_stage"
-                end
-                
-                @info "Verifying integrity of the DMG archive"
-                run(`hdiutil verify $dest`)
-
-                @info "Verifying contents of DMG archive"
-                mount_point = mount_dmg(dest)
-                try
-                    @info "Verifying that the application is correctly codesigned"                    
-                    run(`codesign --verify --deep --strict --verbose=4 "$mount_point/GtkApp.app"`)
-
-                    @info "Verifying if the application has hardened runtime enabled"
-                    io = IOBuffer()
-                    run(pipeline(`codesign -dvv $mount_point/GtkApp.app`, stderr=io))
-                    output = String(take!(io))
-
-                    @test occursin(r"Timestamp=", output)
-                    @test occursin(r"flags=0x[0-9a-f]+\(runtime\)", output)
- 
-                    cp(mount_point, stage_dir; force=true)
-                finally
-                    unmount_dmg(mount_point)
-                end
-
-                AppBundler.DMGPack.replace_binary_with_hash(joinpath(stage_dir, "GtkApp.app/Contents/MacOS/gtkapp"))
-                rm("$stage_dir/GtkApp.app/Contents/_CodeSignature"; recursive=true)
-
+                AppBundler.DMGPack.unpack(dmg_path, stage_dir; verbose = true)
+                Sys.isapple() && verify_codesign(joinpath(stage_dir, "GtkApp.app"); strict = true)
+                normalize_app!(stage_dir)
             end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898"
         end
     end
@@ -165,7 +145,7 @@ if Sys.isunix()
 
     @time @testset "Snap bundling tests" begin
 
-        snap = Snap(joinpath(@__DIR__, "../examples/GtkApp"); predicate, configure_hook = nothing, windowed = true)
+        snap = Snap(APP_DIR; predicate, configure_hook = nothing, windowed = true)
 
         @test hash_stage() do dest
             stage(snap, dest)
@@ -186,7 +166,7 @@ if Sys.isunix()
 
     # -------------------- AppImage -----------------
 
-    appimage = AppImage(joinpath(@__DIR__, "../examples/GtkApp"); predicate, windowed = false, arch = Sys.ARCH)
+    appimage = AppImage(APP_DIR; predicate, windowed = false, arch = Sys.ARCH)
 
 
     @test hash_stage() do stage_dir

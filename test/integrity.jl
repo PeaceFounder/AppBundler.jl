@@ -29,8 +29,7 @@ try
         @info "Verifying integrity of DMG bundle"
         run(`hdiutil verify $dmg_path`)
 
-        mount_point = mount_dmg(dmg_path)
-        try
+        with_mounted_dmg(dmg_path) do mount_point
             @info "Verifying that the application is correctly codesigned"        
             # Need to inspect the strict option
             #run(`codesign --verify --deep --strict --verbose=4 "$mount_point/glapp.app"`)
@@ -43,18 +42,14 @@ try
 
             @test occursin(r"Timestamp=", output)
             @test occursin(r"flags=0x[0-9a-f]+\(runtime\)", output)
-        finally
-            unmount_dmg(mount_point)
         end
     end
-    
 finally
     # cleanup
     rm(joinpath(app_dir, "meta/msix/certificate.pfx"); force = true)
     rm(joinpath(app_dir, "meta/dmg/certificate.pfx"); force = true)
     rm(joinpath(app_dir, ".github"); force = true, recursive = true)
 end
-
 
 # # JuliaC example
 # app_dir = joinpath(dirname(@__DIR__), "examples/CmdApp")

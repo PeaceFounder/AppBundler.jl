@@ -1,3 +1,5 @@
+using rcodesign_jll: rcodesign
+
 function hash_stage(f)
     stage = mktempdir()
     f(stage)
@@ -54,3 +56,37 @@ function mount_dmg(target_path)
 end
 
 unmount_dmg(mount_point) = run(`hdiutil detach $mount_point`)
+
+function with_mounted_dmg(f, dmg_path)
+    mount_point = mount_dmg(dmg_path)
+    try
+        f(mount_point)
+    finally
+        unmount_dmg(mount_point)
+    end
+end
+
+
+"""
+    replace_file_with_hash(filepath::String)
+
+Computes the code hash of a file using rcodesign and replaces the file 
+with the rcodesign output directly.
+"""
+function replace_binary_with_hash(filepath::String)
+    if !isfile(filepath)
+        error("File does not exist: $filepath")
+    end
+    
+    try
+        # Get rcodesign output and write directly to file
+        hash_output = read(`$(rcodesign()) compute-code-hashes $filepath`, String)
+        lines = split(strip(hash_output), '\n')
+        stripped_output = join(lines[2:end], '\n') * '\n'
+        write(filepath, stripped_output)
+        println("Replaced $filepath with its hash(es)")
+        return hash_output
+    catch e
+        error("Failed to process $filepath: $e")
+    end
+end

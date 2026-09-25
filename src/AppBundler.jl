@@ -25,6 +25,7 @@ function stage end
 
 include("DMG/DSStore.jl")
 include("DMG/HFS.jl")
+include("DMG/NewfsHFS.jl")
 include("DMG/DMGPack.jl")
 
 include("Snap/SnapPack.jl")
