@@ -23,6 +23,9 @@ shallow_signing = true
 hardened_runtime = true
 sandboxed_runtime = false
 compression = "lzma"
+backend = "xorriso"
+xorriso.hfsplus = false
+hfsplus.slack = 0.02
 
 [AppBundler.appimage]
 compression = "zstd"

@@ -1,6 +1,6 @@
 # Xorrisso backend
 
-struct XorrisoBackend
+struct XorrisoBackend <: ImageBackend
     hfsplus::Bool
 end
 

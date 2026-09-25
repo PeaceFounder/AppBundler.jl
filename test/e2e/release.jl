@@ -14,23 +14,32 @@ mkpath(build_dir)
 # AppBundler.main(args)
 
 # Example with compiled sysimage and remaining modules precompiled
-app_dir = joinpath(root_dir, "examples/modjulia")
-args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign"]
-AppBundler.main(args)
+# app_dir = joinpath(root_dir, "examples/modjulia")
+# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign"]
+# AppBundler.main(args)
 
-app_dir = joinpath(root_dir, "examples/QMLApp")
-args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg"]
-AppBundler.main(args)
+# app_dir = joinpath(root_dir, "examples/QMLApp")
+# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg"]
+# AppBundler.main(args)
 
-app_dir = joinpath(root_dir, "examples/QMLApp")
-args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dapp_name=qmlappjc", "-Dbundler=juliac"]
-AppBundler.main(args)
+# app_dir = joinpath(root_dir, "examples/QMLApp")
+# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dapp_name=qmlappjc", "-Dbundler=juliac"]
+# AppBundler.main(args)
+
+# app_dir = joinpath(root_dir, "examples/CmdApp")
+# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg", "-Dapp_name=cmdappjuliaimg"]
+# AppBundler.main(args)
+
+# app_dir = joinpath(root_dir, "examples/CmdApp")
+# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliac", "-Dapp_name=cmdappjuliac"]
+# AppBundler.main(args)
+
+
 
 app_dir = joinpath(root_dir, "examples/CmdApp")
-args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg", "-Dapp_name=cmdappjuliaimg"]
+args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliac", "-Ddmg.backend=hfsplus"]
 AppBundler.main(args)
 
-app_dir = joinpath(root_dir, "examples/CmdApp")
-args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliac", "-Dapp_name=cmdappjuliac"]
-AppBundler.main(args)
+
+
 

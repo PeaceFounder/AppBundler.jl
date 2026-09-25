@@ -37,23 +37,18 @@ The function assumes that `app_stage` points to a properly structured macOS appl
 - `compression::Union{Symbol, Nothing} = :lzma`: Compression algorithm to use for the DMG. Options are `:lzma`, `:bzip2`, `:zlib`, `:lzfse`, or `nothing` for no compression
 - `installer_title::String = "Installer"`: Volume name for the DMG
 """
-function pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer", hardened_runtime = true, shallow_signing = true, hfsplus = false, backend = XorrisoBackend(hfsplus))
+function pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer", hardened_runtime = true, shallow_signing = true, backend = XorrisoBackend(false))
 
     isfile(entitlements) || error("Entitlements at $entitlements not found")
     isnothing(compression) || compression in [:lzma, :bzip2, :zlib, :lzfse] || error("Compression can only be `compression=[:lzma|:bzip|:zlib|:lzfse]`")
     isnothing(pfx_path) || isfile(pfx_path) || error("Signing certificate at $pfx_path not found")
 
-    # if isnothing(pfx_path) 
-    #     @warn "Creating a one time self signing certificate..."
-    #     pfx_path = joinpath(tempdir(), "certificate_macos.pfx")
-    #     generate_self_signing_pfx(pfx_path; password = "")
-    # end
-
-    shallow_flag = shallow_signing ? `--shallow` : ``
-    runtime_flag = hardened_runtime ? `--code-signature-flags runtime` : ``
-
     if !isnothing(pfx_path)
-        println("Codesigning application bundle at $app_stage with certificate at $pfx_path")
+        println("Codesigning application bundle at $app_stage with certificate at $pfx_path")        
+
+        shallow_flag = shallow_signing ? `--shallow` : ``
+        runtime_flag = hardened_runtime ? `--code-signature-flags runtime` : ``
+
         run(`$(rcodesign()) sign $shallow_flag --p12-file "$pfx_path" --p12-password "$password" $runtime_flag --entitlements-xml-path "$entitlements" "$app_stage"`)
     else
         @warn "Skipping codesigning. Use `--selfsign` to codesign your code with self signed certificate."
@@ -62,8 +57,10 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
     if !isnothing(compression)
 
         img = tempname() 
+
         println("Forming image at $img")
         build_image(backend, dirname(app_stage), img; volume_name = installer_title)
+
         println("Compressing img to dmg with $compression algorithm at $destination")
         compress_image(backend, img, destination; compression)
 
@@ -86,28 +83,5 @@ function unpack(source, destination)
     return
 end
 
-"""
-    replace_file_with_hash(filepath::String)
-
-Computes the code hash of a file using rcodesign and replaces the file 
-with the rcodesign output directly.
-"""
-function replace_binary_with_hash(filepath::String)
-    if !isfile(filepath)
-        error("File does not exist: $filepath")
-    end
-    
-    try
-        # Get rcodesign output and write directly to file
-        hash_output = read(`$(rcodesign()) compute-code-hashes $filepath`, String)
-        lines = split(strip(hash_output), '\n')
-        stripped_output = join(lines[2:end], '\n') * '\n'
-        write(filepath, stripped_output)
-        println("Replaced $filepath with its hash(es)")
-        return hash_output
-    catch e
-        error("Failed to process $filepath: $e")
-    end
-end
 
 end
