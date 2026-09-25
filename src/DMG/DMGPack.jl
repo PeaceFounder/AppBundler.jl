@@ -36,7 +36,7 @@ The function assumes that `app_stage` points to a properly structured macOS appl
 - `compression::Union{Symbol, Nothing} = :lzma`: Compression algorithm to use for the DMG. Options are `:lzma`, `:bzip2`, `:zlib`, `:lzfse`, or `nothing` for no compression
 - `installer_title::String = "Installer"`: Volume name for the DMG
 """
-function pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer", hardened_runtime = true, shallow_signing = true, backend = XorrisoBackend(false))
+function pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer", hardened_runtime = true, shallow_signing = true, backend = XorrisoBackend(false), verbose = true)
 
     isfile(entitlements) || error("Entitlements at $entitlements not found")
     isnothing(compression) || compression in [:lzma, :bzip2, :zlib, :lzfse] || error("Compression can only be `compression=[:lzma|:bzip|:zlib|:lzfse]`")
@@ -58,7 +58,7 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
         img = tempname() 
 
         println("Forming image at $img")
-        build_image(backend, dirname(app_stage), img; volume_name = installer_title)
+        build_image(backend, dirname(app_stage), img; volume_name = installer_title, verbose)
 
         println("Compressing img to dmg with $compression algorithm at $destination")
         compress_image(backend, img, destination; compression)
@@ -72,12 +72,15 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
     return
 end
 
-function unpack(source, destination)
+function unpack(source, destination; verbose = false)
 
     raw_image = tempname()
     run(`$(dmg()) extract $source $raw_image`)
     HFS.extract_hfs_filesystem(raw_image, destination)
-    HFS.explore_hfs_image(raw_image)
+
+    if verbose
+        HFS.explore_hfs_image(raw_image)
+    end
 
     return
 end

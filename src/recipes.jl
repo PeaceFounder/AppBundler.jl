@@ -29,12 +29,10 @@ cross-platform packaging is not supported.
 
 See also [`stage`](@ref), [`bundle(setup, config, destination)`](@ref).
 """
-function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = false, password = "")
+function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = false, password = "", verbose = false)
 
     bundle(dmg, destination; force, password) do app_stage
-        # app_stage always points to app directory
-        # app_stage always points to app directory
-        #app_name = dmg.parameters["APP_NAME"]
+
         app_name = dmg.parameters["APP_EXE"]
         bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
 
@@ -47,14 +45,13 @@ function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = 
     return
 end
 
-function bundle(product::JuliaImgBundle, snap::Snap, destination::String; force = false)
+function bundle(product::JuliaImgBundle, snap::Snap, destination::String; force = false, verbose = false)
 
     configure_compiled_modules = JuliaImg.get_project_deps(product.source)
     snap.parameters["PROJECT_DEPS"] = join(configure_compiled_modules, ",")
 
     bundle(snap, destination; force) do app_stage
 
-        #app_name = snap.parameters["APP_NAME"]
         app_name = snap.parameters["APP_EXE"]
         bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
         
@@ -76,7 +73,7 @@ function normalize_executable(path::String)
     return
 end
 
-function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; force = false, password = "")
+function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; force = false, password = "", verbose = false)
 
     bundle(msix, destination; force, password) do app_stage
         
@@ -105,7 +102,7 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; force 
     return
 end
 
-function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = false, password = "")
+function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = false, password = "", verbose = false)
 
     if !Sys.isapple()
         @warn "The build for the DMG will not work as it is not built on macos"
@@ -116,8 +113,7 @@ function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = fa
     end
 
     bundle(dmg, destination; force, password) do app_stage
-        # app_stage always points to app directory
-        #app_name = dmg.parameters["APP_NAME"]
+
         app_name = dmg.parameters["APP_EXE"]
         bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
         stage(product, joinpath(app_stage, "Contents/Libraries"); runtime_mode = "SANDBOX", app_name, bundle_identifier)
@@ -126,7 +122,7 @@ function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = fa
     return
 end
 
-function bundle(product::JuliaCBundle, snap::Snap, destination::String; force = false)
+function bundle(product::JuliaCBundle, snap::Snap, destination::String; force = false, verbose = false)
 
     if !Sys.islinux()
         @warn "The build for the snap will not work as it is not built on linux"
@@ -142,7 +138,7 @@ function bundle(product::JuliaCBundle, snap::Snap, destination::String; force = 
     return
 end
 
-function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password = "", force = false)
+function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password = "", force = false, verbose = false)
 
     if !Sys.iswindows()
         @warn "The build for MSIX will not work as it is not built on Windows"
@@ -150,7 +146,6 @@ function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password
     # I need to pass down the arguments here somehow for the template
     bundle(msix, destination; password, force) do app_stage
 
-        #app_name = msix.parameters["APP_NAME"]
         app_name = msix.parameters["APP_EXE"]
         bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
         stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)        
@@ -173,7 +168,7 @@ Snap target stages it, and `AppRun` execs `bin/julia` from the mount point. Beca
 filesystem is read-only and vanishes when the application exits, the depot is redirected to a
 per-user directory; see the `depot` field of [`AppImage`](@ref).
 """
-function bundle(product::JuliaImgBundle, appimage::AppImage, destination::String; force = false)
+function bundle(product::JuliaImgBundle, appimage::AppImage, destination::String; force = false, verbose = false)
 
     if !Sys.islinux()
         @warn "AppImages only run on Linux and the payload is staged for the host platform"
@@ -181,18 +176,10 @@ function bundle(product::JuliaImgBundle, appimage::AppImage, destination::String
 
     bundle(appimage, destination; force) do appdir
 
-        #app_name = appimage.parameters["APP_NAME"]
         app_name = appimage.parameters["APP_EXE"]
         bundle_identifier = appimage.parameters["BUNDLE_IDENTIFIER"]
 
         stage(product, appdir; platform = Linux(appimage.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
-
-        # "julia" mode needs a startup file that leaves DEPOT_PATH alone; every set_depot_path_*
-        # in AppEnv begins with `empty!(DEPOT_PATH)`, so AppEnv.init() cannot be used there.
-        # startup_file = appimage.depot == "julia" ? appimage.startup_file : product.startup_file
-
-        # isnothing(startup_file) &&
-        #     error("No startup.jl available for `appimage_depot = \"julia\"`.")
 
         install(product.startup_file, joinpath(appdir, "etc/julia/startup.jl");
                 parameters = appimage.parameters, force = true)
@@ -206,14 +193,13 @@ end
 
 Package a juliac-compiled executable as a mountable AppImage.
 """
-function bundle(product::JuliaCBundle, appimage::AppImage, destination::String; force = false)
+function bundle(product::JuliaCBundle, appimage::AppImage, destination::String; force = false, verbose = false)
 
     if !Sys.islinux()
         @warn "AppImages only run on Linux and juliac compiles with the host toolchain"
     end
 
     bundle(appimage, destination; force) do appdir
-        #app_name = appimage.parameters["APP_NAME"]
         app_name = appimage.parameters["APP_EXE"]
         bundle_identifier = appimage.parameters["BUNDLE_IDENTIFIER"]
         stage(product, appdir; runtime_mode = "SANDBOX", app_name, bundle_identifier)

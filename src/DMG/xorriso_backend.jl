@@ -7,7 +7,7 @@ struct XorrisoBackend <: ImageBackend
     hfsplus::Bool
 end
 
-function build_image(backend::XorrisoBackend, stage, img; volume_name = "")
+function build_image(backend::XorrisoBackend, stage, img; volume_name = "", verbose = true)
     #iso_stage = tempname() 
 
     hfsplus_flag = backend.hfsplus ? `-hfsplus` : ``

@@ -45,7 +45,7 @@ end
 
 function build_dmg(dmg)
     dest = joinpath(mktempdir(), "gtkapp.dmg")
-    bundle(dmg, dest) do app_stage
+    bundle(dmg, dest; verbose = true) do app_stage
         @info "The DMG app stage is $app_stage"
     end
     if Sys.isapple()
@@ -134,7 +134,7 @@ if Sys.isunix()
             Sys.isapple() && run(`hdiutil verify $dmg_path`)
 
             @test hash_stage() do stage_dir
-                AppBundler.DMGPack.unpack(dmg_path, stage_dir)
+                AppBundler.DMGPack.unpack(dmg_path, stage_dir; verbose = true)
                 Sys.isapple() && verify_codesign(joinpath(stage_dir, "GtkApp.app"); strict = true)
                 normalize_app!(stage_dir)
             end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898"

@@ -647,7 +647,7 @@ bundle(Snap(app_dir), "MyApp.snap") do staging_dir
 end
 ```
 """
-function bundle(setup::Function, dmg::DMG, destination::String; force = false, password = "") 
+function bundle(setup::Function, dmg::DMG, destination::String; force = false, password = "", verbose = false) 
 
     (; parameters, predicate) = dmg
     
@@ -701,14 +701,12 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
     entitlements = joinpath(mktempdir(), "Entitlements.plist")
     install(dmg.entitlements, entitlements; parameters, predicate)
     
-    #DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, hfsplus = dmg.hfsplus)
-
-    DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, backend = dmg.backend)
+    DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, backend = dmg.backend, verbose)
 
     return
 end
 
-function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "")
+function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "", verbose = false)
 
     if ispath(destination)
         if force
@@ -742,7 +740,7 @@ function bundle(setup::Function, msix::MSIX, destination::String; force = false,
     return
 end
 
-function bundle(setup::Function, snap::Snap, destination::String; force = false)
+function bundle(setup::Function, snap::Snap, destination::String; force = false, verbose = false)
 
     if ispath(destination)
         if force

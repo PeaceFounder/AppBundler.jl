@@ -8,38 +8,33 @@ root_dir = dirname(dirname(@__DIR__))
 build_dir = joinpath(root_dir, "build")
 mkpath(build_dir)
 
+COMMON_ARGS = ["--force", "--selfsign", "--build-dir=$build_dir", "-Ddmg.backend=hfsplus", "-Ddmg.hfsplus.slack = 0.2"]
+
 # Nonprecompiled option is interesting to test on linux
-# app_dir = joinpath(root_dir, "examples/modjulia")
-# args = ["build", app_dir, "--build-dir=$build_dir", "-Dapp_name=modjuliauc", "--force", "--selfsign", "-Djuliaimg.precompile=false", "-Djuliaimg.incremental=true", "-Djuliaimg.sysimg=[]", "--debug"]
-# AppBundler.main(args)
-
-# Example with compiled sysimage and remaining modules precompiled
-# app_dir = joinpath(root_dir, "examples/modjulia")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign"]
-# AppBundler.main(args)
-
-# app_dir = joinpath(root_dir, "examples/QMLApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg"]
-# AppBundler.main(args)
-
-# app_dir = joinpath(root_dir, "examples/QMLApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dapp_name=qmlappjc", "-Dbundler=juliac"]
-# AppBundler.main(args)
-
-# app_dir = joinpath(root_dir, "examples/CmdApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliaimg", "-Dapp_name=cmdappjuliaimg"]
-# AppBundler.main(args)
-
-# app_dir = joinpath(root_dir, "examples/CmdApp")
-# args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliac", "-Dapp_name=cmdappjuliac"]
-# AppBundler.main(args)
-
-
-
-app_dir = joinpath(root_dir, "examples/CmdApp")
-args = ["build", app_dir, "--build-dir=$build_dir", "--force", "--selfsign", "-Dbundler=juliac", "-Ddmg.backend=hfsplus"]
+app_dir = joinpath(root_dir, "examples/modjulia")
+args = ["build", app_dir, COMMON_ARGS..., "-Dapp_name=modjuliauc", "-Djuliaimg.precompile=false", "-Djuliaimg.incremental=true", "-Djuliaimg.sysimg=[]"]
 AppBundler.main(args)
 
+# Example with compiled sysimage and remaining modules precompiled
+app_dir = joinpath(root_dir, "examples/modjulia")
+args = ["build", app_dir, COMMON_ARGS...]
+AppBundler.main(args)
+
+app_dir = joinpath(root_dir, "examples/QMLApp")
+args = ["build", app_dir, COMMON_ARGS..., "-Dbundler=juliaimg"]
+AppBundler.main(args)
+
+app_dir = joinpath(root_dir, "examples/QMLApp")
+args = ["build", app_dir, COMMON_ARGS..., "-Dapp_name=qmlappjc", "-Dbundler=juliac"]
+AppBundler.main(args)
+
+app_dir = joinpath(root_dir, "examples/CmdApp")
+args = ["build", app_dir, COMMON_ARGS..., "-Dbundler=juliaimg", "-Dapp_name=cmdappjuliaimg"]
+AppBundler.main(args)
+
+app_dir = joinpath(root_dir, "examples/CmdApp")
+args = ["build", app_dir, COMMON_ARGS..., "-Dbundler=juliac", "-Dapp_name=cmdappjuliac"]
+AppBundler.main(args)
 
 
 

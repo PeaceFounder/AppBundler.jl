@@ -15,7 +15,7 @@ locations and original link targets.
 The symlink path is relative to `target`. The target is preserved exactly
 as returned by `readlink`, so relative symlink targets remain relative.
 """
-function extract_symlinks(target; warn=true)
+function extract_symlinks(target; verbose=true)
     target = abspath(target)
     symlinks = Tuple{String, String}[]
 
@@ -27,7 +27,9 @@ function extract_symlinks(target; warn=true)
                 link_target = readlink(path)
                 relative_path = relpath(path, target)
 
-                warn && @warn "Extracting symlink" path=relative_path target=link_target
+                if verbose
+                    @info "Extracting symlink" path=relative_path target=link_target
+                end
 
                 push!(symlinks, (relative_path, link_target))
                 rm(path)
@@ -96,9 +98,9 @@ function allocate_image(path, nbytes::Integer)
     return path
 end
 
-function build_image(backend::HFSPlusBackend, stage, img; volume_name = "")
+function build_image(backend::HFSPlusBackend, stage, img; volume_name = "", verbose = false)
 
-    symlinks = extract_symlinks(stage)
+    symlinks = extract_symlinks(stage; verbose)
 
     MiB = 2^20
     nbytes = ceil(Int, disk_usage(stage) * (1 + backend.slack)) + MiB
@@ -108,7 +110,7 @@ function build_image(backend::HFSPlusBackend, stage, img; volume_name = "")
     #run(`$(newfs_hfs()) -v $volume_name $img`)
     newfs_hfs(img; volname = volume_name)
 
-    run(`$(hfsplus()) $img addall $stage`)
+    run(pipeline(`$(hfsplus()) $img addall $stage`; stdout = verbose ? Base.stdout : devnull))
 
     for (path, link_target) in symlinks
         run(`$(hfsplus()) $img symlink $path $link_target`)

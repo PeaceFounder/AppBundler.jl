@@ -8,6 +8,7 @@ overwrite_target = false
 bundler = "juliaimg"
 selfsign = false
 skipsign = false
+verbose = false
 
 [AppBundler.msix]
 publisher = "CN=AppBundler, C=XX, O=PeaceFounder"
@@ -25,7 +26,7 @@ sandboxed_runtime = false
 compression = "lzma"
 backend = "xorriso"
 xorriso.hfsplus = false
-hfsplus.slack = 0.02
+hfsplus.slack = 0.2
 
 [AppBundler.appimage]
 compression = "zstd"
