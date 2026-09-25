@@ -1,5 +1,6 @@
+using ..NewfsHFS: newfs_hfs
 using libdmg_hfsplus_jll: dmg, hfsplus
-using hfsprogs_jll: newfs_hfs
+#using hfsprogs_jll: newfs_hfs
 
 struct HFSPlusBackend <: ImageBackend
     slack::Float64
@@ -104,7 +105,8 @@ function build_image(backend::HFSPlusBackend, stage, img; volume_name = "")
     nbytes = cld(nbytes, MiB) * MiB
     allocate_image(img, nbytes)
 
-    run(`$(newfs_hfs()) -v $volume_name $img`)
+    #run(`$(newfs_hfs()) -v $volume_name $img`)
+    newfs_hfs(img; volname = volume_name)
 
     run(`$(hfsplus()) $img addall $stage`)
 

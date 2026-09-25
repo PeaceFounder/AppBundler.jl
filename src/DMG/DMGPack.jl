@@ -3,6 +3,7 @@ module DMGPack
 using rcodesign_jll: rcodesign
 using ..DSStore
 using ..HFS
+using ..NewfsHFS
 
 abstract type ImageBackend end
 
