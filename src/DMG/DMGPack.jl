@@ -1,7 +1,5 @@
 module DMGPack
 
-using libdmg_hfsplus_jll: dmg
-using Xorriso_jll: xorriso
 using rcodesign_jll: rcodesign
 using ..DSStore
 using ..HFS
@@ -82,6 +80,5 @@ function unpack(source, destination)
 
     return
 end
-
 
 end

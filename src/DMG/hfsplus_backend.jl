@@ -1,80 +1,9 @@
+using libdmg_hfsplus_jll: dmg, hfsplus
+using hfsprogs_jll: newfs_hfs
+
 struct HFSPlusBackend <: ImageBackend
     slack::Float64
 end
-
-using libdmg_hfsplus_jll: dmg, hfsplus
-using hfsprogs_jll: newfs_hfs
-const hfsplus_cmd = hfsplus
-
-# hfsplus_backend
-"""
-    remove_symlinks(target; inline=false, warn=true)
-
-Recursively removes all symlinks from `target`.
-
-If `inline=false`, all symlinks are removed.
-
-If `inline=true`, symlinks to files are replaced with copies of their
-targets. Inlining symlinks to directories is not supported and throws
-an `ArgumentError`.
-
-If `warn=true`, a warning is emitted for every symlink encountered.
-"""
-function remove_symlinks(target; inline=false, warn=true)
-    for (root, dirs, files) in walkdir(target; follow_symlinks=false)
-        # Directory symlinks
-        for name in dirs
-            path = joinpath(root, name)
-
-            if islink(path)
-                link_target = readlink(path)
-
-                if !isabspath(link_target)
-                    link_target = joinpath(root, link_target)
-                end
-
-                link_target = normpath(link_target)
-
-                if inline
-                    throw(ArgumentError(
-                        "Inlining symlinked directories is not supported: " *
-                        "$path -> $link_target"
-                    ))
-                end
-
-                warn && @warn "Removing symlink" path target=link_target
-                rm(path)
-            end
-        end
-
-        # File symlinks
-        for name in files
-            path = joinpath(root, name)
-
-            if islink(path)
-                link_target = readlink(path)
-
-                if !isabspath(link_target)
-                    link_target = joinpath(root, link_target)
-                end
-
-                link_target = normpath(link_target)
-
-                warn && @warn "Removing symlink" path target=link_target
-
-                if inline
-                    rm(path)
-                    cp(link_target, path)
-                else
-                    rm(path)
-                end
-            end
-        end
-    end
-
-    return nothing
-end
-
 
 """
     extract_symlinks(target; warn=true)
@@ -108,25 +37,79 @@ function extract_symlinks(target; warn=true)
     return symlinks
 end
 
+"""
+    disk_usage(path) -> Int
 
+Bytes allocated on disk for `path` and everything below it, counted the way
+`du` does: `lstat` block counts (symlinks are not followed), the root directory
+itself is included, and hard-linked files are counted only once.
+"""
+function disk_usage(path)
+    seen = Set{Tuple{UInt64, UInt64}}()
+    total = 0
+    entries = (joinpath(root, name) for (root, dirs, files) in walkdir(path)
+                                    for name in Iterators.flatten((dirs, files)))
+    for p in Iterators.flatten(((path,), entries))
+        st = lstat(p)
+        if !isdir(st) && st.nlink > 1
+            key = (st.device, st.inode)
+            key in seen && continue
+            push!(seen, key)
+        end
+        total += st.blocks * 512
+    end
+    return total
+end
+
+"""
+    du_s(path; blocksize = Sys.isapple() ? 512 : 1024) -> Int
+
+Pure-Julia analogue of `du -s path`: the disk usage of `path` and everything
+below it, in units of `blocksize` bytes, rounded up.
+
+The default `blocksize` matches the native `du` on each platform: 512-byte
+blocks on macOS and 1K blocks on Linux. See [`disk_usage`](@ref) for how
+the usage is counted.
+
+# Examples
+
+Compare against the system `du`. The `-k` flag forces 1K blocks on both
+macOS and Linux, so the check is platform-independent:
+
+```julia
+expected = parse(Int, first(split(read(`du -sk \$path`, String))))
+@assert du_s(path; blocksize = 1024) == expected
+```
+"""
+du_s(path; blocksize = Sys.isapple() ? 512 : 1024) = cld(disk_usage(path), blocksize)
+
+
+"""
+    allocate_image(path, nbytes)
+
+Create a zero-filled image file of exactly `nbytes` bytes at `path`.
+"""
+function allocate_image(path, nbytes::Integer)
+    nbytes >= 0 || throw(ArgumentError("Image size must be non-negative, got $nbytes"))
+    open(io -> truncate(io, nbytes), path, "w")
+    return path
+end
 
 function build_image(backend::HFSPlusBackend, stage, img; volume_name = "")
-    #iso_stage = tempname() 
 
     symlinks = extract_symlinks(stage)
-    #println("Forming hfs archive with hfsplus at $stage")
-    du_blocks = parse(Int, split(strip(read(`du -s $stage`, String)))[1])
 
-    # ~2% slack, following the original shell recipe.
-    size = du_blocks ÷ 1000 * 102 ÷ 100 + 1
-    
-    run(`dd if=/dev/zero of=$img bs=1M count=$size`)
+    MiB = 2^20
+    nbytes = ceil(Int, disk_usage(stage) * (1 + backend.slack)) + MiB
+    nbytes = cld(nbytes, MiB) * MiB
+    allocate_image(img, nbytes)
+
     run(`$(newfs_hfs()) -v $volume_name $img`)
 
-    run(`$(hfsplus_cmd()) $img addall $stage`)
+    run(`$(hfsplus()) $img addall $stage`)
 
     for (path, link_target) in symlinks
-        run(`$(hfsplus_cmd()) $img symlink $path $link_target`)
+        run(`$(hfsplus()) $img symlink $path $link_target`)
     end
 
     return
@@ -134,6 +117,5 @@ end
 
 function compress_image(backend::HFSPlusBackend, img, destination; compression = :lzma)
     run(`$(dmg()) build $img $destination --compression=$compression`)
-    #run(`$(dmg()) dmg $img $destination --compression=$compression`)
     return
 end

@@ -1,5 +1,8 @@
 # Xorrisso backend
 
+using libdmg_hfsplus_jll: dmg
+using Xorriso_jll: xorriso
+
 struct XorrisoBackend <: ImageBackend
     hfsplus::Bool
 end
