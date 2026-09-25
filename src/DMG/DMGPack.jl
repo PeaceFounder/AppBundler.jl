@@ -6,6 +6,11 @@ using rcodesign_jll: rcodesign
 using ..DSStore
 using ..HFS
 
+abstract type ImageBackend end
+
+include("xorriso_backend.jl")
+include("hfsplus_backend.jl")
+
 function generate_self_signing_pfx(pfx_path; password = "PASSWORD")
 
     run(`$(rcodesign()) generate-self-signed-certificate --person-name="AppBundler" --p12-file="$pfx_path" --p12-password="$password"`)
@@ -32,7 +37,7 @@ The function assumes that `app_stage` points to a properly structured macOS appl
 - `compression::Union{Symbol, Nothing} = :lzma`: Compression algorithm to use for the DMG. Options are `:lzma`, `:bzip2`, `:zlib`, `:lzfse`, or `nothing` for no compression
 - `installer_title::String = "Installer"`: Volume name for the DMG
 """
-function pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer", hardened_runtime = true, shallow_signing = true, hfsplus = false)
+function pack(app_stage, destination, entitlements; pfx_path = nothing, password = "", compression = :lzma, installer_title = "Installer", hardened_runtime = true, shallow_signing = true, hfsplus = false, backend = XorrisoBackend(hfsplus))
 
     isfile(entitlements) || error("Entitlements at $entitlements not found")
     isnothing(compression) || compression in [:lzma, :bzip2, :zlib, :lzfse] || error("Compression can only be `compression=[:lzma|:bzip|:zlib|:lzfse]`")
@@ -56,14 +61,11 @@ function pack(app_stage, destination, entitlements; pfx_path = nothing, password
 
     if !isnothing(compression)
 
-        iso_stage = tempname() 
-
-        println("Forming iso archive with xorriso at $iso_stage")
-        hfsplus_flag = hfsplus ? `-hfsplus` : ``
-        run(`$(xorriso()) -as mkisofs -V "$installer_title" $hfsplus_flag -relaxed-filenames -D -R -no-pad -o $iso_stage $(dirname(app_stage))`)
-
-        println("Compressing iso to dmg with $compression algorithm at $destination")
-        run(`$(dmg()) dmg $iso_stage $destination --compression=$compression`)
+        img = tempname() 
+        println("Forming image at $img")
+        build_image(backend, dirname(app_stage), img; volume_name = installer_title)
+        println("Compressing img to dmg with $compression algorithm at $destination")
+        compress_image(backend, img, destination; compression)
 
         if !isnothing(pfx_path) && !shallow_signing
             println("Codesigning DMG bundle with certificate at $pfx_path")

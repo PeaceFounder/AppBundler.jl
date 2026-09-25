@@ -684,6 +684,8 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
     entitlements = joinpath(mktempdir(), "Entitlements.plist")
     install(dmg.entitlements, entitlements; parameters, predicate)
     
+    #DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, hfsplus = dmg.hfsplus)
+
     DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, hfsplus = dmg.hfsplus)
 
     return
