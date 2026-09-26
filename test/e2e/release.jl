@@ -8,7 +8,7 @@ root_dir = dirname(dirname(@__DIR__))
 build_dir = joinpath(root_dir, "build")
 mkpath(build_dir)
 
-COMMON_ARGS = ["--force", "--selfsign", "--build-dir=$build_dir", "-Ddmg.backend=hfsplus", "-Ddmg.hfsplus.slack = 0.2"]
+COMMON_ARGS = ["--force", "--selfsign", "--build-dir=$build_dir", "-Ddmg.backend=hfsplus"]
 
 # Nonprecompiled option is interesting to test on linux
 app_dir = joinpath(root_dir, "examples/modjulia")

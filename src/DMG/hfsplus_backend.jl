@@ -1,6 +1,7 @@
-using ..NewfsHFS: newfs_hfs
+using ..NewfsHFS: build_hfs
 using libdmg_hfsplus_jll: dmg, hfsplus
-#using hfsprogs_jll: newfs_hfs
+#using hfsprogs_jll: build_hfs
+
 
 struct HFSPlusBackend <: ImageBackend
     slack::Float64
@@ -98,26 +99,58 @@ function allocate_image(path, nbytes::Integer)
     return path
 end
 
-function build_image(backend::HFSPlusBackend, stage, img; volume_name = "", verbose = false)
+# function build_image(backend::HFSPlusBackend, stage, img; volume_name = "", verbose = false)
 
-    symlinks = extract_symlinks(stage; verbose)
+#     symlinks = extract_symlinks(stage; verbose)
 
-    MiB = 2^20
-    nbytes = ceil(Int, disk_usage(stage) * (1 + backend.slack)) + MiB
-    nbytes = cld(nbytes, MiB) * MiB
-    allocate_image(img, nbytes)
+#     MiB = 2^20
+#     nbytes = ceil(Int, disk_usage(stage) * (1 + backend.slack)) + MiB
+#     nbytes = cld(nbytes, MiB) * MiB
+#     allocate_image(img, nbytes)
 
-    #run(`$(newfs_hfs()) -v $volume_name $img`)
-    newfs_hfs(img; volname = volume_name)
 
-    run(pipeline(`$(hfsplus()) $img addall $stage`; stdout = verbose ? Base.stdout : devnull))
+#     @show Base.format_bytes(filesize(img))
+#     run(`$(newfs_hfs()) -v $volume_name $img`)
+#     #newfs_hfs(img; volname = volume_name)
 
-    for (path, link_target) in symlinks
-        run(`$(hfsplus()) $img symlink $path $link_target`)
-    end
+#     run(pipeline(`$(hfsplus()) $img addall $stage`; stdout = verbose ? Base.stdout : devnull))
+
+#     for (path, link_target) in symlinks
+#         run(`$(hfsplus()) $img symlink $path $link_target`)
+#     end
+
+#     return
+# end
+
+
+function build_image(backend::HFSPlusBackend, stage, img; volume_name = "untitled", verbose = false)
+
+
+    build_hfs(stage, img; volname = volume_name)
+
+    @show Base.format_bytes(filesize(img))
+
+    # symlinks = extract_symlinks(stage; verbose)
+
+    # MiB = 2^20
+    # nbytes = ceil(Int, disk_usage(stage) * (1 + backend.slack)) + MiB
+    # nbytes = cld(nbytes, MiB) * MiB
+    # allocate_image(img, nbytes)
+
+
+    # @show Base.format_bytes(filesize(img))
+    # run(`$(newfs_hfs()) -v $volume_name $img`)
+    # #newfs_hfs(img; volname = volume_name)
+
+    # run(pipeline(`$(hfsplus()) $img addall $stage`; stdout = verbose ? Base.stdout : devnull))
+
+    # for (path, link_target) in symlinks
+    #     run(`$(hfsplus()) $img symlink $path $link_target`)
+    # end
 
     return
 end
+
 
 function compress_image(backend::HFSPlusBackend, img, destination; compression = :lzma)
     run(`$(dmg()) build $img $destination --compression=$compression`)
