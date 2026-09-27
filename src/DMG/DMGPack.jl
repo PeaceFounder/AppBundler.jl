@@ -2,13 +2,54 @@ module DMGPack
 
 using rcodesign_jll: rcodesign
 using ..DSStore
-using ..HFS
-using ..NewfsHFS
+using ..HFSTools
+using ..HFSImg: build_hfs
+using libdmg_hfsplus_jll: dmg, hfsplus
+using Xorriso_jll: xorriso
+using Dates: DateTime
 
 abstract type ImageBackend end
 
-include("xorriso_backend.jl")
-include("hfsplus_backend.jl")
+@kwdef struct XorrisoBackend <: ImageBackend
+    hfsplus::Bool = false
+end
+
+function build_image(backend::XorrisoBackend, stage, img; volume_name = "", verbose = true)
+
+    hfsplus_flag = backend.hfsplus ? `-hfsplus` : ``
+    run(`$(xorriso()) -as mkisofs -V "$volume_name" $hfsplus_flag -relaxed-filenames -D -R -no-pad -o $img $stage`)
+
+    return
+end
+
+function compress_image(backend::XorrisoBackend, img, destination; compression = :lzma)
+    run(`$(dmg()) dmg $img $destination --compression=$compression`)
+    return
+end
+
+@kwdef struct HFSPlusBackend <: ImageBackend
+    free_space::Integer = 0
+    blocksize::Integer = 4096
+    uid::Integer = 99
+    gid::Integer = 99
+    timestamp::Union{Nothing, DateTime} = nothing
+    uuid::UInt64 = rand(UInt64)
+end
+
+function build_image(backend::HFSPlusBackend, stage, img; volume_name = "untitled", verbose = false)
+
+    (; free_space, blocksize, uid, gid, timestamp, uuid) = backend
+    build_hfs(stage, img; volname = volume_name, free_space, blocksize, uid, gid, timestamp, uuid)
+
+    return
+end
+
+function compress_image(backend::HFSPlusBackend, img, destination; compression = :lzma)
+    
+    run(`$(dmg()) build $img $destination --compression=$compression`)
+    
+    return
+end
 
 function generate_self_signing_pfx(pfx_path; password = "PASSWORD")
 
@@ -76,10 +117,10 @@ function unpack(source, destination; verbose = false)
 
     raw_image = tempname()
     run(`$(dmg()) extract $source $raw_image`)
-    HFS.extract_hfs_filesystem(raw_image, destination)
+    HFSTools.extract_hfs_filesystem(raw_image, destination)
 
     if verbose
-        HFS.explore_hfs_image(raw_image)
+        HFSTools.explore_hfs_image(raw_image)
     end
 
     return

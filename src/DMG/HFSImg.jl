@@ -19,10 +19,9 @@ Command line (same calling convention as hfsprogs):
 
     julia NewfsHFS.jl -v "volume name" img_stage
 """
-module NewfsHFS
+module HFSImg
 
 using Dates: Dates
-using Random: RandomDevice
 using Unicode: normalize
 
 export newfs_hfs, build_hfs
@@ -692,18 +691,6 @@ end
 # Reproducibility helpers
 # ---------------------------------------------------------------------------
 
-"""
-    generate_uuid() -> UInt64
-
-Random volume identifier for `build_hfs`. HFS+ stores a 64-bit identifier (Finder
-info words 6-7 of the volume header); macOS derives the 128-bit "Volume UUID" shown
-by `diskutil` from it. Zero means "no identifier" to macOS and is never returned.
-"""
-function generate_uuid()
-    u = rand(RandomDevice(), UInt64)
-    return u == 0 ? generate_uuid() : u
-end
-
 function check_uuid(uuid::Integer)
     0 < uuid <= typemax(UInt64) ||
         error("uuid must be a non-zero 64-bit unsigned integer (HFS+ stores 64 bits), got $uuid")
@@ -742,7 +729,7 @@ Times before 1970 are stored as 1970 (macOS can't show earlier ones); HFS+ ends 
 function build_hfs(stage::AbstractString, img::AbstractString; volname::AbstractString = "untitled",
                    free_space::Integer = 0, blocksize::Integer = 4096, uid::Integer = 99, gid::Integer = 99,
                    timestamp::Union{Nothing,Real,Dates.DateTime} = nothing,
-                   uuid::Integer = generate_uuid())
+                   uuid::Integer = rand(UInt64))
     isdir(stage) || error("$stage is not a directory")
     forced = timestamp === nothing ? nothing : unix_time(timestamp)
     datefor(st) = hfs_date(forced === nothing ? st.mtime : forced)

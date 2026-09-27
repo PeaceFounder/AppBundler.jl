@@ -26,7 +26,7 @@ sandboxed_runtime = false
 compression = "lzma"
 backend = "xorriso"
 xorriso.hfsplus = false
-hfsplus.slack = 0.2
+hfsplus.free_space = 0
 
 [AppBundler.appimage]
 compression = "zstd"

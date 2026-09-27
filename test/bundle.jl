@@ -124,7 +124,7 @@ if Sys.isunix()
             rm(joinpath(dest, "Applications"))
         end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898"
 
-        backends = [DMGPack.XorrisoBackend(true), DMGPack.HFSPlusBackend(0.02)]
+        backends = [DMGPack.XorrisoBackend(; hfsplus = true), DMGPack.HFSPlusBackend(; uuid = UInt64(23))]
 
         @testset "$backend" for backend in backends
 

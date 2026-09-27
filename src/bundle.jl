@@ -401,9 +401,9 @@ function dmg_backend(preferences)
 
     backend = preferences["dmg"]["backend"]
     if backend == "xorriso"
-        return DMGPack.XorrisoBackend(preferences["dmg"]["xorriso"]["hfsplus"])
+        return DMGPack.XorrisoBackend(; hfsplus = preferences["dmg"]["xorriso"]["hfsplus"])
     elseif backend == "hfsplus"
-        return DMGPack.HFSPlusBackend(preferences["dmg"]["hfsplus"]["slack"])
+        return DMGPack.HFSPlusBackend(; free_space = preferences["dmg"]["hfsplus"]["free_space"])
     else
         error("Unrecognized backend $backend. Allowed values xorriso|hfsplus")
     end
@@ -426,7 +426,6 @@ function DMG(;
              hardened_runtime = preferences["dmg"]["hardened_runtime"],
              sandboxed_runtime = preferences["dmg"]["sandboxed_runtime"],
              main_launcher = get_path(prefix, hook("dmg/main.sh", predicate); warn = false),
-             #hfsplus = false,
              backend = dmg_backend(preferences),
              windowed = preferences["windowed"],
              compress = preferences["compress"],
@@ -435,7 +434,6 @@ function DMG(;
              parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => string(sandboxed_runtime), "COMMAND"=>Base.shell_escape_posixly(command))
              )
 
-#    return DMG(icon, info_config, command, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, hfsplus, windowed, compress, compression, arch, predicate, parameters)
     return DMG(icon, info_config, command, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, backend, windowed, compress, compression, arch, predicate, parameters)
 end
 

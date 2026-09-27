@@ -8,6 +8,10 @@ end
     include("dsstore.jl")
 end
 
+@time @safetestset "HFSPlus builder" begin
+    include("hfsplus.jl")
+end
+
 @time @safetestset "Bundling core tetsts" begin
     include("bundle.jl")
 end
