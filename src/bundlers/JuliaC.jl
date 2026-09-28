@@ -11,6 +11,28 @@ import AppEnv
 const JULIAC_PKGID = Base.PkgId(Base.UUID("acedd4c2-ced6-4a15-accc-2607eb759ba2"), "JuliaC")
 const JULIAC_EXE = Sys.iswindows() ? "juliac.bat" : "juliac"
 
+
+"""
+    get_cpu_target(platform::AbstractPlatform) -> String
+
+Get the appropriate CPU target string for the given platform architecture.
+
+# Arguments
+- `platform::AbstractPlatform`: Target platform
+
+# Returns
+- `String`: CPU target specification for Julia compilation
+"""
+function get_cpu_target(arch)
+    arch === :i686        ?  "pentium4;sandybridge,-xsaveopt,clone_all"                        :
+    arch === :x86_64      ?  "generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)"  :
+    arch === :arm         ?  "armv7-a;armv7-a,neon;armv7-a,neon,vfp4"                          :
+    arch === :aarch64     ?  "generic"   #= is this really the best here? =#                   :
+    arch === :powerpc64le ?  "pwr8"                                                            :
+        "generic"
+end
+
+
 """
     juliac_shim() -> Union{String, Nothing}
 
@@ -159,7 +181,9 @@ function stage(spec::JuliaCBundle, destination::String; runtime_mode = "MIN", ap
     Resources.install_assets(project, joinpath(destination, spec.asset_rpath), spec.asset_spec)
     Resources.install_pkgorigin_index(project, joinpath(destination, "index"), spec.asset_rpath)
 
-    run(`$juliac_cmd --output-exe $(app_name) $project --bundle $destination $trim_arg $(spec.args)`)
+    withenv("JULIA_CPU_TARGET" => get_cpu_target(Sys.ARCH)) do
+        run(`$juliac_cmd --output-exe $(app_name) $project --bundle $destination $trim_arg $(spec.args)`)
+    end
     
     return
 end
