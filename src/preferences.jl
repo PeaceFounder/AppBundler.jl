@@ -52,7 +52,6 @@ end
 function extract_template_parameters!(parameters::Dict{String, Any}, preferences)
 
     # This one looks like a bug nest; need to refactor and test
-    #parameters["APP_NAME"] = lowercase(join(split(preferences["app_name"], " "), "-")) 
     parameters["APP_NAME"] = preferences["app_name"]
     parameters["APP_EXE"] = preferences["app_exe"]
 
@@ -142,7 +141,6 @@ end
 function get_preferences_schema()
 
     preferences = TOML.parse(String(read(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))))["AppBundler"]
-    #merge_dynamic_defaults!(preferences, project) # this is not a good option
 
     preferences["app_name"] = "myapp"
     preferences["bundler"] = "juliac"
@@ -156,9 +154,7 @@ end
 
 function get_extended_preferences(project; preference_overrides = Dict())
 
-    # hopefully the right call here
     preferences = deepcopy(Resources.get_project_preferences(project))
-    #merge!(preferences["AppBundler"], preference_overrides)
 
     custom_merge(a::Dict, b::Dict) = merge(a, b)
     custom_merge(a::T, b::T) where T = b

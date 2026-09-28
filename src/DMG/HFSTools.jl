@@ -30,7 +30,7 @@ dirs, files = HFS.extract_tree(img, "/Applications", "extracted_apps/")
 HFS.extract_hfs_filesystem("mydisk.dmg", "output_directory/")
 ```
 """
-module HFS
+module HFSTools
 
 using libdmg_hfsplus_jll: hfsplus
 

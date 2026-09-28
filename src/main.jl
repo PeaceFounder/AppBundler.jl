@@ -73,6 +73,7 @@ function main_build(ARGS; sources_dir)
     skipsign = preferences["skipsign"]
     overwrite_target = preferences["overwrite_target"]
     msix2exe = preferences["msix"]["bootstrapper"]
+    verbose = preferences["verbose"]
 
     bundler = preferences["bundler"]
 
@@ -148,7 +149,7 @@ function main_build(ARGS; sources_dir)
             password = readline() |> strip
         end
 
-        bundle(spec, dmg, target_path(dmg); force = overwrite_target, password)
+        bundle(spec, dmg, target_path(dmg); force = overwrite_target, password, verbose)
 
     elseif :snap == target_bundle
 

@@ -500,7 +500,6 @@ end
 function julia_download_url(platform::Windows, version::VersionNumber)
 
     folder = "winnt/x$(wordsize(platform))"
-    #archive_name = "julia-$(version)-win$(wordsize(platform)).zip"
     archive_name = "julia-$(version)-win$(wordsize(platform)).tar.gz"
 
     version_folder = "$(version.major).$(version.minor)"
@@ -524,7 +523,6 @@ function install_julia(platform::AbstractPlatform, julia_dir; version = julia_ve
 
     source = extract_tar_gz(tarball)
 
-    #mv(joinpath(source, "julia-$version"), julia_dir)
     merge_directories(joinpath(source, "julia-$version"), julia_dir)
     
     return nothing

@@ -65,7 +65,6 @@ AppBundler.stage(::AppBundler.JuliaImg.JuliaImgBundle, ::String)
 AppBundler.stage(::AppBundler.JuliaC.JuliaCBundle, ::String)
 AppBundler.stage(::AppBundler.MSIX, ::String)
 AppBundler.bundle(::Function, ::AppBundler.DMG, ::String)
-AppBundler.bundle(::Function, ::AppBundler.MSIX, ::String)
 AppBundler.bundle(::AppBundler.JuliaC.JuliaCBundle, ::AppBundler.AppImage, ::String)
 AppBundler.bundle(::AppBundler.JuliaImgBundle, ::AppBundler.DMG, ::String)
 ```

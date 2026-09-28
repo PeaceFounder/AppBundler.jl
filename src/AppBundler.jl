@@ -24,10 +24,12 @@ abstract type BuildSpec end
 function stage end
 
 include("DMG/DSStore.jl")
-include("DMG/HFS.jl")
+include("DMG/HFSTools.jl")
+include("DMG/HFSImg.jl")
 include("DMG/DMGPack.jl")
 
 include("Snap/SnapPack.jl")
+
 include("AppImage/AppImageRuntime.jl")
 include("AppImage/AppImagePack.jl")
 
@@ -36,12 +38,13 @@ include("MSIX/MSIXIcons.jl")
 include("MSIX/WinSubsystem.jl")
 include("MSIX/MSIX2EXEPack.jl")
 
-include("bundlers/Resources.jl") # JuliaC needs assets and pkgorigins_index which is shared between JuliaImg and JuliaC
+# JuliaC needs assets and pkgorigins_index which is shared between JuliaImg and JuliaC
+include("bundlers/Resources.jl") 
 include("bundlers/JuliaImg/JuliaImg.jl") 
 include("bundlers/JuliaC.jl")
 
 using .JuliaImg: install
-using .JuliaImg.Resources: merge_directories#, install
+using .JuliaImg.Resources: merge_directories
 
 include("utils.jl")
 include("bundle.jl")
@@ -50,8 +53,6 @@ include("recipes.jl")
 include("ArgTools.jl")
 include("preferences.jl")
 include("main.jl")
-
-#bundle_app(app_dir, bundle_dir; version = VERSION) = bundle_app(HostPlatform(), app_dir, bundle_dir; version)
 
 function __init__()
     if Sys.iswindows()
@@ -65,13 +66,7 @@ function __init__()
 
 end
 
-#import .JuliaImg: JuliaImgBundle
-
-#@doc (@doc JuliaImg.JuliaImgBundle) JuliaImgBundle
-#@doc (@doc JuliaC.JuliaCBundle) JuliaCBundle
-
 export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
 export main 
-
 
 end

@@ -358,7 +358,7 @@ active project's `LocalPreferences.toml` are used.
 - `hardened_runtime`: If `true`, enable hardened runtime during signing (required for notarization); defaults to `dmg.hardened_runtime` preference
 - `sandboxed_runtime`: If `true`, enable the App Sandbox entitlement; defaults to `dmg.sandboxed_runtime` preference
 - `main_launcher`: Path to the Julia entry-point script. When set, a native redirect launcher is installed at `Contents/MacOS/<app_name>` and the script itself at `Contents/Libraries/main`; resolved from prefix using the bundler predicate; omitted if not found
-- `hfsplus = false`: If `true`, use HFS+ filesystem when building the disk image otherwise uses ISO
+- `backend = dmg_backend(preferences)`: Disk image backend used to build the `.dmg` when `compress = true`. Either `DMGPack.XorrisoBackend` (`dmg.backend = "xorriso"`, with an optional `dmg.xorriso.hfsplus` setting) or `DMGPack.HFSPlusBackend` (`dmg.backend = "hfsplus"`, with `dmg.hfsplus.free_space` controlling spare space in the image). Defaults to the backend selected by the `dmg.backend` preference.
 - `windowed`: If `true`, the application runs without a console window; defaults to `windowed` preference
 - `compress`: If `true`, pack the staging directory into a `.dmg` disk image; defaults to `compress` preference
 - `compression`: Compression algorithm for the disk image (`:lzma`, `:bzip2`, `:zlib`, or `:lzfse`); defaults to `dmg.compression` preference
@@ -386,13 +386,27 @@ struct DMG
     hardened_runtime::Bool
     sandboxed_runtime::Bool
     main_launcher::Union{String, Nothing}
-    hfsplus::Bool
+    backend::DMGPack.ImageBackend
     windowed::Bool
     compress::Bool
     compression::Symbol
     arch::Symbol
     predicate::String
     parameters::Dict{String, Any}
+end
+
+
+function dmg_backend(preferences)
+
+    backend = preferences["dmg"]["backend"]
+    if backend == "xorriso"
+        return DMGPack.XorrisoBackend(; hfsplus = preferences["dmg"]["xorriso"]["hfsplus"])
+    elseif backend == "hfsplus"
+        return DMGPack.HFSPlusBackend(; free_space = preferences["dmg"]["hfsplus"]["free_space"])
+    else
+        error("Unrecognized backend $backend. Allowed values xorriso|hfsplus")
+    end
+
 end
 
 # soft link can be used in case one needs to use png source. The issue here is of communicating intent.
@@ -411,7 +425,7 @@ function DMG(;
              hardened_runtime = preferences["dmg"]["hardened_runtime"],
              sandboxed_runtime = preferences["dmg"]["sandboxed_runtime"],
              main_launcher = get_path(prefix, hook("dmg/main.sh", predicate); warn = false),
-             hfsplus = false,
+             backend = dmg_backend(preferences),
              windowed = preferences["windowed"],
              compress = preferences["compress"],
              compression = preferences["dmg"]["compression"] |> Symbol,
@@ -419,7 +433,7 @@ function DMG(;
              parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => string(sandboxed_runtime), "COMMAND"=>Base.shell_escape_posixly(command))
              )
 
-    return DMG(icon, info_config, command, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, hfsplus, windowed, compress, compression, arch, predicate, parameters)
+    return DMG(icon, info_config, command, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, backend, windowed, compress, compression, arch, predicate, parameters)
 end
 
 function DMG(project; preferences = get_project_preferences(project), kwargs...)
@@ -630,7 +644,7 @@ bundle(Snap(app_dir), "MyApp.snap") do staging_dir
 end
 ```
 """
-function bundle(setup::Function, dmg::DMG, destination::String; force = false, password = "") 
+function bundle(setup::Function, dmg::DMG, destination::String; force = false, password = "", verbose = false) 
 
     (; parameters, predicate) = dmg
     
@@ -684,12 +698,12 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
     entitlements = joinpath(mktempdir(), "Entitlements.plist")
     install(dmg.entitlements, entitlements; parameters, predicate)
     
-    DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, hfsplus = dmg.hfsplus)
+    DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, backend = dmg.backend, verbose)
 
     return
 end
 
-function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "")
+function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "", verbose = false)
 
     if ispath(destination)
         if force
@@ -723,7 +737,7 @@ function bundle(setup::Function, msix::MSIX, destination::String; force = false,
     return
 end
 
-function bundle(setup::Function, snap::Snap, destination::String; force = false)
+function bundle(setup::Function, snap::Snap, destination::String; force = false, verbose = false)
 
     if ispath(destination)
         if force

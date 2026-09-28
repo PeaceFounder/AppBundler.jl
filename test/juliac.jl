@@ -33,34 +33,39 @@ asset_spec = Dict{Symbol, Vector{String}}(
 
 #build_dir = mktempdir()
 build_dir = joinpath(dirname(@__DIR__), "build")
+mkpath(build_dir)
 
-try
-    spec = JuliaCBundle(project; trim = true, asset_spec)
-    predicate = "juliac"
+spec = try
+    JuliaCBundle(project; trim = true, asset_spec)
+catch err
+    @warn "JuliaC tests are skipped because juliac can't be found in ~/.julia/juliac" exception = (err, catch_backtrace())
+    nothing
+end
 
-    if Sys.islinux()
-        snap = Snap(project; windowed = false, predicate)
-        bundle(spec, snap, joinpath(build_dir, "cmdapp-juliac.snap"); force=true)
+spec === nothing && return
 
-        appimage = AppImage(project; windowed = false, predicate)
-        #appimage = AppImage(project; windowed = false, predicate, runtime = joinpath(dirname(@__DIR__), "build/AppImageRuntime.v2025.11.8.aarch64-linux-gnu/bin/runtime"))
-        #appimage = AppImage(project; windowed = false, predicate, runtime = joinpath(dirname(@__DIR__), "build/AppImageRuntime.v2025.11.8.aarch64-linux-musl/bin/runtime"))
-        bundle(spec, appimage, joinpath(build_dir, "cmdapp-juliac.appimage"); force=true)
-    elseif Sys.isapple()
-        dmg = DMG(project; windowed = false, selfsign = true, predicate)
-        bundle(spec, dmg, joinpath(build_dir, "cmdapp-juliac.dmg"); force=true)
-    elseif Sys.iswindows()
-        msix = MSIX(project; windowed = false, selfsign = true, predicate)
-        msix_path = joinpath(build_dir, "cmdapp-juliac.msix")
-        bundle(spec, msix, msix_path; force=true)
+predicate = "juliac"
 
-        exe_spec = MSIX2EXE(project; windowed = false)
-        exe_path = joinpath(build_dir, "cmdapp-juliac.exe")
-        repack(msix_path, exe_spec, exe_path)
-    else
-        @warn "Nothing tested for JuliaC on this platform"
-    end
+if Sys.islinux()
+    snap = Snap(project; windowed = false, predicate)
+    bundle(spec, snap, joinpath(build_dir, "cmdapp-juliac.snap"); force = true)
 
-catch
-    @warn "JuliaC tests are skipped because juliac can't be found in ~/.julia/juliac"
+    appimage = AppImage(project; windowed = false, predicate)
+    bundle(spec, appimage, joinpath(build_dir, "cmdapp-juliac.appimage"); force = true)
+
+elseif Sys.isapple()
+    dmg = DMG(project; windowed = false, selfsign = true, predicate)
+    bundle(spec, dmg, joinpath(build_dir, "cmdapp-juliac.dmg"); force = true)
+
+elseif Sys.iswindows()
+    msix = MSIX(project; windowed = false, selfsign = true, predicate)
+    msix_path = joinpath(build_dir, "cmdapp-juliac.msix")
+    bundle(spec, msix, msix_path; force = true)
+
+    exe_spec = MSIX2EXE(project; windowed = false)
+    exe_path = joinpath(build_dir, "cmdapp-juliac.exe")
+    repack(msix_path, exe_spec, exe_path)
+
+else
+    @warn "Nothing tested for JuliaC on this platform"
 end
