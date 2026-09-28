@@ -183,9 +183,6 @@ function stage(spec::JuliaCBundle, destination::String; runtime_mode = "MIN", ap
 
     cmd = `$juliac_cmd --output-exe $(app_name) $project --bundle $destination $trim_arg $(spec.args)`
     run(addenv(cmd, "JULIA_CPU_TARGET" => get_cpu_target(Sys.ARCH)))
-    # withenv("JULIA_CPU_TARGET" => get_cpu_target(Sys.ARCH)) do
-    #     run(`$juliac_cmd --output-exe $(app_name) $project --bundle $destination $trim_arg $(spec.args)`)
-    # end
     
     return
 end

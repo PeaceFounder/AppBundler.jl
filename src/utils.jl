@@ -3,23 +3,7 @@ using Base64
 using rcodesign_jll: rcodesign
 using TOML
 
-# function get_version(app_dir)
-    
-#     project = joinpath(app_dir, "Project.toml")
-
-#     if isfile(project)
-#         try
-#             return TOML.parsefile(project)["version"] 
-#         catch
-#             error("Parsing of $project file failed")
-#         end
-#     else
-#         error("App project file does not exist at $project")
-#     end
-# end
-
 preferences() = Base.get_preferences()["AppBundler"]
-
 
 function generate_macos_signing_certificate(root; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
     
@@ -73,12 +57,6 @@ function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force 
     preferences = get_project_preferences(root)
     parameters = get_bundle_parameters(preferences)
 
-    # if !isfile(joinpath(root, "Project.toml"))
-    #     error("It appears $root does not contain a valid Julia project")
-    # else
-    #     parameters = get_bundle_parameters(joinpath(root, "Project.toml"))
-    # end
-
     mkpath(joinpath(root, ".github/workflows"))
 
     cp(joinpath(dirname(@__DIR__), "recipes/workflows/GitHub.yml"), joinpath(root, ".github/workflows/Release.yml"); force)
@@ -87,10 +65,6 @@ function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force 
         chmod(joinpath(root, ".github/workflows/Release.yml"), 0o666)
     end
 
-    #install(joinpath(dirname(@__DIR__), "recipes/workflows/build.jl"), joinpath(root, "meta/build.jl"); parameters, force)
-    #chmod(joinpath(root, "meta/build.jl"), 0o444)
-    #chmod(joinpath(root, "meta/build.jl"), 0o666)
-   
     println("""
     Setup done. You may now commit the workflow to the repo that will automatically build artifiacts and attach for new GitHub releases. You can also test builds before releasing. See documentation for more.
 
@@ -102,7 +76,6 @@ function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force 
     return
 end
 
-
 # Need to specify password
 # Also deriving from active project does not work unless that is a meta
 function generate_signing_certificates(; root = dirname(Base.ACTIVE_PROJECT[]), person_name = "AppBundler", country = "XX", validity_days = 365, force = false)
@@ -113,22 +86,6 @@ function generate_signing_certificates(; root = dirname(Base.ACTIVE_PROJECT[]), 
     return (; password_macos, password_windows)
 end
 
-# function isext(filename::String, ext::String)
-#     # Base case: if the filename is empty or doesn't have the extension, return false.
-#     if isempty(filename) || !endswith(filename, ext)
-#         return false
-#     end
-    
-#     # If the current filename ends with the desired extension, return true.
-#     if endswith(filename, ext)
-#         return true
-#     end
-    
-#     # Otherwise, recurse after stripping the current extension.
-#     root, _ = splitext(filename)
-#     return isext(root, ext)
-# end
-
 function is_windows_compatible(filename::String; path_length_threshold)
     # Check for invalid characters
 
@@ -136,11 +93,6 @@ function is_windows_compatible(filename::String; path_length_threshold)
         @warn "$(filename) contains invalid characters for Windows."
         return false
     end
-
-    # if occursin(r"[\\/:*?\"<>|]", filename)
-    #     @warn "$filename contains invalid characters for Windows.\n"
-    #     return false
-    # end
 
     # Check for reserved names
     reserved_names = ["CON", "PRN", "AUX", "NUL"]

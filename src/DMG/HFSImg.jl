@@ -297,105 +297,105 @@ end
 # Formatter
 # ---------------------------------------------------------------------------
 
-"""
-    newfs_hfs(path; volname = "untitled", blocksize = nothing)
+# """
+#     newfs_hfs(path; volname = "untitled", blocksize = nothing)
 
-Format the existing file (or block device) at `path` as an empty HFS+ volume
-named `volname`, equivalent to `newfs_hfs -v volname path`. The file is
-formatted in place, so it must already have the desired size.
-"""
-function newfs_hfs(path::AbstractString; volname::AbstractString = "untitled",
-                   blocksize::Union{Nothing,Integer} = nothing)
-    size = (device_size(path) ÷ 512) * 512     # work in whole 512-byte sectors
-    name = encode_volname(volname)
+# Format the existing file (or block device) at `path` as an empty HFS+ volume
+# named `volname`, equivalent to `newfs_hfs -v volname path`. The file is
+# formatted in place, so it must already have the desired size.
+# """
+# function newfs_hfs(path::AbstractString; volname::AbstractString = "untitled",
+#                    blocksize::Union{Nothing,Integer} = nothing)
+#     size = (device_size(path) ÷ 512) * 512     # work in whole 512-byte sectors
+#     name = encode_volname(volname)
 
-    bs = something(blocksize, default_blocksize(size))
-    (ispow2(bs) && bs >= 512) || error("block size must be a power of two ≥ 512, got $bs")
-    total = size ÷ bs
-    total <= typemax(UInt32) || error("block size $bs is too small for a $size byte volume")
-    sectors = size ÷ 512
+#     bs = something(blocksize, default_blocksize(size))
+#     (ispow2(bs) && bs >= 512) || error("block size must be a power of two ≥ 512, got $bs")
+#     total = size ÷ bs
+#     total <= typemax(UInt32) || error("block size $bs is too small for a $size byte volume")
+#     sectors = size ÷ 512
 
-    cat_node = sectors < 0x200000 ? 4096 : 8192
+#     cat_node = sectors < 0x200000 ? 4096 : 8192
 
-    ext_clump  = btree_clump_size(sectors, EXT_COL,  EXT_NODE_SIZE,  bs)
-    attr_clump = btree_clump_size(sectors, ATTR_COL, ATTR_NODE_SIZE, bs)
-    cat_clump  = btree_clump_size(sectors, CAT_COL,  cat_node,       bs)
-    ext_blocks, attr_blocks, cat_blocks = ext_clump ÷ bs, attr_clump ÷ bs, cat_clump ÷ bs
+#     ext_clump  = btree_clump_size(sectors, EXT_COL,  EXT_NODE_SIZE,  bs)
+#     attr_clump = btree_clump_size(sectors, ATTR_COL, ATTR_NODE_SIZE, bs)
+#     cat_clump  = btree_clump_size(sectors, CAT_COL,  cat_node,       bs)
+#     ext_blocks, attr_blocks, cat_blocks = ext_clump ÷ bs, attr_clump ÷ bs, cat_clump ÷ bs
 
-    # Layout: [boot blocks + header] [bitmap] [extents] [attributes] (gap) [catalog] ... [alt header]
-    hdr_blocks   = cld(1536, bs)
-    alloc_start  = hdr_blocks
-    alloc_blocks = cld(cld(total, 8), bs)
-    ext_start    = alloc_start + alloc_blocks
-    attr_start   = ext_start + ext_blocks
-    # Alternate header sits 1024 bytes before the end; the last block is always reserved.
-    tail_start   = min((size - 1024) ÷ bs, total - 1)
-    gap          = size >= 2MiB ? 10 * attr_blocks : 0   # room for the attributes file to grow
-    cat_start    = attr_start + attr_blocks + gap
-    if cat_start + cat_blocks > tail_start && gap > 0
-        cat_start -= gap
-    end
-    cat_end = cat_start + cat_blocks
-    cat_end <= tail_start || error("$path ($size bytes) is too small for an HFS+ volume")
+#     # Layout: [boot blocks + header] [bitmap] [extents] [attributes] (gap) [catalog] ... [alt header]
+#     hdr_blocks   = cld(1536, bs)
+#     alloc_start  = hdr_blocks
+#     alloc_blocks = cld(cld(total, 8), bs)
+#     ext_start    = alloc_start + alloc_blocks
+#     attr_start   = ext_start + ext_blocks
+#     # Alternate header sits 1024 bytes before the end; the last block is always reserved.
+#     tail_start   = min((size - 1024) ÷ bs, total - 1)
+#     gap          = size >= 2MiB ? 10 * attr_blocks : 0   # room for the attributes file to grow
+#     cat_start    = attr_start + attr_blocks + gap
+#     if cat_start + cat_blocks > tail_start && gap > 0
+#         cat_start -= gap
+#     end
+#     cat_end = cat_start + cat_blocks
+#     cat_end <= tail_start || error("$path ($size bytes) is too small for an HFS+ volume")
 
-    tail_blocks = total - tail_start
-    used = hdr_blocks + alloc_blocks + ext_blocks + attr_blocks + cat_blocks + tail_blocks
+#     tail_blocks = total - tail_start
+#     used = hdr_blocks + alloc_blocks + ext_blocks + attr_blocks + cat_blocks + tail_blocks
 
-    # nextAllocation is only a hint; leave the catalog room to grow contiguously.
-    extra = size >= 16GiB ? min(size * 5 ÷ 1024, 512MiB) ÷ bs : 0
-    nextalloc = cat_end + 10 * cat_blocks + extra
-    nextalloc < tail_start || (nextalloc = cat_end)
+#     # nextAllocation is only a hint; leave the catalog room to grow contiguously.
+#     extra = size >= 16GiB ? min(size * 5 ÷ 1024, 512MiB) ÷ bs : 0
+#     nextalloc = cat_end + 10 * cat_blocks + extra
+#     nextalloc < tail_start || (nextalloc = cat_end)
 
-    # Allocation bitmap
-    bitmap = zeros(UInt8, alloc_blocks * bs)
-    setbits!(bitmap, 0, hdr_blocks)
-    setbits!(bitmap, alloc_start, alloc_blocks)
-    setbits!(bitmap, ext_start, ext_blocks)
-    setbits!(bitmap, attr_start, attr_blocks)
-    setbits!(bitmap, cat_start, cat_blocks)
-    setbits!(bitmap, tail_start, tail_blocks)
+#     # Allocation bitmap
+#     bitmap = zeros(UInt8, alloc_blocks * bs)
+#     setbits!(bitmap, 0, hdr_blocks)
+#     setbits!(bitmap, alloc_start, alloc_blocks)
+#     setbits!(bitmap, ext_start, ext_blocks)
+#     setbits!(bitmap, attr_start, attr_blocks)
+#     setbits!(bitmap, cat_start, cat_blocks)
+#     setbits!(bitmap, tail_start, tail_blocks)
 
-    # Dates and volume UUID
-    unix_now = floor(Int, time())
-    now = hfs_time(unix_now)
-    createdate = hfs_time(unix_now + local_utc_offset())
-    uuid = check_uuid(generate_uuid())
+#     # Dates and volume UUID
+#     unix_now = floor(Int, time())
+#     now = hfs_time(unix_now)
+#     createdate = hfs_time(unix_now + local_utc_offset())
+#     uuid = check_uuid(generate_uuid())
 
-    # B-trees
-    ext_hdr = btree_header_node(EXT_NODE_SIZE, ext_clump ÷ EXT_NODE_SIZE, ext_clump;
-                                maxkeylen = 10, attributes = 0x02)          # kBTBigKeysMask
-    attr_hdr = btree_header_node(ATTR_NODE_SIZE, attr_clump ÷ ATTR_NODE_SIZE, attr_clump;
-                                 maxkeylen = 266, attributes = 0x06)        # BigKeys | VariableIndexKeys
-    cat_hdr = btree_header_node(cat_node, cat_clump ÷ cat_node, cat_clump;
-                                maxkeylen = 516, attributes = 0x06,
-                                keycompare = 0xCF,                          # kHFSCaseFolding
-                                depth = 1, root = 1, leafrecords = 2,
-                                firstleaf = 1, lastleaf = 1, usednodes = 2)
-    cat_leaf = catalog_root_leaf(cat_node, name, now)
+#     # B-trees
+#     ext_hdr = btree_header_node(EXT_NODE_SIZE, ext_clump ÷ EXT_NODE_SIZE, ext_clump;
+#                                 maxkeylen = 10, attributes = 0x02)          # kBTBigKeysMask
+#     attr_hdr = btree_header_node(ATTR_NODE_SIZE, attr_clump ÷ ATTR_NODE_SIZE, attr_clump;
+#                                  maxkeylen = 266, attributes = 0x06)        # BigKeys | VariableIndexKeys
+#     cat_hdr = btree_header_node(cat_node, cat_clump ÷ cat_node, cat_clump;
+#                                 maxkeylen = 516, attributes = 0x06,
+#                                 keycompare = 0xCF,                          # kHFSCaseFolding
+#                                 depth = 1, root = 1, leafrecords = 2,
+#                                 firstleaf = 1, lastleaf = 1, usednodes = 2)
+#     cat_leaf = catalog_root_leaf(cat_node, name, now)
 
-    header = volume_header(; blocksize = bs, totalblocks = total, freeblocks = total - used,
-                           nextalloc = nextalloc, createdate = createdate, now = now, uuid = uuid,
-                           forks = ((start = alloc_start, blocks = alloc_blocks, clump = alloc_blocks * bs),
-                                    (start = ext_start,   blocks = ext_blocks,   clump = ext_clump),
-                                    (start = cat_start,   blocks = cat_blocks,   clump = cat_clump),
-                                    (start = attr_start,  blocks = attr_blocks,  clump = attr_clump),
-                                    EMPTY_FORK))
+#     header = volume_header(; blocksize = bs, totalblocks = total, freeblocks = total - used,
+#                            nextalloc = nextalloc, createdate = createdate, now = now, uuid = uuid,
+#                            forks = ((start = alloc_start, blocks = alloc_blocks, clump = alloc_blocks * bs),
+#                                     (start = ext_start,   blocks = ext_blocks,   clump = ext_clump),
+#                                     (start = cat_start,   blocks = cat_blocks,   clump = cat_clump),
+#                                     (start = attr_start,  blocks = attr_blocks,  clump = attr_clump),
+#                                     EMPTY_FORK))
 
-    open(path, "r+") do io
-        seek(io, 0)
-        write_zeros(io, 1024)                          # boot blocks
-        write(io, header)                              # primary volume header
-        seek(io, alloc_start * bs)
-        write(io, bitmap)
-        write_btree(io, ext_start * bs,  ext_blocks * bs,  (ext_hdr,))
-        write_btree(io, attr_start * bs, attr_blocks * bs, (attr_hdr,))
-        write_btree(io, cat_start * bs,  cat_blocks * bs,  (cat_hdr, cat_leaf))
-        seek(io, size - 1024)
-        write(io, header)                              # alternate volume header
-        write_zeros(io, 512)                           # reserved last sector
-    end
-    return path
-end
+#     open(path, "r+") do io
+#         seek(io, 0)
+#         write_zeros(io, 1024)                          # boot blocks
+#         write(io, header)                              # primary volume header
+#         seek(io, alloc_start * bs)
+#         write(io, bitmap)
+#         write_btree(io, ext_start * bs,  ext_blocks * bs,  (ext_hdr,))
+#         write_btree(io, attr_start * bs, attr_blocks * bs, (attr_hdr,))
+#         write_btree(io, cat_start * bs,  cat_blocks * bs,  (cat_hdr, cat_leaf))
+#         seek(io, size - 1024)
+#         write(io, header)                              # alternate volume header
+#         write_zeros(io, 512)                           # reserved last sector
+#     end
+#     return path
+# end
 
 # ---------------------------------------------------------------------------
 # Catalog names: decomposition and case-insensitive ordering

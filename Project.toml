@@ -1,6 +1,6 @@
 name = "AppBundler"
 uuid = "40eb83ae-c93a-480c-8f39-f018b568f472"
-version = "1.0.1"
+version = "1.1.0"
 authors = ["Janis Erdmanis <janiserdmanis@protonmail.ch>"]
 
 [workspace]
