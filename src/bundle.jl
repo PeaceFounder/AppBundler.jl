@@ -358,7 +358,7 @@ active project's `LocalPreferences.toml` are used.
 - `hardened_runtime`: If `true`, enable hardened runtime during signing (required for notarization); defaults to `dmg.hardened_runtime` preference
 - `sandboxed_runtime`: If `true`, enable the App Sandbox entitlement; defaults to `dmg.sandboxed_runtime` preference
 - `main_launcher`: Path to the Julia entry-point script. When set, a native redirect launcher is installed at `Contents/MacOS/<app_name>` and the script itself at `Contents/Libraries/main`; resolved from prefix using the bundler predicate; omitted if not found
-- `hfsplus = false`: If `true`, use HFS+ filesystem when building the disk image otherwise uses ISO
+- `backend = dmg_backend(preferences)`: Disk image backend used to build the `.dmg` when `compress = true`. Either `DMGPack.XorrisoBackend` (`dmg.backend = "xorriso"`, with an optional `dmg.xorriso.hfsplus` setting) or `DMGPack.HFSPlusBackend` (`dmg.backend = "hfsplus"`, with `dmg.hfsplus.free_space` controlling spare space in the image). Defaults to the backend selected by the `dmg.backend` preference.
 - `windowed`: If `true`, the application runs without a console window; defaults to `windowed` preference
 - `compress`: If `true`, pack the staging directory into a `.dmg` disk image; defaults to `compress` preference
 - `compression`: Compression algorithm for the disk image (`:lzma`, `:bzip2`, `:zlib`, or `:lzfse`); defaults to `dmg.compression` preference
@@ -386,7 +386,6 @@ struct DMG
     hardened_runtime::Bool
     sandboxed_runtime::Bool
     main_launcher::Union{String, Nothing}
-    #hfsplus::Bool
     backend::DMGPack.ImageBackend
     windowed::Bool
     compress::Bool

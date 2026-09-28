@@ -96,6 +96,9 @@ juliac.trim = true
 | `dmg.hardened_runtime` | `true` | Enable hardened runtime during signing |
 | `dmg.sandboxed_runtime` | `false` | Restrict access to peripherals and system directories |
 | `dmg.compression` | `lzma` | Compression algorithm: `bzip2`, `zlib`, `lzma`, or `lzfse` |
+| `dmg.backend` | `xorriso` | Disk image backend: `xorriso` builds an ISO 9660 image, `hfsplus` builds an HFS+ image |
+| `dmg.xorriso.hfsplus` | `false` | Add an HFS+ filesystem to the image built by `xorriso` |
+| `dmg.hfsplus.free_space` | `0` | Extra free space in bytes to leave in the `hfsplus` image |
 
 **Bundler.** The `bundler` choice determines which recipe files are applied and which `juliaimg.*` or `juliac.*` parameters are relevant. `juliaimg.mainless` is intended for Julia distributions that launch `bin/julia` directly rather than calling an application `main`. `juliaimg.sysimg` only needs top-level packages — dependencies are baked in automatically. `juliaimg.selective_assets` requires modules to be in the sysimage, since it removes all source files from the bundle; with the `juliac` bundler, selective assets are always used.
 
