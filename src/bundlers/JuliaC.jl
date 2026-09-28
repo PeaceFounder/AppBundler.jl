@@ -181,9 +181,11 @@ function stage(spec::JuliaCBundle, destination::String; runtime_mode = "MIN", ap
     Resources.install_assets(project, joinpath(destination, spec.asset_rpath), spec.asset_spec)
     Resources.install_pkgorigin_index(project, joinpath(destination, "index"), spec.asset_rpath)
 
-    withenv("JULIA_CPU_TARGET" => get_cpu_target(Sys.ARCH)) do
-        run(`$juliac_cmd --output-exe $(app_name) $project --bundle $destination $trim_arg $(spec.args)`)
-    end
+    cmd = `$juliac_cmd --output-exe $(app_name) $project --bundle $destination $trim_arg $(spec.args)`
+    run(addenv(cmd, "JULIA_CPU_TARGET" => get_cpu_target(Sys.ARCH)))
+    # withenv("JULIA_CPU_TARGET" => get_cpu_target(Sys.ARCH)) do
+    #     run(`$juliac_cmd --output-exe $(app_name) $project --bundle $destination $trim_arg $(spec.args)`)
+    # end
     
     return
 end
