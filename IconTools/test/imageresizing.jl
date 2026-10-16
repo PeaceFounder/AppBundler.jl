@@ -12,8 +12,8 @@
 using Test
 using ColorTypes
 using FixedPointNumbers: N0f8
-using FileIO
-using ImageResizing
+#using FileIO
+using IconTools.ImageResizing
 
 # Reference "over" in Float64, independent of the module's internals, so the
 # assertions actually check the compositing math rather than restate it.
@@ -32,7 +32,8 @@ close(a::AbstractRGB, b::AbstractRGB; tol = 2 / 255) =
 @testset "boxes composition" begin
     H, W = 720, 1080
     cream = RGB{N0f8}(0.96, 0.94, 0.89)
-    canvas = imresize(cream, H, W)
+    #canvas = imresize(cream, H, W)
+    canvas = fill(cream, H, W)
     @test size(canvas) == (H, W)
     @test eltype(canvas) == RGB{N0f8}
     @test all(==(cream), canvas)
@@ -56,8 +57,8 @@ close(a::AbstractRGB, b::AbstractRGB; tol = 2 / 255) =
         (ink,         90,  90, 610, 960),   # small opaque accent, on top
     ]
     for (c, h, w, top, left) in boxes
-        box = imresize(c, h, w)
-        @test size(box) == (h, w)
+        #box = imresize(c, h, w)
+        box = fill(c, h, w)
         @test imstack!(canvas, box, top, left) === canvas
     end
 
@@ -122,13 +123,14 @@ close(a::AbstractRGB, b::AbstractRGB; tol = 2 / 255) =
     outdir = joinpath(@__DIR__, "output")
     mkpath(outdir)
     outpath = joinpath(outdir, "boxes.png")
-    save(outpath, canvas)
+    pngsave(outpath, canvas)
+    #pngsave(canvas, outpath)
     @test isfile(outpath)
     @test filesize(outpath) > 0
     @info "Wrote composition" outpath
 
     # round-trip
-    back = load(outpath)
+    back = pngload(outpath)
     @test size(back) == (H, W)
     @test close(RGB{N0f8}(back[350, 350]), canvas[350, 350])
 end

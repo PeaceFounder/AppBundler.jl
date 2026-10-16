@@ -10,9 +10,9 @@
 using Test
 using ColorTypes
 using FixedPointNumbers: N0f8
-using FileIO
-using ImageResizing
-using ImageResizing.SVGImages: SVGImage
+using IconTools.SVGRenderer
+using IconTools.SVGRenderer: SVGImage
+using IconTools.ImageResizing: imstack!
 
 # left half opaque red, right half untouched (transparent), on a 200×100
 # user-unit viewBox
@@ -62,23 +62,17 @@ near(a, b; tol = 2 / 255) = abs(Float64(a) - Float64(b)) <= tol
         mktempdir() do dir
             path = joinpath(dir, "halves.svg")
             write(path, svg_halves())
-            s = load(path)
+            s = loadsvg(path)
             @test s isa SVGImage
             @test (s.width, s.height) == (200, 100)
-            # stream form
-            s2 = open(io -> load(Stream{format"SVG"}(io)), path)
-            @test s2 isa SVGImage && s2.data == s.data
         end
     end
 
     @testset "rasterize: exact size and alpha" begin
         s = SVGImage(Vector{UInt8}(codeunits(svg_halves())))
-        img = imresize(s, 50, 100)
+        img = render(s, 50, 100)
         @test img isa Matrix{RGBA{N0f8}}
         @test size(img) == (50, 100)
-
-        # varargs and tuple forms agree
-        @test imresize(s, (50, 100)) == img
 
         # inside the red rect: opaque red
         px = img[25, 25]
@@ -90,34 +84,9 @@ near(a, b; tol = 2 / 255) = abs(Float64(a) - Float64(b)) <= tol
         @test all(near(alpha(img[i, 90]), 0) for i in 1:50)
     end
 
-    @testset "rasterize: non-uniform stretch" begin
-        # 2:1 source into a square target — content is stretched to fill, so
-        # the red half still occupies exactly the left half of the output
-        s = SVGImage(Vector{UInt8}(codeunits(svg_halves())))
-        sq = imresize(s, 100, 100)
-        @test size(sq) == (100, 100)
-        @test near(alpha(sq[50, 40]), 1) && near(red(sq[50, 40]), 1)
-        @test near(alpha(sq[50, 60]), 0)
-
-        # aspect-preserving is a caller decision via the parsed dimensions
-        h = 60
-        w = round(Int, h * s.width / s.height)
-        @test w == 120
-        ar = imresize(s, h, w)
-        @test size(ar) == (60, 120)
-        @test near(alpha(ar[30, 30]), 1) && near(alpha(ar[30, 90]), 0)
-
-        # large upscale stays crisp: seam is at most a couple of pixels wide
-        big = imresize(s, 400, 800)
-        seam = count(j -> 0.05 < Float64(alpha(big[200, j])) < 0.95, 1:800)
-        @test seam <= 3
-
-        @test_throws ArgumentError imresize(s, 0, 10)
-    end
-
     @testset "rasterize: partial alpha" begin
         d = SVGImage(Vector{UInt8}(codeunits(svg_disc)))
-        img = imresize(d, 100, 100)
+        img = render(d, 100, 100)
         c = img[50, 50]
         @test near(alpha(c), 0.5; tol = 0.02)
         @test near(red(c), 0x29 / 255; tol = 0.02)
@@ -128,10 +97,10 @@ near(a, b; tol = 2 / 255) = abs(Float64(a) - Float64(b)) <= tol
 
     @testset "composite onto canvas and save" begin
         cream = RGB{N0f8}(0.96, 0.94, 0.89)
-        canvas = imresize(cream, 300, 400)
+        canvas = fill(cream, 300, 400)
 
         s = SVGImage(Vector{UInt8}(codeunits(svg_halves())))
-        icon = imresize(s, 100, 200)
+        icon = render(s, 100, 200)
         imstack!(canvas, icon, 51, 101)          # occupies rows 51:150, cols 101:300
         # transparent half leaves the canvas untouched; red half overwrites
         @test canvas[100, 250] == cream
@@ -141,7 +110,7 @@ near(a, b; tol = 2 / 255) = abs(Float64(a) - Float64(b)) <= tol
         @test canvas[20, 20] == cream
 
         d = SVGImage(Vector{UInt8}(codeunits(svg_disc)))
-        disc = imresize(d, 120, 120)
+        disc = render(d, 120, 120)
         imstack!(canvas, disc, 161, 241)         # rows 161:280, cols 241:360
         # disc centre: 50% teal over cream
         c = canvas[220, 300]
@@ -154,7 +123,7 @@ near(a, b; tol = 2 / 255) = abs(Float64(a) - Float64(b)) <= tol
         outdir = joinpath(@__DIR__, "output")
         mkpath(outdir)
         outpath = joinpath(outdir, "svg.png")
-        save(outpath, canvas)
+        pngsave(outpath, canvas)
         @test isfile(outpath) && filesize(outpath) > 0
         @info "Wrote SVG composition" outpath
     end

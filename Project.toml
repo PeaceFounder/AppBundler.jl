@@ -41,6 +41,7 @@ libdmg_hfsplus_jll = "a9dd9d48-4682-593d-95c5-5ff28a9e156e"
 osslsigncode_jll = "5a7615ae-274c-51d1-b5a8-ff30401c2c7e"
 p7zip_jll = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 rcodesign_jll = "81561df1-22b2-57e5-9f67-03318e1fa9d9"
+resvg_jll = "acccf2be-895d-5fd8-88d3-4be6fc0b64a1"
 squashfs_tools_jll = "eed32e3e-a7c5-5bf9-9121-5cf3ab653887"
 
 [sources]
@@ -80,6 +81,7 @@ libdmg_hfsplus_jll = "0.5.0"
 osslsigncode_jll = "2.9.0"
 p7zip_jll = "17.8.2"
 rcodesign_jll = "0.29.0"
+resvg_jll = "0.45.1"
 squashfs_tools_jll = "4.6"
 
 [apps.appbundler]

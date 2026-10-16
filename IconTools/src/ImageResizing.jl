@@ -39,19 +39,30 @@ using ColorTypes
 using ColorVectorSpace
 using FixedPointNumbers: FixedPoint, N0f8
 import PNGFiles
-import Librsvg_jll
 
-export imresize, imstack!, SVGImage
+export imresize, imstack!, pngload, pngsave
 
-# ---- SVGImages submodule -----------------------------------------------------
+"""
+    pngload(path::AbstractString)
+    pngload(io::IO)
 
-include("SVGImages.jl")
+Read a PNG file (or stream) into a `Matrix` of colorants using `PNGFiles`,
+without going through `FileIO`. The element type follows the file: `Gray`,
+`GrayA`, `RGB` or `RGBA`, with `N0f8` (8-bit) or `N0f16` (16-bit) channels.
+"""
+pngload(path::AbstractString) = PNGFiles.load(path)
+pngload(io::IO) = PNGFiles.load(io)
 
-using .SVGImages: SVGImage
-function __init__()
-    #SVGImages.__init__()
-    SVGImages._init()
-end
+"""
+    pngsave(path::AbstractString, img::AbstractMatrix)
+    pngsave(io::IO, img::AbstractMatrix)
+
+Write `img` as a PNG file (or to a stream) using `PNGFiles`, without going
+through `FileIO`. Returns `nothing`.
+"""
+pngsave(path::AbstractString, img::AbstractMatrix) = (PNGFiles.save(path, img); nothing)
+pngsave(io::IO, img::AbstractMatrix) = (PNGFiles.save(io, img); nothing)
+
 
 # ---- pixel promotion --------------------------------------------------------
 # Arithmetic on colorants comes from ColorVectorSpace; pixels are promoted to
@@ -97,25 +108,14 @@ target box exactly (no aspect preservation); pick `h`, `w` from
 `svg.height`/`svg.width` if you want the aspect kept. Returns
 `Matrix{RGBA{N0f8}}`; `method` is ignored.
 """
-imresize(img::Union{AbstractMatrix,SVGImage}, h::Integer, w::Integer; kwargs...) =
+imresize(img::AbstractMatrix, h::Integer, w::Integer; kwargs...) =
     imresize(img, (h, w); kwargs...)
 
-imresize(c::Union{Colorant,Number}, h::Integer, w::Integer; kwargs...) =
-    imresize(c, (h, w); kwargs...)
-
-function imresize(c::Union{Colorant,Number}, dims::Tuple{Integer,Integer}; method = :auto)
-    h, w = dims
-    (h > 0 && w > 0) || throw(ArgumentError("canvas dimensions must be positive"))
-    return fill(c, h, w)
-end
-
-function imresize(svg::SVGImage, dims::Tuple{Integer,Integer}; method = :auto)
-    h, w = dims
-    (h > 0 && w > 0) || throw(ArgumentError("target dimensions must be positive"))
-    cmd = `$(Librsvg_jll.rsvg_convert()) --width $w --height $h --format png`
-    png = read(pipeline(cmd; stdin = IOBuffer(svg.data)))
-    return convert(Matrix{RGBA{N0f8}}, PNGFiles.load(IOBuffer(png)))
-end
+# function imresize(c::Union{Colorant,Number}, dims::Tuple{Integer,Integer}; method = :auto)
+#     h, w = dims
+#     (h > 0 && w > 0) || throw(ArgumentError("canvas dimensions must be positive"))
+#     return fill(c, h, w)
+# end
 
 function imresize(img::AbstractMatrix{T}, dims::Tuple{Integer,Integer};
                   method::Symbol = :auto) where {T}

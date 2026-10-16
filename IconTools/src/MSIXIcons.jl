@@ -16,7 +16,10 @@ function generate_app_icons(source_path::String, output_dir::String)
     # Load the source image using FileIO
     #println("Loading source image: $source_path")
     source_img = load(source_path)
-    
+
+    # could be created programmaticaly; on the other hadn may not be worth to do so
+    # the scales could be read out from the filenames themsselves
+
     # Define all the icon specifications
     icon_specs = [
         # BadgeLogo variants
@@ -26,6 +29,7 @@ function generate_app_icons(source_path::String, output_dir::String)
         ("BadgeLogo.scale-200.png", 48, 48),
         ("BadgeLogo.scale-400.png", 96, 96),
         
+        # needs to be taken out in a sublist; 
         # SplashScreen variants (620x300 base size)
         ("SplashScreen.scale-100.png", 620, 300),
         ("SplashScreen.scale-125.png", 775, 375),
