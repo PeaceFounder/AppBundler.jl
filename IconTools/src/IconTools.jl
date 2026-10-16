@@ -1,10 +1,18 @@
 module IconTools
 
+import PNGFiles: save
+
 include("ImageResizing.jl")
 include("SVGRenderer.jl")
+include("IconForge.jl")
 
-include("Rendering.jl")
+include("ICNS.jl")
+include("MSIXIcons.jl")
 
-import ..Rendering: toicon, totile, load
+hello() = 3
+
+import ..IconForge: toicon, totile, load
+import ..ICNS: toicns
+import ..MSIXIcons: msix_icons
 
 end

@@ -43,25 +43,15 @@ import PNGFiles
 export imresize, imstack!, pngload, pngsave
 
 """
-    pngload(path::AbstractString)
-    pngload(io::IO)
+    load(path::AbstractString)
+    load(io::IO)
 
 Read a PNG file (or stream) into a `Matrix` of colorants using `PNGFiles`,
 without going through `FileIO`. The element type follows the file: `Gray`,
 `GrayA`, `RGB` or `RGBA`, with `N0f8` (8-bit) or `N0f16` (16-bit) channels.
 """
-pngload(path::AbstractString) = PNGFiles.load(path)
-pngload(io::IO) = PNGFiles.load(io)
-
-"""
-    pngsave(path::AbstractString, img::AbstractMatrix)
-    pngsave(io::IO, img::AbstractMatrix)
-
-Write `img` as a PNG file (or to a stream) using `PNGFiles`, without going
-through `FileIO`. Returns `nothing`.
-"""
-pngsave(path::AbstractString, img::AbstractMatrix) = (PNGFiles.save(path, img); nothing)
-pngsave(io::IO, img::AbstractMatrix) = (PNGFiles.save(io, img); nothing)
+load(path::AbstractString) = PNGFiles.load(path)
+load(io::IO) = PNGFiles.load(io)
 
 
 # ---- pixel promotion --------------------------------------------------------

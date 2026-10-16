@@ -1,14 +1,12 @@
-#!/usr/bin/env julia
 # PNG to ICNS - Julia translation of https://github.com/Muppetsg2/png-to-icns-py
 # Original concept: https://github.com/BenSouchet/png-to-icns
 
 module ICNS
 
-using PNGFiles: PNGFiles
-using ImageCore: RGBA, N0f8, Colorant
-using ImageTransformations: imresize
+using PNGFiles
+using ..IconForge: toicon
 
-export generate_icns, write_icns
+export toicns
 
 # --- ICNS container ---------------------------------------------------------
 #
@@ -76,23 +74,7 @@ end
 
 # --- image handling ---------------------------------------------------------
 
-"""
-    square_pad(img)
 
-Centre a non-square image on a transparent square canvas. Note Julia indexes
-images as (row, col) == (height, width), the transpose of PIL's `size`.
-"""
-function square_pad(img::AbstractMatrix{<:Colorant})
-    h, w = size(img)
-    h == w && return convert(Matrix{RGBA{N0f8}}, img)
-
-    n = max(h, w)
-    out = fill(RGBA{N0f8}(0, 0, 0, 0), n, n)
-    y0 = (n - h) ÷ 2
-    x0 = (n - w) ÷ 2
-    out[y0+1:y0+h, x0+1:x0+w] .= RGBA{N0f8}.(img)
-    return out
-end
 
 function encode_png(img)::Vector{UInt8}
     buf = IOBuffer()
@@ -101,97 +83,28 @@ function encode_png(img)::Vector{UInt8}
 end
 
 """
-    generate_icns(png_path, output_path; resize=imresize)
+    toicns(png_path, output_path; resize=imresize)
 
 `resize(img, n, n)` is pluggable so a different resampler can be swapped in.
 Sizes shared by two OSTypes (32, 256, 512) are encoded once and reused.
 """
-function generate_icns(png_path::AbstractString, output_path::AbstractString;
-                       resize = imresize)
-    img = square_pad(RGBA{N0f8}.(PNGFiles.load(png_path)))
+function toicns(img, output_path::AbstractString)
+    #img = square_pad(RGBA{N0f8}.(PNGFiles.load(png_path)))
 
     cache = Dict{Int,Vector{UInt8}}()
     elements = Pair{String,Vector{UInt8}}[]
     for (ostype, sz) in ICON_TYPES
         data = get!(cache, sz) do
-            encode_png(resize(img, sz, sz))
+            #encode_png(resize(img, sz, sz))
+            encode_png(toicon(img, sz))
         end
         push!(elements, ostype => data)
     end
 
     write_icns(output_path, elements)
-
-    if isfile(output_path)
-        println("✅ ICNS file created: $output_path")
-    else
-        println("❌ Failed to create ICNS file.")
-    end
-    return output_path
+    
+    return
 end
 
-# --- CLI --------------------------------------------------------------------
-
-function validate_image(path::AbstractString)
-    if !isfile(path)
-        println(stderr, "❌ ERROR: File '$path' does not exist.")
-        exit(1)
-    end
-    if lowercase(splitext(path)[2]) != ".png"
-        println(stderr, "❌ ERROR: File must be a .png")
-        exit(1)
-    end
-end
-
-const USAGE = """
-Convert a PNG image to a macOS ICNS icon file.
-
-  julia png_to_icns.jl -i <image.png> [-o <output-dir>]
-
-  -i, --input       Path to PNG image (relative or absolute)
-  -o, --output-dir  Output folder (defaults to current directory)
-"""
-
-function main(args = ARGS)
-    image_path = nothing
-    output_dir = "."
-
-    i = firstindex(args)
-    while i <= lastindex(args)
-        a = args[i]
-        if a in ("-i", "--input") && i < lastindex(args)
-            image_path = args[i+1]; i += 2
-        elseif a in ("-o", "--output-dir") && i < lastindex(args)
-            output_dir = args[i+1]; i += 2
-        elseif a in ("-h", "--help")
-            print(USAGE); return 0
-        else
-            println(stderr, "❌ ERROR: unrecognised argument '$a'\n"); print(stderr, USAGE)
-            exit(1)
-        end
-    end
-
-    if image_path === nothing
-        println(stderr, "❌ ERROR: --input is required\n"); print(stderr, USAGE)
-        exit(1)
-    end
-
-    input_path = abspath(expanduser(image_path))
-    output_dir = abspath(expanduser(output_dir))
-
-    validate_image(input_path)
-    mkpath(output_dir)
-
-    base_name = splitext(basename(input_path))[1]
-    output_file = joinpath(output_dir, "$base_name.icns")
-
-    index = 2
-    while ispath(output_file)
-        output_file = joinpath(output_dir, "$(base_name)_$(index).icns")
-        index += 1
-    end
-
-    generate_icns(input_path, output_file)
-    return 0
-end
 
 end # module

@@ -34,7 +34,6 @@ include("AppImage/AppImageRuntime.jl")
 include("AppImage/AppImagePack.jl")
 
 include("MSIX/MSIXPack.jl")
-include("MSIX/MSIXIcons.jl")
 include("MSIX/WinSubsystem.jl")
 include("MSIX/MSIX2EXEPack.jl")
 

@@ -10,6 +10,7 @@
 using Test
 using ColorTypes
 using FixedPointNumbers: N0f8
+using PNGFiles: save
 using IconTools.SVGRenderer
 using IconTools.SVGRenderer: SVGImage
 using IconTools.ImageResizing: imstack!
@@ -62,7 +63,7 @@ near(a, b; tol = 2 / 255) = abs(Float64(a) - Float64(b)) <= tol
         mktempdir() do dir
             path = joinpath(dir, "halves.svg")
             write(path, svg_halves())
-            s = loadsvg(path)
+            s = SVGRenderer.load(path)
             @test s isa SVGImage
             @test (s.width, s.height) == (200, 100)
         end
@@ -123,7 +124,7 @@ near(a, b; tol = 2 / 255) = abs(Float64(a) - Float64(b)) <= tol
         outdir = joinpath(@__DIR__, "output")
         mkpath(outdir)
         outpath = joinpath(outdir, "svg.png")
-        pngsave(outpath, canvas)
+        save(outpath, canvas)
         @test isfile(outpath) && filesize(outpath) > 0
         @info "Wrote SVG composition" outpath
     end

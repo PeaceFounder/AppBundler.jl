@@ -83,7 +83,7 @@ predicate = "juliaimg"
 
     @test hash_stage() do dest
         stage(msix, dest)
-    end == "268e73a3c6bcf2043a8fad59af54a2a8885322cf1da35c8a6f0d64be5c1c8dbc"
+    end == "edab6878cf096399d63537e4fcdb7f84aaea0a78465127046abdfa96898f76c7"
 
     @test hash_stage() do stage_dir
 
@@ -107,7 +107,7 @@ predicate = "juliaimg"
         msix2exe = AppBundler.MSIX2EXE(joinpath(@__DIR__, "../examples/GtkApp"))
         AppBundler.repack(dest, msix2exe, join((dest, ".exe")))
 
-    end == "268e73a3c6bcf2043a8fad59af54a2a8885322cf1da35c8a6f0d64be5c1c8dbc"
+    end == "edab6878cf096399d63537e4fcdb7f84aaea0a78465127046abdfa96898f76c7"
 end
 
 if Sys.isunix()

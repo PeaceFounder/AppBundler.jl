@@ -16,3 +16,10 @@ ColorVectorSpace = "0.11.0"
 FixedPointNumbers = "0.8.6"
 PNGFiles = "0.4.5"
 resvg_jll = "0.48.1"
+
+[extras]
+SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test", "SafeTestsets"]

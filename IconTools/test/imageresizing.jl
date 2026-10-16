@@ -14,6 +14,7 @@ using ColorTypes
 using FixedPointNumbers: N0f8
 #using FileIO
 using IconTools.ImageResizing
+using IconTools: save
 
 # Reference "over" in Float64, independent of the module's internals, so the
 # assertions actually check the compositing math rather than restate it.
@@ -123,14 +124,15 @@ close(a::AbstractRGB, b::AbstractRGB; tol = 2 / 255) =
     outdir = joinpath(@__DIR__, "output")
     mkpath(outdir)
     outpath = joinpath(outdir, "boxes.png")
-    pngsave(outpath, canvas)
+    save(outpath, canvas)
     #pngsave(canvas, outpath)
     @test isfile(outpath)
     @test filesize(outpath) > 0
     @info "Wrote composition" outpath
 
     # round-trip
-    back = pngload(outpath)
+    #back = pngload(outpath)
+    back = ImageResizing.load(outpath)
     @test size(back) == (H, W)
     @test close(RGB{N0f8}(back[350, 350]), canvas[350, 350])
 end

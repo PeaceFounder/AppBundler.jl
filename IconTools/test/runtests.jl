@@ -1,6 +1,18 @@
-using ICNS
+using SafeTestsets
 
-source = joinpath(@__DIR__, "icon.png")
-target = joinpath(@__DIR__, "output.icns")
+@time @safetestset "ImageResizing" begin
+    include("imageresizing.jl")
+end
 
-generate_icns(source, target)
+@time @safetestset "SVGRenderer" begin
+    include("svg_tests.jl")
+end
+
+@time @safetestset "ICNS" begin
+    include("icns.jl")
+end
+
+@time @safetestset "MSIX" begin
+    include("msixicons.jl")
+end
+

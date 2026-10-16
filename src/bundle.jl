@@ -2,6 +2,8 @@ import Pkg, Artifacts
 using Pkg.BinaryPlatforms: MacOS
 using AppBundlerUtils_jll
 import Mustache
+import IconTools
+
 
 """
     MSIX([project]; arch, compress, windowed, kwargs...)
@@ -499,7 +501,9 @@ function stage(msix::MSIX, destination::String)
         @info "Treating icon path as assets directory"
         cp(msix.icon, joinpath(destination, "Assets"))
     else
-        MSIXIcons.generate_app_icons(msix.icon, joinpath(destination, "Assets")) 
+        #MSIXIcons.generate_app_icons(msix.icon, joinpath(destination, "Assets")) 
+        img = IconTools.load(msix.icon)
+        IconTools.msix_icons(img, joinpath(destination, "Assets"))
     end
 
     (; predicate, parameters) = msix

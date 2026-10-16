@@ -82,8 +82,8 @@ end
 #     return convert(Matrix{RGBA{N0f8}}, PNGFiles.load(IOBuffer(png)))
 # end
 
-loadsvg(path) = SVGImage(read(path))
+load(path) = SVGImage(read(path))
 
-export loadsvg, render
+export render
 
 end
