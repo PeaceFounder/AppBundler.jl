@@ -83,7 +83,7 @@ predicate = "juliaimg"
 
     @test hash_stage() do dest
         stage(msix, dest)
-    end == "edab6878cf096399d63537e4fcdb7f84aaea0a78465127046abdfa96898f76c7"
+    end == "bc797abd16f8f67c8f149577f5a5bbf11e3ea5522046f1b6517572c72d0e0d17"
 
     @test hash_stage() do stage_dir
 
@@ -107,7 +107,7 @@ predicate = "juliaimg"
         msix2exe = AppBundler.MSIX2EXE(joinpath(@__DIR__, "../examples/GtkApp"))
         AppBundler.repack(dest, msix2exe, join((dest, ".exe")))
 
-    end == "edab6878cf096399d63537e4fcdb7f84aaea0a78465127046abdfa96898f76c7"
+    end == "bc797abd16f8f67c8f149577f5a5bbf11e3ea5522046f1b6517572c72d0e0d17"
 end
 
 if Sys.isunix()
@@ -122,7 +122,7 @@ if Sys.isunix()
             stage(gtkapp_dmg(DMGPack.XorrisoBackend(true)), joinpath(dest, "GtkApp.app"); dsstore = true)
             normalize_app!(dest; signed = false)
             rm(joinpath(dest, "Applications"))
-        end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898"
+        end == "2342003fda87535b2ab5066441de1f4203008f0683c240a7089a28f727a206c2"
 
         backends = [DMGPack.XorrisoBackend(; hfsplus = true), DMGPack.HFSPlusBackend(; uuid = UInt64(23))]
 
@@ -137,7 +137,7 @@ if Sys.isunix()
                 AppBundler.DMGPack.unpack(dmg_path, stage_dir; verbose = true)
                 Sys.isapple() && verify_codesign(joinpath(stage_dir, "GtkApp.app"); strict = true)
                 normalize_app!(stage_dir)
-            end == "b754eb61b047f86823b51c62f111ac2c4ca7cbf3e8392de20ec8ecedda0bb898"
+            end == "2342003fda87535b2ab5066441de1f4203008f0683c240a7089a28f727a206c2"
         end
     end
 
@@ -149,7 +149,7 @@ if Sys.isunix()
 
         @test hash_stage() do dest
             stage(snap, dest)
-        end == "cf6f6df039acd7ddc9900dd29d69ea5427d3e270bba0c72e77bd617d7b693f2c"
+        end == "0be8e07a963d3af69afd8f0f74d92556040cd09891a8604efcd646135c1eef9f"
 
         @test hash_stage() do stage_dir
 
@@ -160,7 +160,7 @@ if Sys.isunix()
             
             AppBundler.SnapPack.unpack(dest, stage_dir)    
 
-        end == "cf6f6df039acd7ddc9900dd29d69ea5427d3e270bba0c72e77bd617d7b693f2c"
+        end == "0be8e07a963d3af69afd8f0f74d92556040cd09891a8604efcd646135c1eef9f"
     end
 
 

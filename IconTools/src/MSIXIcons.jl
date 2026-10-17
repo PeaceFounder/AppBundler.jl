@@ -64,14 +64,14 @@ end
 Generate the full set of MSIX package icons from a single source image `img`
 into `output_dir`. Set `altforms = false` to skip the unplated target-size variants.
 """
-function msix_icons(img, output_dir::AbstractString; altforms = true, store_icon_background = RGBA{Float32}(0.01, 0.45, 0.78, 1.0))
+function msix_icons(img, output_dir::AbstractString; altforms = true, store_icon_plate = RGBA{Float32}(0.01, 0.45, 0.78, 1.0))
 
     mkpath(output_dir)
     square_logos(img, output_dir; altforms)
     wide_logos(img, output_dir)
     splash_logos(img, output_dir)
 
-    store_icon = toicon(img, 150; background = store_icon_background)
+    store_icon = toicon(img, 150; background = store_icon_plate)
     save(joinpath(output_dir, "StoreLogo.scale-100.png"), store_icon)
     
     return
