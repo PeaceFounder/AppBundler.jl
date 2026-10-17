@@ -11,6 +11,7 @@ skipsign = false
 verbose = false
 
 [AppBundler.msix]
+store_icon_plate = "#f3f3f3"
 publisher = "CN=AppBundler, C=XX, O=PeaceFounder"
 path_length_threshold = 260
 skip_long_paths = false

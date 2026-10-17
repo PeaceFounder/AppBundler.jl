@@ -2,6 +2,9 @@ import Pkg, Artifacts
 using Pkg.BinaryPlatforms: MacOS
 using AppBundlerUtils_jll
 import Mustache
+import IconTools
+using ColorTypes: RGBA
+using FixedPointNumbers: N0f8
 
 """
     MSIX([project]; arch, compress, windowed, kwargs...)
@@ -53,6 +56,7 @@ MSIX(; prefix = ["custom/", "recipes/"])  # explicit search path
 """
 struct MSIX
     icon::String # direcotry reading is something to look into here
+    store_icon_plate::RGBA
     appxmanifest::String 
     command::Cmd
     msixinstallerdata::String 
@@ -71,6 +75,15 @@ struct MSIX
     parameters::Dict{String, Any}
 end
 
+function hex2rgba(hex::AbstractString)
+    h = lstrip(hex, '#')
+    length(h) in (3, 4) && (h = join(c * c for c in h))   # expand #RGB / #RGBA
+    length(h) == 6 && (h *= "ff")
+    length(h) == 8 || throw(ArgumentError("invalid hex color: $hex"))
+    r, g, b, a = (parse(UInt8, h[i:i+1], base=16) for i in 1:2:7)
+    return RGBA{N0f8}(reinterpret(N0f8, r), reinterpret(N0f8, g),
+                      reinterpret(N0f8, b), reinterpret(N0f8, a))
+end
 
 """
     xml_escape_args(args) -> String
@@ -110,7 +123,8 @@ end
 function MSIX(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
               preferences = preferences(),
-              icon = get_path(prefix, ["msix/Assets", "msix/icon.png", "icon.png"]; dir = true),
+              icon = get_path(prefix, ["msix/Assets", "icon.svg", "icon.png"]; dir = true),
+              store_icon_plate = preferences["msix"]["store_icon_plate"] |> hex2rgba,
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
               command = Cmd(preferences["msix"]["command"]),
               resources_pri = get_path(prefix, "msix/resources.pri"),
@@ -129,7 +143,7 @@ function MSIX(;
               parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher, "COMMAND_EXE" => first(command), "COMMAND_ARGS" => xml_escape_args(command))
               )
     
-    return MSIX(icon, appxmanifest, command, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
+    return MSIX(icon, store_icon_plate, appxmanifest, command, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
 
 end
 
@@ -300,7 +314,7 @@ function Snap(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
               preferences = preferences(),
               predicate = preferences["bundler"],
-              icon = get_path(prefix, ["snap/icon.png", "icon.png"]),
+              icon = get_path(prefix, ["snap/icon.png", "icon.svg", "icon.png"]),
               snap_config = get_path(prefix, "snap/snap.yaml"),
               command = Cmd(preferences["snap"]["command"]),
               desktop_launcher = get_path(prefix, "snap/main.desktop"),
@@ -414,7 +428,7 @@ function DMG(;
              prefix = joinpath(dirname(@__DIR__), "recipes"),
              preferences = preferences(),
              predicate = preferences["bundler"],
-             icon = get_path(prefix, ["dmg/icon.icns", "icon.icns"]), # The "dmg/icon.png" is not yet supported
+             icon = get_path(prefix, ["dmg/icon.icns", "icon.svg", "icon.png"]), # The "dmg/icon.png" is not yet supported
              info_config = get_path(prefix, "dmg/Info.plist"),
              command = Cmd(preferences["dmg"]["command"]),
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
@@ -495,11 +509,13 @@ function stage(msix::MSIX, destination::String)
         mkdir(destination)
     end
 
+    assets_path = joinpath(destination, "Assets")
     if isdir(msix.icon)
         @info "Treating icon path as assets directory"
-        cp(msix.icon, joinpath(destination, "Assets"))
+        cp(msix.icon, assets_path)
     else
-        MSIXIcons.generate_app_icons(msix.icon, joinpath(destination, "Assets")) 
+        img = IconTools.load(msix.icon)
+        IconTools.msix_icons(img, assets_path; msix.store_icon_plate)
     end
 
     (; predicate, parameters) = msix
@@ -565,7 +581,15 @@ function stage(dmg::DMG, destination::String; dsstore = false)
     (; predicate, parameters) = dmg
     app_exe = parameters["APP_EXE"]
 
-    install(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns"))
+    icon_path = joinpath(destination, "Contents/Resources/icon.icns")
+    mkpath(dirname(icon_path))
+    if last(splitext(dmg.icon)) == ".icns"
+        install(dmg.icon, icon_path)
+    else
+        img = IconTools.load(dmg.icon)
+        IconTools.toicns(img, icon_path)
+    end
+
     install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)
 
     if dsstore
@@ -583,12 +607,20 @@ function stage(dmg::DMG, destination::String; dsstore = false)
     return
 end
 
+# It is also possible to directly install svg icon in the snap. 
+# this requires templating myapp.desktop, hence not done at the moment
 function stage(snap::Snap, destination::String)
 
     (; predicate, parameters) = snap
     app_exe = parameters["APP_EXE"]
 
-    install(snap.icon, joinpath(destination, "meta/icon.png"))
+    #install(snap.icon, joinpath(destination, "meta/icon.png"))
+    img = IconTools.load(snap.icon)
+    icon_img = IconTools.toicon(img, 512)
+    icon_path = joinpath(destination, "meta/icon.png")
+    mkpath(dirname(icon_path))
+    IconTools.save(icon_path, icon_img)
+
     install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters, predicate)
     install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_exe.desktop"); parameters, predicate)
     
