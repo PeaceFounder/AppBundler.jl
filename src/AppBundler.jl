@@ -53,6 +53,9 @@ include("ArgTools.jl")
 include("preferences.jl")
 include("main.jl")
 
+include("status.jl")
+
+
 function __init__()
     if Sys.iswindows()
         # Prepending with \\?\ for long path support

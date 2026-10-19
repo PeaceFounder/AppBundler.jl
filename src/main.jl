@@ -26,6 +26,10 @@ function (@main)(ARGS)
     # elseif command == "init"
     #     ...
 
+    elseif command == "status"
+
+        main_status(ARGS[3:end]; sources_dir = realpath(ARGS[2]))
+
     else
         error("Unsupported command `$command`. See `--help` for available commands.")
     end
@@ -43,6 +47,15 @@ function canonical_target_name(spec::Union{MSIX, DMG, Snap, AppImage})
     app_name = spec.parameters["APP_NAME"]
     return "$(app_name)-$version-$(spec.arch)"
 end
+
+
+function main_status(ARGS; sources_dir)
+
+    print_preferences(ARGS; project_dir = sources_dir)
+
+    return
+end
+
 
 function main_build(ARGS; sources_dir)
 

@@ -3,8 +3,7 @@ using Pkg.BinaryPlatforms: MacOS
 using AppBundlerUtils_jll
 import Mustache
 import IconTools
-using ColorTypes: RGBA
-using FixedPointNumbers: N0f8
+using Colors: RGBA
 
 """
     MSIX([project]; arch, compress, windowed, kwargs...)
@@ -75,16 +74,6 @@ struct MSIX
     parameters::Dict{String, Any}
 end
 
-function hex2rgba(hex::AbstractString)
-    h = lstrip(hex, '#')
-    length(h) in (3, 4) && (h = join(c * c for c in h))   # expand #RGB / #RGBA
-    length(h) == 6 && (h *= "ff")
-    length(h) == 8 || throw(ArgumentError("invalid hex color: $hex"))
-    r, g, b, a = (parse(UInt8, h[i:i+1], base=16) for i in 1:2:7)
-    return RGBA{N0f8}(reinterpret(N0f8, r), reinterpret(N0f8, g),
-                      reinterpret(N0f8, b), reinterpret(N0f8, a))
-end
-
 """
     xml_escape_args(args) -> String
 
@@ -124,7 +113,7 @@ function MSIX(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
               preferences = preferences(),
               icon = get_path(prefix, ["msix/Assets", "icon.svg", "icon.png"]; dir = true),
-              store_icon_plate = preferences["msix"]["store_icon_plate"] |> hex2rgba,
+              store_icon_plate = parse(RGBA, preferences["msix"]["store_icon_plate"]),
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
               command = Cmd(preferences["msix"]["command"]),
               resources_pri = get_path(prefix, "msix/resources.pri"),
