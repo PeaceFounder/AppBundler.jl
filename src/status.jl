@@ -70,9 +70,170 @@ print_preferences(ARGS::AbstractVector{<:AbstractString}; kwargs...) =
 
 
 
+const DEFAULT_DIR = joinpath(dirname(@__DIR__), "recipes")
+
+function issubpath(path, parent)
+    p = splitpath(abspath(path))
+    q = splitpath(abspath(parent))
+    return length(p) >= length(q) && p[1:length(q)] == q
+end
+
+isoverride(path) = !isnothing(path) && !issubpath(path, DEFAULT_DIR)
+
+isgenerated_asset(path) = basename(path) in ("icon.png", "icon.svg")
+
+"""
+    override_status(project_dir)
+
+Return a nested tuple of `name => status` pairs where status is
+- `true`   : overridden by the project
+- `false`  : default from recipes
+- `String` : generated from the named source (empty string = generated, no source shown)
+- `Tuple`  : a nested directory
+"""
+function override_status(project_dir)
+    # SVG takes precedence
+    icon_path = get_path([joinpath(project_dir, "meta"), DEFAULT_DIR], ["icon.svg", "icon.png"])
+    icon_override = isoverride(icon_path)
+    is_svg = basename(icon_path) == "icon.svg"
+
+    msix = MSIX(project_dir)
+
+    assets = isgenerated_asset(msix.icon) ? basename(msix.icon) : isoverride(msix.icon)
+    cert = isnothing(msix.pfx_cert) ? "" : isoverride(msix.pfx_cert)
+
+    return (
+        "icon.svg" => icon_override && is_svg,
+        "icon.png" => icon_override && !is_svg,
+        "msix" => (
+            "Assets" => assets,
+            "AppxManifest.xml" => isoverride(msix.appxmanifest),
+            "resources.pri" => isoverride(msix.resources_pri),
+            "MSIXAppInstallerData.xml" => isoverride(msix.msixinstallerdata),
+            "certificate.pfx" => cert,
+        ),
+    )
+end
+
+
+isoverridden(value) = value === true || (value isa Tuple && any(((_, v),) -> isoverridden(v), value))
+
+function print_overrides(io::IO, entries::Tuple; indent::Int = 0)
+    for (key, value) in entries
+        generated = value isa AbstractString
+        prefix = indent == 0 ? "" : " "^(indent - 2) * (generated ? "* " : "  ")
+
+        if value isa Tuple
+            if isoverridden(value)
+                println(io, prefix, key, "/")
+            else
+                printstyled(io, prefix, key, "/"; color = :light_black)
+                println(io)
+            end
+            print_overrides(io, value; indent = indent + 2)
+        elseif value === true
+            println(io, prefix, key)
+        else
+            printstyled(io, prefix, key; color = :light_black)
+            if generated && !isempty(value)
+                if get(io, :color, false)
+                    print(io, "\e[2;90m  [source = ", value, "]\e[0m")
+                else
+                    print(io, "  [source = ", value, "]")
+                end
+            end
+            println(io)
+        end
+    end
+end
+
+print_overrides(entries::Tuple; kwargs...) = print_overrides(stdout, entries; kwargs...)
+print_overrides(project_dir::AbstractString) = print_overrides(stdout, override_status(project_dir))
 
 
 
+
+# function issubpath(path, parent)
+#     p = splitpath(abspath(path))
+#     q = splitpath(abspath(parent))
+#     return length(p) >= length(q) && p[1:length(q)] == q
+# end
+
+# issubpath(::Nothing, parent) = true
+
+
+# function isgenerated_asset(icon_path)
+
+#     if basename(icon_path) in ["icon.png", "icon.svg"]
+#         return true
+#     else
+#         return false
+#     end
+# end
+
+
+# (
+# "icon.svg" => false,
+# "icon.png" => false,
+# "msix" => (
+#     "Assets" => "icon.svg", # means it is generated from "icon.svg"
+#     "AppxManifest.xml" => false,
+#     "resources.pri" => false,
+#     "MSIXAppInstallerData.xml" => false,
+#     "certificate.pfx" => "" # implies it is generaterd. An empty source can be skipped from printing
+# )
+
+
+# function print_overrides(project_dir)
+
+#     msix = MSIX(project_dir)
+
+#     default_path = joinpath(dirname(@__DIR__), "recipes")
+
+#     # SVG takes precedance
+
+#     icon_path = get_path([joinpath(project_dir, "meta"), joinpath(dirname(@__DIR__), "recipes")], ["icon.svg", "icon.png"])
+
+#     if issubpath(icon_path, default_path)
+#         println("icon.svg => true")
+#         println("icon.png => true")
+#     else
+#         if basename(icon_path) == "icon.svg"
+#             println("icon.svg => false")
+#             println("icon.png => true")
+#         else
+#             println("icon.svg => true")
+#             println("icon.png => false")
+#         end
+#     end
+
+#     println("msix/")
+
+#     msix_dict = (
+#         "Assets" => msix.icon,
+#         "AppxManifest.xml" => msix.appxmanifest,
+#         "resources.pri" => msix.resources_pri,
+#         "MSIXAppInstallerData.xml" => msix.msixinstallerdata,
+#         "certificate.pfx" => msix.pfx_cert
+#     )
+
+#     (key, value) = msix_dict[1]
+
+#     sb = issubpath(value, default_path)
+
+#     if isgenerated_asset(value)
+#         source = basename(value)
+#         println("  $key => $sb    [source = $source]")
+#     else        
+#         println("  $key => $sb")
+#     end
+
+#     for (key, value) in msix_dict[2:end]
+#         sb = issubpath(value, default_path)
+#         println("  $key => $sb")
+#     end
+
+# end
 
 
 # function get_varios_preferences(ARGS; project_dir, io::IO = stdout)

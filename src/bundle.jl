@@ -124,7 +124,7 @@ function MSIX(;
               skip_unicode_paths = preferences["msix"]["skip_unicode_paths"],
               selfsign = preferences["selfsign"],              
               publisher = preferences["msix"]["publisher"] |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
-              pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
+              pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"; warn=false), # We actually want the warning
               windowed = preferences["windowed"],
               compress = preferences["compress"],
               arch = Sys.ARCH,
@@ -603,12 +603,17 @@ function stage(snap::Snap, destination::String)
     (; predicate, parameters) = snap
     app_exe = parameters["APP_EXE"]
 
-    #install(snap.icon, joinpath(destination, "meta/icon.png"))
-    img = IconTools.load(snap.icon)
-    icon_img = IconTools.toicon(img, 512)
-    icon_path = joinpath(destination, "meta/icon.png")
-    mkpath(dirname(icon_path))
-    IconTools.save(icon_path, icon_img)
+    # This can bite one when Snap struct is used independently and one sets the icon manually
+    # A way to resolve this may become celarer once printing 
+    if basename(dirname(snap.icon)) == "snap"
+        install(snap.icon, joinpath(destination, "meta/icon.png"))
+    else
+        img = IconTools.load(snap.icon)
+        icon_img = IconTools.toicon(img, 512)
+        icon_path = joinpath(destination, "meta/icon.png")
+        mkpath(dirname(icon_path))
+        IconTools.save(icon_path, icon_img)
+    end
 
     install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters, predicate)
     install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_exe.desktop"); parameters, predicate)
