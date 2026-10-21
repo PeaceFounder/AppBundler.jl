@@ -68,6 +68,21 @@ function __init__()
 
 end
 
+
+using PrecompileTools
+
+@setup_workload begin
+    project_dir = joinpath(dirname(@__DIR__), "examples", "GLApp")
+    args = ["-Djuliaimg.precompile=false", "-Dwindowed=true", "-Dmsix.bootstrapper=true"]
+
+    @compile_workload begin
+        # :color => true so the printstyled / escape-code branches get compiled too
+        io = IOContext(IOBuffer(), :color => true)
+        print_status(io, project_dir; args)
+    end
+end
+
+
 export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
 export main 
 

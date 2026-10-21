@@ -6,4 +6,6 @@ target_name = "glapp"
 args = ["-Djuliaimg.precompile=false", "-Dwindowed=true", "-Dmsix.bootstrapper=true"]
 
 #AppBundler.print_preferences(args; project_dir)
-AppBundler.print_overrides(project_dir)
+#AppBundler.print_overrides(project_dir)
+
+AppBundler.print_status(project_dir; args)

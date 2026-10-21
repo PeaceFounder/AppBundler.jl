@@ -51,7 +51,8 @@ end
 
 function main_status(ARGS; sources_dir)
 
-    print_preferences(ARGS; project_dir = sources_dir)
+    #print_preferences(ARGS; project_dir = sources_dir)
+    print_status(sources_dir; args = ARGS)
 
     return
 end

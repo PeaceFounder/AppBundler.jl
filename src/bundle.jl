@@ -423,7 +423,7 @@ function DMG(;
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
              dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
              selfsign = preferences["selfsign"],
-             pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "dmg/certificate.pfx"),
+             pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "dmg/certificate.pfx"; warn = false),
              shallow_signing = preferences["dmg"]["shallow_signing"],
              hardened_runtime = preferences["dmg"]["hardened_runtime"],
              sandboxed_runtime = preferences["dmg"]["sandboxed_runtime"],
