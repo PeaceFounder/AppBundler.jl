@@ -143,11 +143,15 @@ function get_preferences_schema()
     preferences = TOML.parse(String(read(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))))["AppBundler"]
 
     preferences["app_name"] = "myapp"
-    preferences["bundler"] = "juliac"
+    preferences["bundler"] = "juliaimg"
     preferences["build_number"] = 1
     preferences["version"] = "0.0.1"
+    #preferences["juliaimg"]["sysimg"] = String["hello"]
     
     merge_dynamic_defaults!(preferences, "")
+
+    preferences["juliaimg"]["sysimg"] = []
+
 
     return preferences
 end
@@ -155,6 +159,9 @@ end
 function get_extended_preferences(project; preference_overrides = Dict())
 
     preferences = deepcopy(Resources.get_project_preferences(project))
+
+    
+    #@show typeof(preferences["juliaimg"]["sysimg"])
 
     custom_merge(a::Dict, b::Dict) = merge(a, b)
     custom_merge(a::T, b::T) where T = b

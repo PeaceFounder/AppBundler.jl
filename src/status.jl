@@ -19,7 +19,7 @@ function inferred_preference_keys(final_flat, explicit_keys)
 end
 
 module PreferenceStatus
-    @enum T EXPLICIT INFERRED DEFAULT
+    @enum T ERROR EXPLICIT INFERRED DEFAULT
 end
 
 const PreferenceEntry = @NamedTuple{key::String, value::Any, status::PreferenceStatus.T}
@@ -28,39 +28,51 @@ const PreferenceEntry = @NamedTuple{key::String, value::Any, status::PreferenceS
     preferences_status(preferences; project_dir = nothing, preference_overrides = Dict())
 
 Return a vector of `(key, value, status)` entries, sorted by status and then key, where status is
+- `PreferenceStatus.ERROR`    : key does not correspond to any entry in the preferences schema
 - `PreferenceStatus.EXPLICIT` : set in the project's LocalPreferences.toml or on the command line
 - `PreferenceStatus.INFERRED` : not among AppBundler's static defaults and not set explicitly
 - `PreferenceStatus.DEFAULT`  : taken from AppBundler's static defaults
 """
 function preferences_status(preferences::Dict; project_dir = nothing, preference_overrides = Dict())
+    schema_keys = flat_keys(get_preferences_schema())
+
     preferences = get(preferences, "AppBundler", preferences)
     final_flat  = ArgTools.flatten_schema(preferences)
 
     explicit_keys = explicit_preference_keys(project_dir, preference_overrides)
     inferred_keys = inferred_preference_keys(final_flat, explicit_keys)
 
-    status(k) = k in explicit_keys ? PreferenceStatus.EXPLICIT :
-                k in inferred_keys ? PreferenceStatus.INFERRED :
-                                     PreferenceStatus.DEFAULT
+    status(k) = string(k) ∉ schema_keys ? PreferenceStatus.ERROR    :
+                k in explicit_keys      ? PreferenceStatus.EXPLICIT :
+                k in inferred_keys      ? PreferenceStatus.INFERRED :
+                                          PreferenceStatus.DEFAULT
 
     entries = PreferenceEntry[(key = string(k), value = v, status = status(k)) for (k, v) in final_flat]
     return sort!(entries; by = e -> (e.status, e.key))
 end
 
+format_value(v::AbstractVector) = "[" * join(map(format_value, v), ", ") * "]"
+format_value(v) = repr(v)
+
 function print_preferences(io::IO, entries::AbstractVector{PreferenceEntry})
     width = maximum(e -> length(e.key), entries; init = 0)
 
     for e in entries
-        marker = e.status == PreferenceStatus.INFERRED ? "* " : "  "
-        line = string(marker, rpad(e.key, width), " = ", repr(e.value))
-        if e.status == PreferenceStatus.EXPLICIT
-            println(io, line)
+        marker = e.status == PreferenceStatus.ERROR    ? "! " :
+                 e.status == PreferenceStatus.INFERRED ? "* " : "  "
+        line = string(marker, rpad(e.key, width), " = ", format_value(e.value))
+
+        if e.status == PreferenceStatus.ERROR
+            printstyled(io, line; color = :red)
+        elseif e.status == PreferenceStatus.EXPLICIT
+            print(io, line)
         else
             printstyled(io, line; color = :light_black)
-            println(io)
         end
+        println(io)
     end
 end
+
 
 print_preferences(io::IO, preferences::Dict; kwargs...) =
     print_preferences(io, preferences_status(preferences; kwargs...))
@@ -114,6 +126,7 @@ function override_status(project_dir)
         "meta" => (
             "icon.svg" => icon_override && is_svg,
             "icon.png" => icon_override && !is_svg,
+            "startup.jl" => isfile(joinpath(project_dir, "meta", "startup.jl")),
             "msix" => (
                 "Assets" => isgenerated_asset(msix.icon) ? basename(msix.icon) : isoverride(msix.icon),
                 "AppxManifest.xml" => isoverride(msix.appxmanifest),
@@ -139,6 +152,8 @@ function override_status(project_dir)
                 "AppRun.sh" => isoverride(appimage.apprun),
             ),
         ),
+        ".github/workflows/Release.yml" => isfile(joinpath(project_dir, ".github/workflows/Release.yml")),
+        ".gitlab-ci.yml" => isfile(joinpath(project_dir, ".gitlab-ci.yml"))
     )
 end
 
