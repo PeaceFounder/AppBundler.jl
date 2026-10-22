@@ -34,7 +34,6 @@ include("AppImage/AppImageRuntime.jl")
 include("AppImage/AppImagePack.jl")
 
 include("MSIX/MSIXPack.jl")
-include("MSIX/MSIXIcons.jl")
 include("MSIX/WinSubsystem.jl")
 include("MSIX/MSIX2EXEPack.jl")
 
@@ -54,6 +53,9 @@ include("ArgTools.jl")
 include("preferences.jl")
 include("main.jl")
 
+include("status.jl")
+include("inline.jl")
+
 function __init__()
     if Sys.iswindows()
         # Prepending with \\?\ for long path support
@@ -64,6 +66,20 @@ function __init__()
 
     DSStore.__init__()
 
+end
+
+
+using PrecompileTools
+
+@setup_workload begin
+    project_dir = joinpath(dirname(@__DIR__), "examples", "GLApp")
+    args = ["-Djuliaimg.precompile=false", "-Dwindowed=true", "-Dmsix.bootstrapper=true"]
+
+    @compile_workload begin
+        # :color => true so the printstyled / escape-code branches get compiled too
+        io = IOContext(IOBuffer(), :color => true)
+        print_status(io, project_dir; args)
+    end
 end
 
 export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage

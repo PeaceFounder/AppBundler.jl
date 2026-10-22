@@ -2,6 +2,36 @@ import Pkg, Artifacts
 using Pkg.BinaryPlatforms: MacOS
 using AppBundlerUtils_jll
 import Mustache
+import IconTools
+using Colors: RGBA
+
+
+"""
+    Verbatim(path)
+
+Use the file or directory at `path` exactly as it is, skipping the processing the
+field would otherwise apply (icon generation, template rendering, DS_Store generation).
+"""
+struct Verbatim
+    path::String
+end
+
+function resolve_asset(prefix, finished, sources; dir = false)
+    path = get_path(prefix, finished; dir, warn = false)
+    isnothing(path) ? get_path(prefix, sources) : Verbatim(path)
+end
+
+function materialize(process, v::Verbatim, destination)
+    mkpath(dirname(destination))
+    cp(v.path, destination)
+    return
+end
+
+function materialize(process, source::AbstractString, destination)
+    mkpath(dirname(destination))
+    process(source, destination)
+    return
+end
 
 """
     MSIX([project]; arch, compress, windowed, kwargs...)
@@ -52,11 +82,12 @@ MSIX(; prefix = ["custom/", "recipes/"])  # explicit search path
 ```
 """
 struct MSIX
-    icon::String # direcotry reading is something to look into here
+    icon::Union{String, Verbatim} # direcotry reading is something to look into here
+    store_icon_plate::RGBA
     appxmanifest::String 
     command::Cmd
     msixinstallerdata::String 
-    resources_pri::String
+    resources_pri::Verbatim # no genration supported
     path_length_threshold::Int 
     skip_long_paths::Bool 
     skip_symlinks::Bool
@@ -70,7 +101,6 @@ struct MSIX
     predicate::String
     parameters::Dict{String, Any}
 end
-
 
 """
     xml_escape_args(args) -> String
@@ -110,10 +140,12 @@ end
 function MSIX(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
               preferences = preferences(),
-              icon = get_path(prefix, ["msix/Assets", "msix/icon.png", "icon.png"]; dir = true),
+              #icon = get_path(prefix, ["msix/Assets", "icon.svg", "icon.png"]; dir = true),
+              icon = resolve_asset(prefix, "msix/Assets", ["icon.svg", "icon.png"]; dir = true),
+              store_icon_plate = parse(RGBA, preferences["msix"]["store_icon_plate"]),
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
               command = Cmd(preferences["msix"]["command"]),
-              resources_pri = get_path(prefix, "msix/resources.pri"),
+              resources_pri = get_path(prefix, "msix/resources.pri") |> Verbatim,
               msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml"),
               path_length_threshold = preferences["msix"]["path_length_threshold"],
               skip_long_paths = preferences["msix"]["skip_long_paths"],
@@ -121,7 +153,7 @@ function MSIX(;
               skip_unicode_paths = preferences["msix"]["skip_unicode_paths"],
               selfsign = preferences["selfsign"],              
               publisher = preferences["msix"]["publisher"] |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
-              pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"), # We actually want the warning
+              pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"; warn=false), # We actually want the warning
               windowed = preferences["windowed"],
               compress = preferences["compress"],
               arch = Sys.ARCH,
@@ -129,7 +161,7 @@ function MSIX(;
               parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher, "COMMAND_EXE" => first(command), "COMMAND_ARGS" => xml_escape_args(command))
               )
     
-    return MSIX(icon, appxmanifest, command, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
+    return MSIX(icon, store_icon_plate, appxmanifest, command, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
 
 end
 
@@ -142,12 +174,13 @@ function MSIX(project; preferences = get_project_preferences(project), kwargs...
     return msix
 end
 
-function normalize_publisher(publisher)
-    items = split(replace(publisher, " "=>""), ",")
-    stripped_items = strip.(items)
-    return join(items, ", ")
-end
+normalize_publisher(p) = join(strip.(split(p, ",")), ", ")
 
+# function normalize_publisher(publisher)
+#     items = split(replace(publisher, " "=>""), ",")
+#     stripped_items = strip.(items)
+#     return join(items, ", ")
+# end
 
 
 """
@@ -284,7 +317,7 @@ Snap(; prefix = ["custom/", "recipes/"]) # explicit search path
 ```
 """
 struct Snap # by extensions files could have multiple modes that are set via stage command
-    icon::String
+    icon::Union{String, Verbatim}
     snap_config::String
     command::Cmd
     desktop_launcher::String
@@ -300,7 +333,7 @@ function Snap(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
               preferences = preferences(),
               predicate = preferences["bundler"],
-              icon = get_path(prefix, ["snap/icon.png", "icon.png"]),
+              icon = resolve_asset(prefix, "snap/icon.png", ["icon.svg", "icon.png"]),
               snap_config = get_path(prefix, "snap/snap.yaml"),
               command = Cmd(preferences["snap"]["command"]),
               desktop_launcher = get_path(prefix, "snap/main.desktop"),
@@ -375,11 +408,11 @@ DMG(; prefix = ["custom/", "recipes/"]) # explicit search path
 ```
 """
 struct DMG
-    icon::String
+    icon::Union{String, Verbatim}
     info_config::String
     command::Cmd
     entitlements::String
-    dsstore::String # if it's toml then use it as source for parsing
+    dsstore::Union{String, Verbatim} # if it's toml then use it as source for parsing
     selfsign::Bool
     pfx_cert::Union{String, Nothing}
     shallow_signing::Bool
@@ -414,13 +447,13 @@ function DMG(;
              prefix = joinpath(dirname(@__DIR__), "recipes"),
              preferences = preferences(),
              predicate = preferences["bundler"],
-             icon = get_path(prefix, ["dmg/icon.icns", "icon.icns"]), # The "dmg/icon.png" is not yet supported
+             icon = resolve_asset(prefix, "dmg/icon.icns", ["icon.svg", "icon.png"]),
              info_config = get_path(prefix, "dmg/Info.plist"),
              command = Cmd(preferences["dmg"]["command"]),
              entitlements = get_path(prefix, "dmg/Entitlements.plist"),
-             dsstore = get_path(prefix, ["dmg/DS_Store.toml", "dmg/DS_Store"]),
+             dsstore = resolve_asset(prefix, "dmg/DS_Store", "dmg/DS_Store.toml"),
              selfsign = preferences["selfsign"],
-             pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "dmg/certificate.pfx"),
+             pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "dmg/certificate.pfx"; warn = false),
              shallow_signing = preferences["dmg"]["shallow_signing"],
              hardened_runtime = preferences["dmg"]["hardened_runtime"],
              sandboxed_runtime = preferences["dmg"]["sandboxed_runtime"],
@@ -495,16 +528,22 @@ function stage(msix::MSIX, destination::String)
         mkdir(destination)
     end
 
+    assets_path = joinpath(destination, "Assets")
     if isdir(msix.icon)
         @info "Treating icon path as assets directory"
-        cp(msix.icon, joinpath(destination, "Assets"))
+        cp(msix.icon, assets_path)
     else
-        MSIXIcons.generate_app_icons(msix.icon, joinpath(destination, "Assets")) 
+        img = IconTools.load(msix.icon)
+        IconTools.msix_icons(img, assets_path; msix.store_icon_plate)
     end
 
     (; predicate, parameters) = msix
     install(msix.appxmanifest, joinpath(destination, "AppxManifest.xml"); parameters, predicate)
-    cp(msix.resources_pri, joinpath(destination, "resources.pri"))
+
+    materialize(msix.resources_pri, joinpath(destination, "resources.pri")) do src, dest
+        error("Generation of resources.pri file not implemented.")
+    end
+    #cp(msix.resources_pri, joinpath(destination, "resources.pri"))
     install(msix.msixinstallerdata, joinpath(destination, "Msix.AppInstaller.Data/MSIXAppInstallerData.xml"); parameters)
 
     return
@@ -514,30 +553,32 @@ function install_dsstore(source::String, dsstore_destination::String; parameters
 
     rm(dsstore_destination; force=true)
 
-    if last(splitext(source)) == ".toml"
+    #if last(splitext(source)) == ".toml"
 
-        dsstore_toml = Mustache.render(read(source, String), parameters)
-        dsstore = TOML.parse(dsstore_toml)
+    dsstore_toml = Mustache.render(read(source, String), parameters)
+    dsstore = TOML.parse(dsstore_toml)
 
-        DSStore.open_dsstore(dsstore_destination, "w+") do ds
+    DSStore.open_dsstore(dsstore_destination, "w+") do ds
 
-            ds[".", "icvl"] = ("type", "icnv")
-            ds[".", "vSrn"] = ("long", 1)
+        ds[".", "icvl"] = ("type", "icnv")
+        ds[".", "vSrn"] = ("long", 1)
 
-            for file_key in keys(dsstore)
-                file_dict = dsstore[file_key]
-                for entry_key in keys(file_dict)
-                    ds[file_key, entry_key] = file_dict[entry_key]
-                end
+        for file_key in keys(dsstore)
+            file_dict = dsstore[file_key]
+            for entry_key in keys(file_dict)
+                ds[file_key, entry_key] = file_dict[entry_key]
             end
         end
-        
-    else
-        cp(source, dsstore_destination)
     end
+    
+    #else
+    #       cp(source, dsstore_destination)
+    #    end
 
     return
 end
+
+
 
 function retrieve_macos_launcher(platform::MacOS)
 
@@ -565,12 +606,29 @@ function stage(dmg::DMG, destination::String; dsstore = false)
     (; predicate, parameters) = dmg
     app_exe = parameters["APP_EXE"]
 
-    install(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns"))
+    materialize(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns")) do src, dest
+        img = IconTools.load(src)
+        IconTools.toicns(img, dest)
+    end
+
+    # icon_path = joinpath(destination, "Contents/Resources/icon.icns")
+    # mkpath(dirname(icon_path))
+    # if last(splitext(dmg.icon)) == ".icns"
+    #     install(dmg.icon, icon_path)
+    # else
+    #     img = IconTools.load(dmg.icon)
+    #     IconTools.toicns(img, icon_path)
+    # end
+
     install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)
 
     if dsstore
         symlink("/Applications", joinpath(dirname(destination), "Applications"); dir_target=true)
-        install_dsstore(dmg.dsstore, joinpath(dirname(destination), ".DS_Store"); parameters)
+
+        materialize(dmg.dsstore, joinpath(dirname(destination), ".DS_Store")) do src, dest
+            #install_dsstore(dmg.dsstore, joinpath(dirname(destination), ".DS_Store"); parameters)
+            install_dsstore(src, dest; parameters)
+        end
     end
 
     if !isnothing(dmg.main_launcher)
@@ -583,12 +641,31 @@ function stage(dmg::DMG, destination::String; dsstore = false)
     return
 end
 
+# It is also possible to directly install svg icon in the snap. 
+# this requires templating myapp.desktop, hence not done at the moment
 function stage(snap::Snap, destination::String)
 
     (; predicate, parameters) = snap
     app_exe = parameters["APP_EXE"]
 
-    install(snap.icon, joinpath(destination, "meta/icon.png"))
+    materialize(snap.icon, joinpath(destination, "meta/icon.png")) do src, dest
+        img = IconTools.load(src)
+        icon_img = IconTools.toicon(img, 512)
+        IconTools.save(dest, icon_img)
+    end
+
+    # # This can bite one when Snap struct is used independently and one sets the icon manually
+    # # A way to resolve this may become celarer once printing 
+    # if basename(dirname(snap.icon)) == "snap"
+    #     install(snap.icon, joinpath(destination, "meta/icon.png"))
+    # else
+    #     img = IconTools.load(snap.icon)
+    #     icon_img = IconTools.toicon(img, 512)
+    #     icon_path = joinpath(destination, "meta/icon.png")
+    #     mkpath(dirname(icon_path))
+    #     IconTools.save(icon_path, icon_img)
+    # end
+
     install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters, predicate)
     install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_exe.desktop"); parameters, predicate)
     

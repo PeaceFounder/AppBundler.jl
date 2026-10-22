@@ -15,7 +15,7 @@
     <DisplayName>{{APP_DISPLAY_NAME}}</DisplayName>
     <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
     <Description>{{APP_DESCRIPTION}}</Description>
-    <Logo>Assets\Square310x310Logo.scale-100.png</Logo>
+    <Logo>Assets\StoreLogo.scale-100.png</Logo>
   </Properties>
 
   <Dependencies> 

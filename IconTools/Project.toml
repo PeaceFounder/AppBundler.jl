@@ -1,0 +1,25 @@
+name = "IconTools"
+uuid = "16dc48d6-ba94-4448-aa2d-4d14f88e6f7d"
+version = "0.1.0"
+authors = ["Janis Erdmanis <janiserdmanis@protonmail.ch>"]
+
+[deps]
+ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
+ColorVectorSpace = "c3611d14-8923-5661-9e6a-0046d554d3a4"
+FixedPointNumbers = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
+PNGFiles = "f57f5aa1-a3ce-4bc8-8ab9-96f992907883"
+resvg_jll = "acccf2be-895d-5fd8-88d3-4be6fc0b64a1"
+
+[compat]
+ColorTypes = "0.12.4"
+ColorVectorSpace = "0.11.0"
+FixedPointNumbers = "0.8.6"
+PNGFiles = "0.4.5"
+resvg_jll = "0.48.1"
+
+[extras]
+SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test", "SafeTestsets"]
