@@ -146,7 +146,7 @@ function get_preferences_schema()
     preferences["bundler"] = "juliaimg"
     preferences["build_number"] = 1
     preferences["version"] = "0.0.1"
-    #preferences["juliaimg"]["sysimg"] = String["hello"]
+    preferences["module_name"] = "MyApp"
     
     merge_dynamic_defaults!(preferences, "")
 

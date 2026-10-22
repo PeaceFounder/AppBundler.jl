@@ -5,11 +5,14 @@ using TOML
 
 preferences() = Base.get_preferences()["AppBundler"]
 
-function generate_macos_signing_certificate(root; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
+
+
+
+function generate_macos_signing_certificate(destination; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
     
     password = Base64.base64encode(rand(RandomDevice(), UInt8, 16))
         
-    destination = joinpath(root, "meta/dmg/certificate.pfx")
+    #destination = joinpath(root, "meta/dmg/certificate.pfx")
 
     if isfile(destination) && !force
         error("Certificate at $destination alredy exists. Use `force=true` to overwrite it")
@@ -28,11 +31,11 @@ function generate_macos_signing_certificate(root; person_name = "AppBundler", co
     return password
 end
 
-function generate_windows_signing_certificate(root; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
+function generate_windows_signing_certificate(destination; person_name = "AppBundler", country = "XX", validity_days = 365, force=false, publisher="O=AppBundler, C=$country, CN=$person_name")
 
     password = Base64.base64encode(rand(RandomDevice(), UInt8, 16))
 
-    destination = joinpath(root, "meta/msix/certificate.pfx")
+    #destination = joinpath(root, "meta/msix/certificate.pfx")
 
     if isfile(destination) && !force
         error("Certificate at $destination alredy exists. Use `force=true` to overwrite it")
@@ -40,7 +43,7 @@ function generate_windows_signing_certificate(root; person_name = "AppBundler", 
 
     mkpath(dirname(destination))
     
-    MSIXPack.generate_self_signed_certificate(destination; password, publisher="O=AppBundler, C=$country, CN=$person_name", validity_days)
+    MSIXPack.generate_self_signed_certificate(destination; password, publisher, validity_days)
 
     println("""
     The certificate is encrypted with a strong encryption algorithm and stored at meta/windows/certificate.pfx; To use certificate set certificate password "$password"
@@ -79,9 +82,9 @@ end
 # Need to specify password
 # Also deriving from active project does not work unless that is a meta
 function generate_signing_certificates(; root = dirname(Base.ACTIVE_PROJECT[]), person_name = "AppBundler", country = "XX", validity_days = 365, force = false)
-
-    password_macos = generate_macos_signing_certificate(root; person_name, country, validity_days, force)
-    password_windows = generate_windows_signing_certificate(root; person_name, country, validity_days, force)
+    
+    password_macos = generate_macos_signing_certificate(joinpath(root, "meta/dmg/certificate.pfx"); person_name, country, validity_days, force)
+    password_windows = generate_windows_signing_certificate(joinpath(root, "meta/msix/certificate.pfx"); person_name, country, validity_days, force)
 
     return (; password_macos, password_windows)
 end

@@ -54,7 +54,7 @@ include("preferences.jl")
 include("main.jl")
 
 include("status.jl")
-
+include("inline.jl")
 
 function __init__()
     if Sys.iswindows()
@@ -81,7 +81,6 @@ using PrecompileTools
         print_status(io, project_dir; args)
     end
 end
-
 
 export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage
 export main 

@@ -99,8 +99,12 @@ function issubpath(path, parent)
 end
 
 isoverride(path) = !isnothing(path) && !issubpath(path, DEFAULT_DIR)
+isoverride(path::Verbatim) = isoverride(path.path)
 
-isgenerated_asset(path) = basename(path) in ("icon.png", "icon.svg")
+isgenerated_asset(path) = true  #basename(path) in ("icon.png", "icon.svg")
+isgenerated_asset(::Verbatim) = false
+
+
 
 """
     override_status(project_dir)
@@ -138,12 +142,12 @@ function override_status(project_dir)
                 "icon.icns" => isgenerated_asset(dmg.icon) ? basename(dmg.icon) : isoverride(dmg.icon),
                 "Info.plist" => isoverride(dmg.info_config),
                 "Entitlements.plist" => isoverride(dmg.entitlements),
-                "DS_Store.toml" => isoverride(dmg.dsstore),
+                "DS_Store.toml" => isoverride(dmg.dsstore) && !isgenerated_asset(dmg.dsstore),
+                "DS_Store" => isgenerated_asset(dmg.dsstore) ? basename(dmg.dsstore) : isoverride(dmg.dsstore),
                 "certificate.pfx" => isnothing(dmg.pfx_cert) ? "" : isoverride(dmg.pfx_cert),
             ),
             "snap" => (
-                "icon.png" => isgenerated_asset(snap.icon) && basename(dirname(snap.icon)) != "snap" ?
-                              basename(snap.icon) : isoverride(snap.icon),
+                "icon.png" => isgenerated_asset(snap.icon) ? basename(snap.icon) : isoverride(snap.icon),
                 "snap.yaml" => isoverride(snap.snap_config),
                 "main.desktop" => isoverride(snap.desktop_launcher),
                 "configure.sh" => isoverride(snap.configure_hook),
@@ -193,7 +197,6 @@ print_overrides(entries::Union{Tuple,Pair}; kwargs...) = print_overrides(stdout,
 
 print_overrides(io::IO, project_dir::AbstractString) = print_overrides(io, override_status(project_dir))
 print_overrides(project_dir::AbstractString) = print_overrides(stdout, project_dir)
-
 
 function print_status(io::IO, project_dir; args = [])
 
