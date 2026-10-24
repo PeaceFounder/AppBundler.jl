@@ -21,14 +21,16 @@ function (@main)(ARGS)
             error("No project path provided for `build` command. See `build --help` for usage.")
         end
 
-        main_build(ARGS[3:end]; sources_dir = realpath(ARGS[2]))
+        #main_build(ARGS[3:end]; sources_dir = realpath(ARGS[2]))
+        main_build(realpath(ARGS[2]), ARGS[3:end])
 
-    # elseif command == "init"
-    #     ...
+    elseif command == "inline"
+        
+        main_inline(realpath(ARGS[2]), ARGS[3], ARGS[4:end])
 
     elseif command == "status"
 
-        main_status(ARGS[3:end]; sources_dir = realpath(ARGS[2]))
+        main_status(realpath(ARGS[2]), ARGS[3:end])
 
     else
         error("Unsupported command `$command`. See `--help` for available commands.")
@@ -49,20 +51,78 @@ function canonical_target_name(spec::Union{MSIX, DMG, Snap, AppImage})
 end
 
 
-function main_status(ARGS; sources_dir)
+function main_status(project_dir, raw_args)
 
-    #print_preferences(ARGS; project_dir = sources_dir)
-    print_status(sources_dir; args = ARGS)
+    args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
+
+    @assert isempty(defines) "Nonempty defins not supported"
+
+    preferences = true
+    files = true
+    
+    for (key, value) in args
+    
+        if key == "--help"
+            print_help()
+            exit(0)
+        elseif key == "--preferences"
+            files = false
+        elseif key == "--files"
+            preferences = false
+        else
+            @warn "Unknown argument: $key"
+        end
+    end
+
+    if preferences
+        println("LocalPreferences.toml:") # may need to look into the case when there are no overrides
+        print_preferences(stdout, project_dir)
+    end
+
+    if files 
+        print_overrides(stdout, project_dir)
+    end
 
     return
 end
 
 
-function main_build(ARGS; sources_dir)
+function main_inline(project_dir, target, raw_args::AbstractVector{<:AbstractString})
 
-    config, preference_overrides = parse_build_args(ARGS)
-    extended_preferences = get_extended_preferences(sources_dir; preference_overrides) 
+    args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
+
+    force = false
+    render = false
+    verbose = false
+
+    for (option, value) in args
+        if option == "--help"
+            print_help()
+            exit(0)
+        elseif option == "--force"
+            force = true
+        elseif option == "--render"
+            render = true
+        elseif option == "--verbose"
+            verbose = true
+        else
+            @warn "Unknown argument: $option"
+        end
+    end
+
+    return inline(project_dir, target; defines, force, render, verbose)
+end
+
+
+function main_build(sources_dir, ARGS)
+
+    config, defines = parse_build_args(ARGS)
+    extended_preferences = load_preferences(sources_dir; defines)
     preferences = extended_preferences["AppBundler"]
+
+    #config, preference_overrides = parse_build_args(ARGS)
+    #extended_preferences = get_extended_preferences(sources_dir; preference_overrides) 
+    #preferences = extended_preferences["AppBundler"]
 
     if config[:build_dir] == "@temp"
         build_dir = mktempdir()
@@ -192,7 +252,8 @@ forbid(option, value)  = value === nothing || error("$option does not take a val
 
 function parse_build_args(raw_args::Vector{<:AbstractString}) 
 
-    args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
+    args, defines_raw = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
+    defines = ArgTools.coerce(defines_raw, LOCAL_PREFERENCES_SCHEMA)
 
     # Default values
     config = Dict(
@@ -203,7 +264,7 @@ function parse_build_args(raw_args::Vector{<:AbstractString})
         :password => nothing
     )
 
-    preferences = Dict()
+    #preferences = Dict()
 
     for (option, value) in args
         if option == "--help"
@@ -220,33 +281,47 @@ function parse_build_args(raw_args::Vector{<:AbstractString})
         elseif option == "--target-bundle"
             config[:target_bundle] = Symbol(require(option, value))
         elseif option == "--force"
-            forbid(option, value); preferences["overwrite_target"] = true
+            forbid(option, value)
+            push!(defines, "overwrite_target" => true)
         elseif option == "--selfsign"
             forbid(option, value)
-            preferences["selfsign"] = true
+            #preferences["selfsign"] = true
+            push!(defines, "selfsign" => true)
         elseif option == "--skipsign"
             forbid(option, value)
-            preferences["skipsign"] = true
+            #preferences["skipsign"] = true
+            push!(defines, "skipsign" => true)
         elseif option == "--debug"
             forbid(option, value)
-            preferences["compress"] = false
-            preferences["selfsign"] = true
-            preferences["windowed"] = false
+            push!(defines, "compress" => false)
+            push!(defines, "selfsign" => true)
+            push!(defines, "windowed" => false)
+            # preferences["compress"] = false
+            # preferences["selfsign"] = true
+            # preferences["windowed"] = false
         else
             @warn "Unknown argument: $option"
         end
     end
 
-    schema = get_preferences_schema()
-    overrides = ArgTools.parse_preferences(defines, schema)
+    unique!(first, defines)
+
+
+    #merge!(preferences, defines)
+
+    #load_p
+
+    #schema = get_preferences_schema()
+    #overrides = ArgTools.parse_preferences(defines, schema)
     #merged_preferences = merge(preferences, overrides)
 
-    custom_merge(a::Dict, b::Dict) = merge(a, b)
-    custom_merge(a::T, b::T) where T = b
-    custom_merge(a, b) = error("Incompatable types")
-    merged_preferences = mergewith(custom_merge, preferences, overrides)
+    # custom_merge(a::Dict, b::Dict) = merge(a, b)
+    # custom_merge(a::T, b::T) where T = b
+    # custom_merge(a, b) = error("Incompatable types")
+    # merged_preferences = mergewith(custom_merge, preferences, overrides)
     
-    return config, merged_preferences
+    #return config, merged_preferences
+    return config, defines
 end
 
 

@@ -140,7 +140,6 @@ end
 function MSIX(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
               preferences = preferences(),
-              #icon = get_path(prefix, ["msix/Assets", "icon.svg", "icon.png"]; dir = true),
               icon = resolve_asset(prefix, "msix/Assets", ["icon.svg", "icon.png"]; dir = true),
               store_icon_plate = parse(RGBA, preferences["msix"]["store_icon_plate"]),
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
@@ -165,8 +164,8 @@ function MSIX(;
 
 end
 
-function MSIX(project; preferences = get_project_preferences(project), kwargs...)
-    
+function MSIX(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
+
     prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     msix = MSIX(; prefix, preferences, kwargs...)
     get_bundle_parameters!(msix.parameters, preferences)
@@ -175,13 +174,6 @@ function MSIX(project; preferences = get_project_preferences(project), kwargs...
 end
 
 normalize_publisher(p) = join(strip.(split(p, ",")), ", ")
-
-# function normalize_publisher(publisher)
-#     items = split(replace(publisher, " "=>""), ",")
-#     stripped_items = strip.(items)
-#     return join(items, ", ")
-# end
-
 
 """
     MSIX2EXE([project]; prefix, preferences, bootstrap, windowed, sfx_stub, title)
@@ -352,7 +344,7 @@ function Snap(;
     return Snap(icon, snap_config, command, desktop_launcher, configure_hook, windowed, compress, arch, predicate, parameters)
 end
 
-function Snap(project; preferences = get_project_preferences(project), kwargs...)
+function Snap(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
 
     prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     snap = Snap(; prefix, preferences, kwargs...)
@@ -469,7 +461,7 @@ function DMG(;
     return DMG(icon, info_config, command, entitlements, dsstore, selfsign, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, backend, windowed, compress, compression, arch, predicate, parameters)
 end
 
-function DMG(project; preferences = get_project_preferences(project), kwargs...)
+function DMG(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
 
     prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     dmg = DMG(; prefix, preferences, kwargs...)
@@ -543,7 +535,6 @@ function stage(msix::MSIX, destination::String)
     materialize(msix.resources_pri, joinpath(destination, "resources.pri")) do src, dest
         error("Generation of resources.pri file not implemented.")
     end
-    #cp(msix.resources_pri, joinpath(destination, "resources.pri"))
     install(msix.msixinstallerdata, joinpath(destination, "Msix.AppInstaller.Data/MSIXAppInstallerData.xml"); parameters)
 
     return
@@ -552,8 +543,6 @@ end
 function install_dsstore(source::String, dsstore_destination::String; parameters = Dict())
 
     rm(dsstore_destination; force=true)
-
-    #if last(splitext(source)) == ".toml"
 
     dsstore_toml = Mustache.render(read(source, String), parameters)
     dsstore = TOML.parse(dsstore_toml)
@@ -571,10 +560,6 @@ function install_dsstore(source::String, dsstore_destination::String; parameters
         end
     end
     
-    #else
-    #       cp(source, dsstore_destination)
-    #    end
-
     return
 end
 
@@ -611,22 +596,12 @@ function stage(dmg::DMG, destination::String; dsstore = false)
         IconTools.toicns(img, dest)
     end
 
-    # icon_path = joinpath(destination, "Contents/Resources/icon.icns")
-    # mkpath(dirname(icon_path))
-    # if last(splitext(dmg.icon)) == ".icns"
-    #     install(dmg.icon, icon_path)
-    # else
-    #     img = IconTools.load(dmg.icon)
-    #     IconTools.toicns(img, icon_path)
-    # end
-
     install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)
 
     if dsstore
         symlink("/Applications", joinpath(dirname(destination), "Applications"); dir_target=true)
 
         materialize(dmg.dsstore, joinpath(dirname(destination), ".DS_Store")) do src, dest
-            #install_dsstore(dmg.dsstore, joinpath(dirname(destination), ".DS_Store"); parameters)
             install_dsstore(src, dest; parameters)
         end
     end
@@ -653,18 +628,6 @@ function stage(snap::Snap, destination::String)
         icon_img = IconTools.toicon(img, 512)
         IconTools.save(dest, icon_img)
     end
-
-    # # This can bite one when Snap struct is used independently and one sets the icon manually
-    # # A way to resolve this may become celarer once printing 
-    # if basename(dirname(snap.icon)) == "snap"
-    #     install(snap.icon, joinpath(destination, "meta/icon.png"))
-    # else
-    #     img = IconTools.load(snap.icon)
-    #     icon_img = IconTools.toicon(img, 512)
-    #     icon_path = joinpath(destination, "meta/icon.png")
-    #     mkpath(dirname(icon_path))
-    #     IconTools.save(icon_path, icon_img)
-    # end
 
     install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters, predicate)
     install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_exe.desktop"); parameters, predicate)
@@ -911,7 +874,7 @@ function AppImage(;
     return AppImage(apprun, command, compression, compress, arch, runtime, predicate, parameters)
 end
 
-function AppImage(project; preferences = get_project_preferences(project), kwargs...)
+function AppImage(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
 
     prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
     appimage = AppImage(; prefix, preferences, kwargs...)

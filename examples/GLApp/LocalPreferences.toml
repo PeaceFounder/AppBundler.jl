@@ -1,6 +1,4 @@
 [AppBundler]
 app_name = "GLApp"
 windowed = true
-
-[AppBundler.juliaimg]
-precompile = false
+bundler = "juliac"

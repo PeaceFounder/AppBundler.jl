@@ -5,9 +5,6 @@ using TOML
 
 preferences() = Base.get_preferences()["AppBundler"]
 
-
-
-
 function generate_macos_signing_certificate(destination; person_name = "AppBundler", country = "XX", validity_days = 365, force=false)
     
     password = Base64.base64encode(rand(RandomDevice(), UInt8, 16))
@@ -57,7 +54,7 @@ end
 # instantiation of self signed keys could be done at a seperate command!
 function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force = false)
 
-    preferences = get_project_preferences(root)
+    preferences = load_preferences(root)["AppBundler"]
     parameters = get_bundle_parameters(preferences)
 
     mkpath(joinpath(root, ".github/workflows"))

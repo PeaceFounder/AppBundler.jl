@@ -51,10 +51,11 @@ include("recipes.jl")
 
 include("ArgTools.jl")
 include("preferences.jl")
-include("main.jl")
 
 include("status.jl")
 include("inline.jl")
+
+include("main.jl")
 
 function __init__()
     if Sys.iswindows()
@@ -73,12 +74,13 @@ using PrecompileTools
 
 @setup_workload begin
     project_dir = joinpath(dirname(@__DIR__), "examples", "GLApp")
-    args = ["-Djuliaimg.precompile=false", "-Dwindowed=true", "-Dmsix.bootstrapper=true"]
 
     @compile_workload begin
         # :color => true so the printstyled / escape-code branches get compiled too
         io = IOContext(IOBuffer(), :color => true)
-        print_status(io, project_dir; args)
+        print_preferences(io, project_dir)
+        print_overrides(io, project_dir)
+        
     end
 end
 

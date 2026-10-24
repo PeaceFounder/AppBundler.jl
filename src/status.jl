@@ -24,32 +24,48 @@ end
 
 const PreferenceEntry = @NamedTuple{key::String, value::Any, status::PreferenceStatus.T}
 
-"""
-    preferences_status(preferences; project_dir = nothing, preference_overrides = Dict())
+# Keys in the [AppBundler] section of a LocalPreferences.toml, flattened
+function preference_file_keys(path)
+    isfile(path) || return Set{String}()
+    section = get(TOML.parsefile(path), "AppBundler", Dict{String,Any}())
+    return Set(keys(flatten_schema(section)))
+end
 
-Return a vector of `(key, value, status)` entries, sorted by status and then key, where status is
-- `PreferenceStatus.ERROR`    : key does not correspond to any entry in the preferences schema
-- `PreferenceStatus.EXPLICIT` : set in the project's LocalPreferences.toml or on the command line
+"""
+    preferences_status(project; defines = Pair{String,Any}[], schema = LOCAL_PREFERENCES_SCHEMA)
+
+Resolve the project's preferences the way `load_preferences` does, and classify every key:
+- `PreferenceStatus.ERROR`    : not in the schema, or a value the schema does not allow
+- `PreferenceStatus.EXPLICIT` : set in the project's LocalPreferences.toml or by `defines`
 - `PreferenceStatus.INFERRED` : not among AppBundler's static defaults and not set explicitly
-- `PreferenceStatus.DEFAULT`  : taken from AppBundler's static defaults
+- `PreferenceStatus.DEFAULT`  : AppBundler's static default
+
+Unlike `load_preferences`, invalid entries are reported as `ERROR` rather than thrown, so they can
+be shown alongside everything else.
 """
-function preferences_status(preferences::Dict; project_dir = nothing, preference_overrides = Dict())
-    schema_keys = flat_keys(get_preferences_schema())
+function preferences_status(project; defines::Vector{Pair{String,Any}} = Pair{String,Any}[], schema = LOCAL_PREFERENCES_SCHEMA)
+    preferences = deepcopy(Resources.get_project_preferences(project))
+    section = preferences["AppBundler"]
 
-    preferences = get(preferences, "AppBundler", preferences)
-    final_flat  = ArgTools.flatten_schema(preferences)
+    overrides = ArgTools.coerce(defines, schema)
+    apply_overrides!(section, overrides)
+    
+    apply_defaults!(section, project)
+    final_flat = flatten_schema(section)
 
-    explicit_keys = explicit_preference_keys(project_dir, preference_overrides)
-    inferred_keys = inferred_preference_keys(final_flat, explicit_keys)
+    explicit_keys = preference_file_keys(joinpath(project, "LocalPreferences.toml")) ∪ first.(overrides)
+    default_keys = preference_file_keys(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))
+    inferred_keys = setdiff(keys(final_flat), default_keys, explicit_keys)
 
-    status(k) = string(k) ∉ schema_keys ? PreferenceStatus.ERROR    :
-                k in explicit_keys      ? PreferenceStatus.EXPLICIT :
-                k in inferred_keys      ? PreferenceStatus.INFERRED :
-                                          PreferenceStatus.DEFAULT
+    status(k, v) = !haskey(schema, k) || !isallowed(schema[k], v) ? PreferenceStatus.ERROR    :
+                   k in explicit_keys                              ? PreferenceStatus.EXPLICIT :
+                   k in inferred_keys                              ? PreferenceStatus.INFERRED :
+                                                                     PreferenceStatus.DEFAULT
 
-    entries = PreferenceEntry[(key = string(k), value = v, status = status(k)) for (k, v) in final_flat]
+    entries = PreferenceEntry[(key = k, value = v, status = status(k, v)) for (k, v) in final_flat]
     return sort!(entries; by = e -> (e.status, e.key))
 end
+
 
 format_value(v::AbstractVector) = "[" * join(map(format_value, v), ", ") * "]"
 format_value(v) = repr(v)
@@ -79,16 +95,15 @@ print_preferences(io::IO, preferences::Dict; kwargs...) =
 
 print_preferences(preferences::Dict; kwargs...) = print_preferences(stdout, preferences; kwargs...)
 
-function print_preferences(io::IO, ARGS::AbstractVector{<:AbstractString}; project_dir = nothing)
-    config, preference_overrides = parse_build_args(ARGS)
-    extended_preferences = get_extended_preferences(project_dir; preference_overrides)
-    print_preferences(io, extended_preferences; project_dir, preference_overrides)
+function print_preferences(io::IO, project_dir; defines = Pair{String, Any}[])
+    
+    entries = preferences_status(project_dir; defines)
+    print_preferences(io, entries)
+
     return
 end
 
-print_preferences(ARGS::AbstractVector{<:AbstractString}; kwargs...) =
-    print_preferences(stdout, ARGS; kwargs...)
-
+print_preferences(project_dir) = print_preferences(stdout, project_dir)
 
 const DEFAULT_DIR = joinpath(dirname(@__DIR__), "recipes")
 
@@ -103,7 +118,6 @@ isoverride(path::Verbatim) = isoverride(path.path)
 
 isgenerated_asset(path) = true  #basename(path) in ("icon.png", "icon.svg")
 isgenerated_asset(::Verbatim) = false
-
 
 
 """
@@ -121,10 +135,14 @@ function override_status(project_dir)
     icon_override = isoverride(icon_path)
     is_svg = basename(icon_path) == "icon.svg"
 
-    msix = MSIX(project_dir)
-    dmg = DMG(project_dir)
-    snap = Snap(project_dir)
-    appimage = AppImage(project_dir)
+    # It is harder to break this one
+    preferences = get(TOML.parsefile(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml")), "AppBundler", Dict{String,Any}())
+    apply_defaults!(preferences, project_dir)
+
+    msix = MSIX(project_dir; preferences)
+    dmg = DMG(project_dir; preferences)
+    snap = Snap(project_dir; preferences)
+    appimage = AppImage(project_dir; preferences)
 
     return (
         "meta" => (
@@ -197,13 +215,3 @@ print_overrides(entries::Union{Tuple,Pair}; kwargs...) = print_overrides(stdout,
 
 print_overrides(io::IO, project_dir::AbstractString) = print_overrides(io, override_status(project_dir))
 print_overrides(project_dir::AbstractString) = print_overrides(stdout, project_dir)
-
-function print_status(io::IO, project_dir; args = [])
-
-    println(io, "LocalPreferences.toml:") # may need to look into the case when there are no overrides
-    print_preferences(io, args; project_dir)
-    print_overrides(io, project_dir)
-
-end
-
-print_status(project_dir; args = []) = print_status(stdout, project_dir; args)

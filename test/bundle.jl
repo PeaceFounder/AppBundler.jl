@@ -117,7 +117,7 @@ if Sys.isunix()
     @time @testset "DMG bundling tests" begin
 
         gtkapp_dmg(backend) = DMG(APP_DIR; backend, selfsign = true, predicate, arch = :x86_64, windowed = false)
-
+        
         @test hash_stage() do dest
             stage(gtkapp_dmg(DMGPack.XorrisoBackend(true)), joinpath(dest, "GtkApp.app"); dsstore = true)
             normalize_app!(dest; signed = false)

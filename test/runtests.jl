@@ -4,6 +4,10 @@ using SafeTestsets
     include("argtools.jl")
 end
 
+@time @safetestset "Inlining API tests" begin
+    include("inline.jl")
+end
+
 @time @safetestset "DS_Store parser" begin
     include("dsstore.jl")
 end
