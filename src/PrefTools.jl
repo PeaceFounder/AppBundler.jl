@@ -2,9 +2,7 @@ module PrefTools
 
 import TOML
 
-
-export apply_overrides!, validate
-
+export apply_overrides!, validate, preferences_status
 
 # This is a bit of a hack but shall work fine
 function get_project_preferences(project)
@@ -18,7 +16,6 @@ function get_project_preferences(project)
         pop!(Base.LOAD_PATH)
     end
 end
-
 
 """
     nest_keys(flat) -> Dict{String, Any}
@@ -130,10 +127,7 @@ Add `defines`, the `key => text` pairs from `ArgTools.parse_options`, to `[secti
 file at `destination`. Values are coerced against `schema`, and each new line is inserted into the
 table block it belongs to, leaving the rest of the file untouched. Errors if any key is already set.
 """
-#function inline_preferences(destination, defines; force = true, section = "AppBundler", schema = LOCAL_PREFERENCES_SCHEMA)
-#function inline_preferences(destination, defines; force = true, section = "AppBundler", schema = Dict{String, Any}())
 function inline_preferences(destination, defines; force = true, section = "AppBundler")
-    #defines = ArgTools.coerce(defines, schema)
 
     text = isfile(destination) ? read(destination, String) : ""
     current = flatten_schema(get(TOML.parse(text), section, Dict{String,Any}()))
@@ -162,22 +156,6 @@ function inline_preferences(destination, defines; force = true, section = "AppBu
     return destination
 end
 
-
-
-#flat_keys(d) = Set(string(k) for k in keys(ArgTools.flatten_schema(d)))
-
-# function load_preferences_section(path; section = "AppBundler")
-#     isfile(path) || return Dict{String,Any}()
-#     return get(TOML.parsefile(path), section, Dict{String,Any}())
-# end
-
-# # Keys set in the project's LocalPreferences.toml or on the command line
-# function explicit_preference_keys(project_dir, preference_overrides)
-#     keys_project = isnothing(project_dir) ? Set{String}() :
-#         flat_keys(load_preferences_section(joinpath(project_dir, "LocalPreferences.toml")))
-#     return keys_project ∪ flat_keys(preference_overrides)
-# end
-
 # Keys absent from AppBundler's static defaults and not set explicitly
 function inferred_preference_keys(final_flat, explicit_keys)
     defaults = load_preferences_section(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))
@@ -197,71 +175,59 @@ function preference_file_keys(path)
     return Set(keys(flatten_schema(section)))
 end
 
-# """
-#     preferences_status(project; defines = Pair{String,Any}[], schema = LOCAL_PREFERENCES_SCHEMA)
-
-# Resolve the project's preferences the way `load_preferences` does, and classify every key:
-# - `PreferenceStatus.ERROR`    : not in the schema, or a value the schema does not allow
-# - `PreferenceStatus.EXPLICIT` : set in the project's LocalPreferences.toml or by `defines`
-# - `PreferenceStatus.INFERRED` : not among AppBundler's static defaults and not set explicitly
-# - `PreferenceStatus.DEFAULT`  : AppBundler's static default
-
-# Unlike `load_preferences`, invalid entries are reported as `ERROR` rather than thrown, so they can
-# be shown alongside everything else.
-# """
-# #function preferences_status(project; defines::Vector{Pair{String,Any}} = Pair{String,Any}[], schema = LOCAL_PREFERENCES_SCHEMA)
-# function preferences_status(project, schema; defines::Vector{Pair{String,Any}} = Pair{String,Any}[])
-#     preferences = deepcopy(get_project_preferences(project))
-#     section = preferences["AppBundler"]
-
-#     #overrides = ArgTools.coerce(defines, schema)
-#     PrefTools.apply_overrides!(section, defines)
-    
-#     apply_defaults!(section, project)
-#     final_flat = PrefTools.flatten_schema(section)
-
-#     explicit_keys = preference_file_keys(joinpath(project, "LocalPreferences.toml")) ∪ first.(defines)
-#     default_keys = preference_file_keys(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))
-#     inferred_keys = setdiff(keys(final_flat), default_keys, explicit_keys)
-
-#     status(k, v) = !haskey(schema, k) || !isallowed(schema[k], v) ? PreferenceStatus.ERROR    :
-#                    k in explicit_keys                              ? PreferenceStatus.EXPLICIT :
-#                    k in inferred_keys                              ? PreferenceStatus.INFERRED :
-#                                                                      PreferenceStatus.DEFAULT
-
-#     entries = PreferenceEntry[(key = k, value = v, status = status(k, v)) for (k, v) in final_flat]
-#     return sort!(entries; by = e -> (e.status, e.key))
-# end
-
-
-
-
-
-
-
-
 function preferences_status(
     default_preferences::AbstractDict,
     project_preferences::AbstractDict,
     schema::AbstractDict;
     infer! = identity,
 )
-    #section = deepmerge(default_preferences, project_preferences)
     preferences = apply_overrides!(deepcopy(default_preferences), project_preferences)
-    infer!(preferences)
+
+    try
+        infer!(preferences)
+    catch
+        # Keys that could not be inferred are reported as ERROR entries below
+    end
+
     final_flat = flatten_schema(preferences)
 
-    layers = [
-        :default => flat_keys(default_preferences),
-        :project => flat_keys(project_preferences),
-    ]
+    explicit_keys = Set(keys(flatten_schema(project_preferences)))
+    default_keys  = Set(keys(flatten_schema(default_preferences)))
 
-    entries = [(; e..., error = validate(schema, e.key, e.value))
-               for e in resolve_sources(final_flat, layers)]
+    function status(k, v)
+        if !haskey(schema, k) || !isallowed(schema[k], v)
+            return PreferenceStatus.ERROR
+        elseif k in explicit_keys
+            return PreferenceStatus.EXPLICIT
+        elseif k in default_keys
+            return PreferenceStatus.DEFAULT
+        else
+            return PreferenceStatus.INFERRED
+        end
+    end
 
-    order = (:project, :inferred, :default)
-    return sort!(entries; by = e -> (isnothing(e.error), findfirst(==(e.source), order), e.key))
+    entries = PreferenceEntry[(key = k, value = v, status = status(k, v)) for (k, v) in final_flat]
+
+    for key in setdiff(keys(schema), keys(final_flat))
+        push!(entries, (key = key, value = nothing, status = PreferenceStatus.ERROR))
+    end
+
+    return sort!(entries; by = e -> (e.status, e.key))
 end
 
+function preferences_status(project::AbstractString, schema::AbstractDict; infer! = identity, section = "AppBundler", defines = Pair{String,Any}[])
+
+    load(path) = isfile(path) ? get(TOML.parsefile(path), section, Dict{String,Any}()) : Dict{String,Any}()
+
+    project_preferences = load(joinpath(project, "LocalPreferences.toml"))
+    apply_overrides!(project_preferences, defines) # defines must be coerced before applied
+
+    return preferences_status(
+        load(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml")),
+        project_preferences,
+        schema;
+        infer!
+    )
+end
 
 end

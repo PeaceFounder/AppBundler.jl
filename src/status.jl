@@ -92,13 +92,13 @@ end
 
 
 print_preferences(io::IO, preferences::Dict; kwargs...) =
-    print_preferences(io, PrefTools.preferences_status(preferences, LOCAL_PREFERENCES_SCHEMA; kwargs...))
+    print_preferences(io, preferences_status(preferences; kwargs...))
 
 print_preferences(preferences::Dict; kwargs...) = print_preferences(stdout, preferences; kwargs...)
 
 function print_preferences(io::IO, project_dir; defines = Pair{String, Any}[])
-    
-    entries = PrefTools.preferences_status(project_dir, LOCAL_PREFERENCES_SCHEMA; defines)
+
+    entries = preferences_status(project_dir; defines)
     print_preferences(io, entries)
 
     return
