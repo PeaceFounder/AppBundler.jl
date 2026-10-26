@@ -139,7 +139,6 @@ function get_bundle_parameters(preferences)
 end
 
 
-
 section!(prefs::Dict, name) = get!(Dict{String,Any}, prefs, name)
 
 #function merge_dynamic_defaults!(preferences::Dict, project_dir)
@@ -195,104 +194,105 @@ function apply_defaults!(preferences::Dict, project_dir)
 end
 
 
-"""
-    nest_keys(flat) -> Dict{String, Any}
+# """
+#     nest_keys(flat) -> Dict{String, Any}
 
-Inverse of [`flatten_schema`](@ref): turn `"juliaimg.sysimg" => ["GtkApp"]` into
-`"juliaimg" => Dict("sysimg" => ["GtkApp"])`.
-"""
-function nest_keys(flat)
-    nested = Dict{String, Any}()
-    for (key, value) in flat
-        parts = split(key, '.')
-        node = nested
-        for part in parts[1:end-1]
-            node = get!(Dict{String, Any}, node, String(part))
-        end
-        node[String(parts[end])] = value
-    end
-    return nested
-end
+# Inverse of [`flatten_schema`](@ref): turn `"juliaimg.sysimg" => ["GtkApp"]` into
+# `"juliaimg" => Dict("sysimg" => ["GtkApp"])`.
+# """
+# function nest_keys(flat)
+#     nested = Dict{String, Any}()
+#     for (key, value) in flat
+#         parts = split(key, '.')
+#         node = nested
+#         for part in parts[1:end-1]
+#             node = get!(Dict{String, Any}, node, String(part))
+#         end
+#         node[String(parts[end])] = value
+#     end
+#     return nested
+# end
 
-"""
-    flatten_schema(schema) -> Dict{String, Any}
+# """
+#     flatten_schema(schema) -> Dict{String, Any}
 
-Map every value in a nested schema to its dotted path, `"juliaimg.sysimg" => []`.
-Tables themselves get no entry.
-"""
-function flatten_schema(schema::AbstractDict, prefix::AbstractString = "")
-    flat = Dict{String, Any}()
-    for (key, value) in schema
-        path = isempty(prefix) ? key : "$prefix.$key"
-        if value isa AbstractDict
-            merge!(flat, flatten_schema(value, path))
-        else
-            flat[path] = value
-        end
-    end
-    return flat
-end
+# Map every value in a nested schema to its dotted path, `"juliaimg.sysimg" => []`.
+# Tables themselves get no entry.
+# """
+# function flatten_schema(schema::AbstractDict, prefix::AbstractString = "")
+#     flat = Dict{String, Any}()
+#     for (key, value) in schema
+#         path = isempty(prefix) ? key : "$prefix.$key"
+#         if value isa AbstractDict
+#             merge!(flat, flatten_schema(value, path))
+#         else
+#             flat[path] = value
+#         end
+#     end
+#     return flat
+# end
 
 
-function apply_overrides!(preferences, overrides)
+# function apply_overrides!(preferences, overrides)
 
-    preference_overrides = nest_keys(overrides)
+#     preference_overrides = nest_keys(overrides)
 
-    custom_merge(a::Dict, b::Dict) = merge(a, b)
-    custom_merge(a::T, b::T) where T = b
-    custom_merge(a, b) = error("Incompatable types")
+#     custom_merge(a::Dict, b::Dict) = merge(a, b)
+#     custom_merge(a::T, b::T) where T = b
+#     custom_merge(a, b) = error("Incompatable types")
 
-    mergewith!(custom_merge, preferences, preference_overrides)
+#     mergewith!(custom_merge, preferences, preference_overrides)
     
-    return preferences
-end
+#     return preferences
+# end
 
-# ── Validation of a full preferences dictionary ───────────────────────────────
+# # ── Validation of a full preferences dictionary ───────────────────────────────
 
-# A value fits a type spec when it is an instance of it
-isallowed(spec::Type, value) = value isa spec
+# # A value fits a type spec when it is an instance of it
+# isallowed(spec::Type, value) = value isa spec
 
-# Allowed values: the value must be one of the listed options
-isallowed(options::Tuple, value) = value in options
+# # Allowed values: the value must be one of the listed options
+# isallowed(options::Tuple, value) = value in options
 
-# TOML may parse a list as `Vector{Any}` (always so for `[]`), so check the elements instead
-isallowed(::Type{Vector{String}}, value) =
-    value isa AbstractVector && all(x -> x isa AbstractString, value)
+# # TOML may parse a list as `Vector{Any}` (always so for `[]`), so check the elements instead
+# isallowed(::Type{Vector{String}}, value) =
+#     value isa AbstractVector && all(x -> x isa AbstractString, value)
 
-describe(spec::Type) = "a value of type $spec"
-describe(::Type{Vector{String}}) = "a list of strings"
-describe(options::Tuple) = "one of " * join(repr.(options), ", ")
+# describe(spec::Type) = "a value of type $spec"
+# describe(::Type{Vector{String}}) = "a list of strings"
+# describe(options::Tuple) = "one of " * join(repr.(options), ", ")
 
 
-"""
-    validate(preferences, schema = LOCAL_PREFERENCES_SCHEMA)
+# """
+#     validate(preferences, schema = LOCAL_PREFERENCES_SCHEMA)
 
-Check every (flattened) key of `preferences` against the schema. Reports all unknown keys and
-invalid values together; returns `preferences` unchanged when everything is valid.
-"""
-function validate(preferences::AbstractDict, schema::AbstractDict = LOCAL_PREFERENCES_SCHEMA)
-    problems = String[]
-    for (key, value) in flatten_schema(preferences)
-        key = string(key)
-        if !haskey(schema, key)
-            push!(problems, "unknown preference `$key`")
-        elseif !isallowed(schema[key], value)
-            push!(problems, "`$key` must be $(describe(schema[key])), got $(repr(value))")
-        end
-    end
-    isempty(problems) || error("Invalid preferences:\n  " * join(sort!(problems), "\n  "))
-    return preferences
-end
+# Check every (flattened) key of `preferences` against the schema. Reports all unknown keys and
+# invalid values together; returns `preferences` unchanged when everything is valid.
+# """
+# function validate(preferences::AbstractDict, schema::AbstractDict = LOCAL_PREFERENCES_SCHEMA)
+#     problems = String[]
+#     for (key, value) in flatten_schema(preferences)
+#         key = string(key)
+#         if !haskey(schema, key)
+#             push!(problems, "unknown preference `$key`")
+#         elseif !isallowed(schema[key], value)
+#             push!(problems, "`$key` must be $(describe(schema[key])), got $(repr(value))")
+#         end
+#     end
+#     isempty(problems) || error("Invalid preferences:\n  " * join(sort!(problems), "\n  "))
+#     return preferences
+# end
 
 
 function load_preferences(project; defines = Pair{String, Any}[], schema = LOCAL_PREFERENCES_SCHEMA)
 
-    preferences = deepcopy(Resources.get_project_preferences(project))
-    validate(preferences["AppBundler"], schema)
+    #preferences = deepcopy(Resources.get_project_preferences(project))
+    preferences = deepcopy(PrefTools.get_project_preferences(project))
+    PrefTools.validate(preferences["AppBundler"], schema)
 
     overrides = ArgTools.coerce(defines, schema)
 
-    apply_overrides!(preferences["AppBundler"], overrides)
+    PrefTools.apply_overrides!(preferences["AppBundler"], overrides)
     apply_defaults!(preferences["AppBundler"], project)
 
     return preferences

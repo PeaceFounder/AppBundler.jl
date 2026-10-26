@@ -45,16 +45,18 @@ include("bundlers/JuliaC.jl")
 using .JuliaImg: install
 using .JuliaImg.Resources: merge_directories
 
+
 include("utils.jl")
 include("bundle.jl")
 include("recipes.jl") 
 
 include("ArgTools.jl")
+include("PrefTools.jl")
+
 include("preferences.jl")
 
 include("status.jl")
 include("inline.jl")
-
 include("main.jl")
 
 function __init__()
@@ -75,13 +77,13 @@ using PrecompileTools
 @setup_workload begin
     project_dir = joinpath(dirname(@__DIR__), "examples", "GLApp")
 
-    @compile_workload begin
-        # :color => true so the printstyled / escape-code branches get compiled too
-        io = IOContext(IOBuffer(), :color => true)
-        print_preferences(io, project_dir)
-        print_overrides(io, project_dir)
+    # @compile_workload begin
+    #     # :color => true so the printstyled / escape-code branches get compiled too
+    #     io = IOContext(IOBuffer(), :color => true)
+    #     print_preferences(io, project_dir)
+    #     print_overrides(io, project_dir)
         
-    end
+    # end
 end
 
 export JuliaImgBundle, JuliaCBundle, DMG, MSIX, Snap, bundle, stage

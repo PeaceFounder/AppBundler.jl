@@ -61,54 +61,54 @@ function get_template_parameters(project_dir, target; defines = [])
 end
 
 
-toml_line(key, value) = key * chopprefix(rstrip(sprint(TOML.print, Dict("x" => value))), "x")
+# toml_line(key, value) = key * chopprefix(rstrip(sprint(TOML.print, Dict("x" => value))), "x")
 
-# Insert `line` at the end of the `[table]` block; `nothing` if the file has no such header
-function insert_line(text, table, line)
-    block = Regex("^[ \\t]*\\[" * replace(table, "." => "\\.") * "\\][^\\n]*(?:\\n(?![ \\t]*\\[)[^\\n]*)*", "m")
-    occursin(block, text) || return nothing
-    return replace(text, block => function (b)
-        body = rstrip(b)
-        body * "\n" * match(r"^[ \t]*", b).match * line * chopprefix(b, body)
-    end; count = 1)
-end
+# # Insert `line` at the end of the `[table]` block; `nothing` if the file has no such header
+# function insert_line(text, table, line)
+#     block = Regex("^[ \\t]*\\[" * replace(table, "." => "\\.") * "\\][^\\n]*(?:\\n(?![ \\t]*\\[)[^\\n]*)*", "m")
+#     occursin(block, text) || return nothing
+#     return replace(text, block => function (b)
+#         body = rstrip(b)
+#         body * "\n" * match(r"^[ \t]*", b).match * line * chopprefix(b, body)
+#     end; count = 1)
+# end
 
-"""
-    inline_preferences(destination, defines; section = "AppBundler", schema = LOCAL_PREFERENCES_SCHEMA)
+# """
+#     inline_preferences(destination, defines; section = "AppBundler", schema = LOCAL_PREFERENCES_SCHEMA)
 
-Add `defines`, the `key => text` pairs from `ArgTools.parse_options`, to `[section]` of the TOML
-file at `destination`. Values are coerced against `schema`, and each new line is inserted into the
-table block it belongs to, leaving the rest of the file untouched. Errors if any key is already set.
-"""
-function inline_preferences(destination, defines; force = true, section = "AppBundler", schema = LOCAL_PREFERENCES_SCHEMA)
-    defines = ArgTools.coerce(defines, schema)
+# Add `defines`, the `key => text` pairs from `ArgTools.parse_options`, to `[section]` of the TOML
+# file at `destination`. Values are coerced against `schema`, and each new line is inserted into the
+# table block it belongs to, leaving the rest of the file untouched. Errors if any key is already set.
+# """
+# function inline_preferences(destination, defines; force = true, section = "AppBundler", schema = LOCAL_PREFERENCES_SCHEMA)
+#     defines = ArgTools.coerce(defines, schema)
 
-    text = isfile(destination) ? read(destination, String) : ""
-    current = flatten_schema(get(TOML.parse(text), section, Dict{String,Any}()))
+#     text = isfile(destination) ? read(destination, String) : ""
+#     current = flatten_schema(get(TOML.parse(text), section, Dict{String,Any}()))
 
-    already = sort!([key for (key, _) in defines if haskey(current, key)])
-    isempty(already) || error("$destination already sets " * join(already, ", "))
+#     already = sort!([key for (key, _) in defines if haskey(current, key)])
+#     isempty(already) || error("$destination already sets " * join(already, ", "))
 
-    for (key, value) in defines
-        parts = split(key, '.')
-        updated = nothing
-        for n in length(parts)-1:-1:0          # deepest existing table header on the key's path
-            table = join([section; parts[1:n]], '.')
-            updated = insert_line(text, table, toml_line(join(parts[n+1:end], '.'), value))
-            isnothing(updated) || break
-        end
-        text = something(updated,
-            (isempty(strip(text)) ? "" : rstrip(text) * "\n\n") * "[$section]\n" * toml_line(key, value) * "\n")
-    end
+#     for (key, value) in defines
+#         parts = split(key, '.')
+#         updated = nothing
+#         for n in length(parts)-1:-1:0          # deepest existing table header on the key's path
+#             table = join([section; parts[1:n]], '.')
+#             updated = insert_line(text, table, toml_line(join(parts[n+1:end], '.'), value))
+#             isnothing(updated) || break
+#         end
+#         text = something(updated,
+#             (isempty(strip(text)) ? "" : rstrip(text) * "\n\n") * "[$section]\n" * toml_line(key, value) * "\n")
+#     end
 
-    # Safety net: the edited text must parse, and every value must read back where it was meant to land
-    written = flatten_schema(get(TOML.parse(text), section, Dict{String,Any}()))
-    misplaced = [key for (key, value) in defines if get(written, key, nothing) != value]
-    isempty(misplaced) || error("Could not place " * join(misplaced, ", ") * " in $destination")
+#     # Safety net: the edited text must parse, and every value must read back where it was meant to land
+#     written = flatten_schema(get(TOML.parse(text), section, Dict{String,Any}()))
+#     misplaced = [key for (key, value) in defines if get(written, key, nothing) != value]
+#     isempty(misplaced) || error("Could not place " * join(misplaced, ", ") * " in $destination")
 
-    write(destination, text)
-    return destination
-end
+#     write(destination, text)
+#     return destination
+# end
 
 
 """
@@ -122,7 +122,8 @@ for generated targets.
 function inline(project_dir, target; force = false, render = false, defines = [], verbose = false, destination = joinpath(project_dir, target))
 
     if target == "LocalPreferences.toml" 
-        inline_preferences(destination, defines)
+        defines = ArgTools.coerce(defines, LOCAL_PREFERENCES_SCHEMA)
+        PrefTools.inline_preferences(destination, defines; section = "AppBundler")
         return
     else
         if ispath(destination)
