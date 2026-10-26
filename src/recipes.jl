@@ -129,7 +129,6 @@ function bundle(product::JuliaCBundle, snap::Snap, destination::String; force = 
     end
 
     bundle(snap, destination; force) do app_stage
-        #app_name = snap.parameters["APP_NAME"]
         app_name = snap.parameters["APP_EXE"]
         bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
         stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)

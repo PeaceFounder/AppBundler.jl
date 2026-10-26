@@ -88,36 +88,6 @@ function coerce(value::AbstractString, ::Type{Int})
     return parsed
 end
 
-
-
-# # A double-quoted item (with escapes), a single-quoted literal, or a bare item up to the next comma
-# const LIST_ITEM = r"\"((?:[^\"\\]|\\.)*)\"|'([^']*)'|([^,]+)"
-
-# # Accepts `["a", "b"]`, `['a', 'b']` or a plain comma-separated list `a, b`
-# function coerce(value::AbstractString, ::Type{Vector{String}})
-#     s = strip(value)
-#     if startswith(s, "[")
-#         endswith(s, "]") || throw(ArgumentError("unterminated list, got $(repr(value))"))
-#         s = chop(s; head = 1, tail = 1)
-#     end
-
-#     items = String[]
-#     for m in eachmatch(LIST_ITEM, s)
-#         if !isnothing(m[1])
-#             push!(items, unescape_string(m[1]))
-#         elseif !isnothing(m[2])
-#             push!(items, m[2])
-#         else
-#             item = strip(m[3])
-#             isempty(item) || push!(items, item)
-#         end
-#     end
-#     return items
-# end
-
-
-
-
 const LIST_HINT = """
     Write the list without spaces, or bracket it so its end is explicit:
         -Dsysimg=a,b        or        -Dsysimg=[a, b]

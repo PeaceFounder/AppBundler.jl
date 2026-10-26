@@ -247,9 +247,6 @@ function apply_overrides!(preferences, overrides)
     return preferences
 end
 
-
-
-
 # ── Validation of a full preferences dictionary ───────────────────────────────
 
 # A value fits a type spec when it is an instance of it

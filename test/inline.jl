@@ -1,6 +1,6 @@
 using Test
 using AppBundler
-import AppBundler: inline, DEFAULT_DIR, BINARY_TARGETS, TEMPLATE_TARGETS, GENERATED_TARGETS
+import AppBundler: inline, main_inline, DEFAULT_DIR, BINARY_TARGETS, TEMPLATE_TARGETS, GENERATED_TARGETS
 
 const EXAMPLE_DIR = joinpath(pkgdir(AppBundler), "examples", "GLApp")
 
@@ -21,14 +21,19 @@ const MUSTACHE_TAG = r"\{\{[^}]*\}\}"
 
     @testset "$target" for (target, source) in BINARY_TARGETS
         project = fresh_project()
-        destination = inline(project, target; render = false)
-        @test destination == joinpath(project, target)
+        #destination = inline(project, target; render = false)
+        inline(project, target; render = false)
+        
+        destination = joinpath(project, target)
+
         @test read(destination) == read(recipe(source))
     end
 
     @testset "Existing destination requires force" begin
         project = fresh_project()
-        destination = inline(project, "meta/icon.png"; render = false)
+        inline(project, "meta/icon.png"; render = false)
+        destination = joinpath(project, "meta/icon.png")
+
         write(destination, "customised")
 
         @test_throws ErrorException inline(project, "meta/icon.png"; render = false)
@@ -44,7 +49,8 @@ end
 
     @testset "Raw copy: $target" for (target, source) in TEMPLATE_TARGETS
         project = fresh_project()
-        destination = inline(project, target; render = false)
+        inline(project, target; render = false)
+        destination = joinpath(project, target)
         @test read(destination, String) == read(recipe(source), String)
     end
 
@@ -53,7 +59,8 @@ end
 
     @testset "Rendered: $target" for target in meta_templates
         project = fresh_project()
-        destination = inline(project, target, String["--render"])
+        main_inline(project, target, String["--render"])
+        destination = joinpath(project, target)
         content = read(destination, String)
         raw = read(recipe(TEMPLATE_TARGETS[target]), String)
 
@@ -65,19 +72,21 @@ end
 
     @testset "Rendering picks up command-line preferences" begin
         project = fresh_project()
-        destination = inline(project, "meta/msix/AppxManifest.xml", ["--render", "-Dmsix.publisher=CN=TestPublisher"])
+        main_inline(project, "meta/msix/AppxManifest.xml", ["--render", "-Dmsix.publisher=CN=TestPublisher"])
+        destination = joinpath(project, "meta/msix/AppxManifest.xml")
         @test occursin("CN=TestPublisher", read(destination, String))
     end
 
     @testset "Existing rendered template requires force" begin
         project = fresh_project()
-        destination = inline(project, "meta/dmg/Info.plist", String["--render"])
+        main_inline(project, "meta/dmg/Info.plist", String["--render"])
+        destination = joinpath(project, "meta/dmg/Info.plist")
         write(destination, "customised")
 
-        @test_throws ErrorException inline(project, "meta/dmg/Info.plist", String["--render"])
+        @test_throws ErrorException main_inline(project, "meta/dmg/Info.plist", String["--render"])
         @test read(destination, String) == "customised"
 
-        inline(project, "meta/dmg/Info.plist", String["--render", "--force", "--verbose"])
+        main_inline(project, "meta/dmg/Info.plist", String["--render", "--force", "--verbose"])
         @test !occursin(MUSTACHE_TAG, read(destination, String))
     end
 end
@@ -100,7 +109,8 @@ end
 
     @testset "meta/msix/Assets" begin
         project = fresh_project()
-        destination = inline(project, "meta/msix/Assets", String[])
+        main_inline(project, "meta/msix/Assets", String[])
+        destination = joinpath(project, "meta/msix/Assets")
 
         @test isdir(destination)
         files = readdir(destination; join = true)
@@ -110,10 +120,10 @@ end
         @testset "Regenerating with force replaces stale files" begin
             stale = joinpath(destination, "stale.png")
             write(stale, "stale")
-            @test_throws ErrorException inline(project, "meta/msix/Assets", String[])
+            @test_throws ErrorException main_inline(project, "meta/msix/Assets", String[])
             @test isfile(stale)
 
-            inline(project, "meta/msix/Assets", String["--force"])
+            main_inline(project, "meta/msix/Assets", String["--force"])
             @test !ispath(stale)
             @test all(ispng, readdir(destination; join = true))
         end
@@ -121,7 +131,8 @@ end
 
     @testset "meta/dmg/icon.icns" begin
         project = fresh_project()
-        destination = inline(project, "meta/dmg/icon.icns", String[])
+        main_inline(project, "meta/dmg/icon.icns", String[])
+        destination = joinpath(project, "meta/dmg/icon.icns")
 
         bytes = read(destination)
         @test String(bytes[1:4]) == "icns"
@@ -130,14 +141,16 @@ end
 
     @testset "meta/snap/icon.png" begin
         project = fresh_project()
-        destination = inline(project, "meta/snap/icon.png", String[])
+        main_inline(project, "meta/snap/icon.png", String[])
+        destination = joinpath(project, "meta/snap/icon.png")
         @test ispng(destination)
         @test png_size(destination) == (512, 512)
     end
 
     @testset "meta/dmg/DS_Store" begin
         project = fresh_project()
-        destination = inline(project, "meta/dmg/DS_Store", String[])
+        main_inline(project, "meta/dmg/DS_Store", String[])
+        destination = joinpath(project, "meta/dmg/DS_Store")
 
         bytes = read(destination)
         @test length(bytes) > 8
@@ -147,14 +160,15 @@ end
 
     @testset "$target" for target in ("meta/msix/certificate.pfx", "meta/dmg/certificate.pfx")
         project = fresh_project()
-        destination = inline(project, target, String[])
+        main_inline(project, target, String[])
+        destination = joinpath(project, target)
 
         bytes = read(destination)
         @test !isempty(bytes)
         @test first(bytes) == 0x30   # DER-encoded PKCS#12 starts with a SEQUENCE
 
-        @test_throws ErrorException inline(project, target, String[])
-        inline(project, target, String["--force"])
+        @test_throws ErrorException main_inline(project, target, String[])
+        main_inline(project, target, String["--force"])
         @test read(destination) != bytes   # a fresh key pair, not the old file
     end
 end

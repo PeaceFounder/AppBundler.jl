@@ -119,9 +119,7 @@ Templates are rendered with `preferences` unless `render = false`, in which case
 the raw template is copied. `preferences` is required when `render = true` and
 for generated targets.
 """
-function inline(project_dir, target; force = false, render = false, defines = [], verbose = false)
-
-    destination = joinpath(project_dir, target)
+function inline(project_dir, target; force = false, render = false, defines = [], verbose = false, destination = joinpath(project_dir, target))
 
     if target == "LocalPreferences.toml" 
         inline_preferences(destination, defines)

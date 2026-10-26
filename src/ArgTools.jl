@@ -304,37 +304,6 @@ const LIST_HINT = """
         -Dsysimg=a,b        or        -Dsysimg=[a, b]
     """
 
-# """
-#     coerce(defines, schema) -> Vector{Pair{String, Any}}
-
-# Coerce the `key => value` pairs from [`parse_options`](@ref) against a flat
-# `schema` of dotted keys, keeping their order. An unknown key is an error with
-# near misses suggested, a bad value is an error naming its key, and so is a key
-# given more than once — write a list in one word instead, `-Dsysimg=a,b`.
-
-#     options, defines = parse_options(ARGS)
-#     prefs = coerce(defines, schema)
-# """
-# function coerce(defines::AbstractVector{<:Pair}, schema::AbstractDict)
-#     names = first.(defines)
-#     repeated = sort!(unique([k for k in names if count(==(k), names) > 1]))
-#     isempty(repeated) ||
-#         error("preference " * join(("'$k'" for k in repeated), ", ", " and ") * " set more than once; set each once")
-
-#     typed = Pair{String, Any}[]
-#     for (key, raw) in defines
-#         haskey(schema, key) || error(unknown_key_message(key, schema))
-#         value = try
-#             coerce(raw === nothing ? nothing : strip(raw), schema[key])
-#         catch err
-#             err isa CoercionError || rethrow()
-#             error("preference '$key' $(err.msg)")
-#         end
-#         push!(typed, String(key) => value)
-#     end
-#     return typed
-# end
-
 
 
 """

@@ -120,10 +120,6 @@ function main_build(sources_dir, ARGS)
     extended_preferences = load_preferences(sources_dir; defines)
     preferences = extended_preferences["AppBundler"]
 
-    #config, preference_overrides = parse_build_args(ARGS)
-    #extended_preferences = get_extended_preferences(sources_dir; preference_overrides) 
-    #preferences = extended_preferences["AppBundler"]
-
     if config[:build_dir] == "@temp"
         build_dir = mktempdir()
     else
@@ -264,8 +260,6 @@ function parse_build_args(raw_args::Vector{<:AbstractString})
         :password => nothing
     )
 
-    #preferences = Dict()
-
     for (option, value) in args
         if option == "--help"
             print_help()
@@ -285,42 +279,23 @@ function parse_build_args(raw_args::Vector{<:AbstractString})
             push!(defines, "overwrite_target" => true)
         elseif option == "--selfsign"
             forbid(option, value)
-            #preferences["selfsign"] = true
             push!(defines, "selfsign" => true)
         elseif option == "--skipsign"
             forbid(option, value)
-            #preferences["skipsign"] = true
             push!(defines, "skipsign" => true)
         elseif option == "--debug"
             forbid(option, value)
             push!(defines, "compress" => false)
             push!(defines, "selfsign" => true)
             push!(defines, "windowed" => false)
-            # preferences["compress"] = false
-            # preferences["selfsign"] = true
-            # preferences["windowed"] = false
         else
             @warn "Unknown argument: $option"
         end
     end
 
+    # This is propper as long as we don't consider lists
     unique!(first, defines)
 
-
-    #merge!(preferences, defines)
-
-    #load_p
-
-    #schema = get_preferences_schema()
-    #overrides = ArgTools.parse_preferences(defines, schema)
-    #merged_preferences = merge(preferences, overrides)
-
-    # custom_merge(a::Dict, b::Dict) = merge(a, b)
-    # custom_merge(a::T, b::T) where T = b
-    # custom_merge(a, b) = error("Incompatable types")
-    # merged_preferences = mergewith(custom_merge, preferences, overrides)
-    
-    #return config, merged_preferences
     return config, defines
 end
 
