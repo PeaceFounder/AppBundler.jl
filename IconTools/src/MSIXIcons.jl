@@ -2,7 +2,7 @@ module MSIXIcons
 
 import PNGFiles: save
 using ..IconForge: toicon, totile
-using ColorTypes
+using Colors
 using FixedPointNumbers
 
 const SCALES   = (100, 125, 150, 200, 400)
@@ -58,6 +58,9 @@ wide_logos(img; kwargs...) =
 splash_logos(img; background = DEFAULT_PLATE, kwargs...) =
     render_specs((w, h) -> totile(img, w, h; background), logo_specs(SPLASH_LOGOS); kwargs...)
 
+
+_tocolor(x) = x isa String ? parse(RGBA{N0f8}, x) : x
+
 """
     tomsix(img; altforms = true, splash_background, store_background)
         -> Vector{Pair{String, Matrix{RGBA{N0f8}}}}
@@ -75,12 +78,12 @@ function tomsix(img; altforms = true,
                 splash_icon_plate = DEFAULT_PLATE,
                 store_icon_plate  = DEFAULT_PLATE)
 
-    cache = Dict{Tuple{Int,Int},Matrix{RGBA{N0f8}}}()
+    #cache = Dict{Tuple{Int,Int},Matrix{RGBA{N0f8}}}()
 
     return [square_logos(img; altforms);
             wide_logos(img);
-            splash_logos(img; background = splash_icon_plate);
-            "StoreLogo.scale-100.png" => toicon(img, 150; background = store_icon_plate)
+            splash_logos(img; background = _tocolor(splash_icon_plate));
+            "StoreLogo.scale-100.png" => toicon(img, 150; background = _tocolor(store_icon_plate))
             ]
 end
 

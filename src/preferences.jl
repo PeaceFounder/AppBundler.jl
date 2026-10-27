@@ -1,3 +1,10 @@
+struct ColorString end
+
+const HEX_COLOR_RE = r"^#(?:[0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})\z"
+is_hex_color(s::AbstractString) = occursin(HEX_COLOR_RE, s)
+
+ArgTools.coerce(::ColorString, value) = is_hex_color(value) ? value : throw(ArgTools.CoercionError("expects color hex, got '$v'")) # 
+PrefTools.isallowed(::ColorString, value) = is_hex_color(value)
 
 const LOCAL_PREFERENCES_SCHEMA = Dict{String, Any}(
     "app_name" => String,
@@ -29,7 +36,8 @@ const LOCAL_PREFERENCES_SCHEMA = Dict{String, Any}(
 
     "msix.command" => Vector{String},
     "msix.publisher" => String,
-    "msix.store_icon_plate" => String,
+    #"msix.store_icon_plate" => String,
+    "msix.store_icon_plate" => ColorString(),
     "msix.path_length_threshold" => Int,
     "msix.skip_long_paths" => Bool,
     "msix.skip_symlinks" => Bool,

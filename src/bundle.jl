@@ -3,8 +3,6 @@ using Pkg.BinaryPlatforms: MacOS
 using AppBundlerUtils_jll
 import Mustache
 import IconTools
-using Colors: RGBA
-
 
 """
     Verbatim(path)
@@ -83,7 +81,8 @@ MSIX(; prefix = ["custom/", "recipes/"])  # explicit search path
 """
 struct MSIX
     icon::Union{String, Verbatim} # direcotry reading is something to look into here
-    store_icon_plate::RGBA
+    #store_icon_plate::RGBA
+    store_icon_plate::String
     appxmanifest::String 
     command::Cmd
     msixinstallerdata::String 
@@ -136,12 +135,11 @@ function xml_escape_attr(s::AbstractString)
     return String(take!(io))
 end
 
-
 function MSIX(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
               preferences = preferences(),
               icon = resolve_asset(prefix, "msix/Assets", ["icon.svg", "icon.png"]; dir = true),
-              store_icon_plate = parse(RGBA, preferences["msix"]["store_icon_plate"]),
+              store_icon_plate = ArgTools.coerce(ColorString(), preferences["msix"]["store_icon_plate"]), # need to reconsider ArgTools
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
               command = Cmd(preferences["msix"]["command"]),
               resources_pri = get_path(prefix, "msix/resources.pri") |> Verbatim,
@@ -151,7 +149,7 @@ function MSIX(;
               skip_symlinks = preferences["msix"]["skip_symlinks"],
               skip_unicode_paths = preferences["msix"]["skip_unicode_paths"],
               selfsign = preferences["selfsign"],              
-              publisher = preferences["msix"]["publisher"] |> normalize_publisher,   #get_publisher(pfx_cert, selfsign),
+              publisher = preferences["msix"]["publisher"] |> normalize_publisher, 
               pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"; warn=false), # We actually want the warning
               windowed = preferences["windowed"],
               compress = preferences["compress"],

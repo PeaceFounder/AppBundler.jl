@@ -255,7 +255,7 @@ end
                           "-Djuliaimg.sysimg=[\"QMLApp\"]"])
         @test prefs == ["bundler" => "juliaimg",
                         "juliaimg.selective_assets" => true,
-                        "juliaimg.sysimg" => ["QMLApp"]]
+                        "juliaimg.sysimg" => ["QMLApp"]] |> reverse
     end
 
     @testset "defaults with no arguments" begin
