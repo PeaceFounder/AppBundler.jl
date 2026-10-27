@@ -520,13 +520,9 @@ function stage(msix::MSIX, destination::String)
         mkdir(destination)
     end
 
-    assets_path = joinpath(destination, "Assets")
-    if isdir(msix.icon)
-        @info "Treating icon path as assets directory"
-        cp(msix.icon, assets_path)
-    else
-        img = IconTools.load(msix.icon)
-        IconTools.msix_icons(img, assets_path; msix.store_icon_plate)
+    materialize(msix.icon, joinpath(destination, "Assets")) do src, dest
+        img = IconTools.load(src)
+        IconTools.msix_icons(img, dest; msix.store_icon_plate)
     end
 
     (; predicate, parameters) = msix
