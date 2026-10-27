@@ -3,6 +3,7 @@ module MSIXIcons
 import PNGFiles: save
 using ..IconForge: toicon, totile
 using ColorTypes
+using FixedPointNumbers
 
 const SCALES   = (100, 125, 150, 200, 400)
 const ALTFORMS = ("_altform-unplated", "_altform-lightunplated")
@@ -27,6 +28,8 @@ const SQUARE_ALT_LOGOS = [
 const WIDE_LOGOS   = [("Wide310x150Logo", 310, 150, SCALES)]
 const SPLASH_LOGOS = [("SplashScreen",    620, 300, SCALES)]
 
+const DEFAULT_PLATE = RGBA{Float32}(0.01, 0.45, 0.78, 1.0)
+
 scaled(n, s) = round(Int, n * s / 100, RoundNearestTiesUp)
 
 function logo_specs(logos; qualifier = "scale", altforms = false)
@@ -38,43 +41,47 @@ function logo_specs(logos; qualifier = "scale", altforms = false)
             for alt in suffixes]
 end
 
-function write_icons(render, output_dir, specs)
-    cache = Dict{Tuple{Int,Int},Any}()
-    for (file, w, h) in specs
-        save(joinpath(output_dir, file), get!(() -> render(w, h), cache, (w, h)))
-    end
+# Render each (file, w, h) spec once per distinct size; files with the same
+# size share one matrix.
+function render_specs(render, specs; cache = Dict{Tuple{Int,Int},Matrix{RGBA{N0f8}}}())
+    return [file => get!(() -> render(w, h), cache, (w, h)) for (file, w, h) in specs]
 end
 
-function square_logos(img, output_dir; altforms = true)
-    specs = [logo_specs(SQUARE_LOGOS);
-             logo_specs(SQUARE_ALT_LOGOS; qualifier = "targetsize", altforms)]
-    write_icons((w, h) -> toicon(img, w), output_dir, specs)
-end
+square_logos(img; altforms = true, kwargs...) = render_specs(
+    (w, _) -> toicon(img, w),
+    [logo_specs(SQUARE_LOGOS);
+     logo_specs(SQUARE_ALT_LOGOS; qualifier = "targetsize", altforms)]; kwargs...)
 
-wide_logos(img, output_dir) =
-    write_icons((w, h) -> totile(img, w, h), output_dir, logo_specs(WIDE_LOGOS))
+wide_logos(img; kwargs...) =
+    render_specs((w, h) -> totile(img, w, h), logo_specs(WIDE_LOGOS); kwargs...)
 
-function splash_logos(img, output_dir; background = RGBA{Float32}(0.01, 0.45, 0.78, 1.0))
-    write_icons((w, h) -> totile(img, w, h; background), output_dir, logo_specs(SPLASH_LOGOS))
-end
+splash_logos(img; background = DEFAULT_PLATE, kwargs...) =
+    render_specs((w, h) -> totile(img, w, h; background), logo_specs(SPLASH_LOGOS); kwargs...)
 
 """
-    msix_icons(img, output_dir; altforms = true)
+    tomsix(img; altforms = true, splash_background, store_background)
+        -> Vector{Pair{String, Matrix{RGBA{N0f8}}}}
 
-Generate the full set of MSIX package icons from a single source image `img`
-into `output_dir`. Set `altforms = false` to skip the unplated target-size variants.
+Render the full set of MSIX package icons from `img` and return them as
+`filename => image` pairs. Set `altforms = false` to skip the unplated
+target-size variants. Write them out with [`write_msix`](@ref):
+
+    write_msix("build/msix", tomsix(img))
+
+Files with identical pixel sizes share the same matrix; `copy` an image
+before modifying it in place.
 """
-function msix_icons(img, output_dir::AbstractString; altforms = true, store_icon_plate = RGBA{Float32}(0.01, 0.45, 0.78, 1.0))
+function tomsix(img; altforms = true,
+                splash_icon_plate = DEFAULT_PLATE,
+                store_icon_plate  = DEFAULT_PLATE)
 
-    mkpath(output_dir)
-    square_logos(img, output_dir; altforms)
-    wide_logos(img, output_dir)
-    splash_logos(img, output_dir)
+    cache = Dict{Tuple{Int,Int},Matrix{RGBA{N0f8}}}()
 
-    store_icon = toicon(img, 150; background = store_icon_plate)
-    save(joinpath(output_dir, "StoreLogo.scale-100.png"), store_icon)
-    
-    return
+    return [square_logos(img; altforms);
+            wide_logos(img);
+            splash_logos(img; background = splash_icon_plate);
+            "StoreLogo.scale-100.png" => toicon(img, 150; background = store_icon_plate)
+            ]
 end
 
 end

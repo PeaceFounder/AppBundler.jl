@@ -46,41 +46,12 @@ function render(svg::SVGImage, h, w)
     isapprox(w / h, svg.width / svg.height; rtol = 1 / min(h, w)) ||
         @warn "Target $(w)×$(h) does not match SVG proportions $(svg.width)×$(svg.height)"
 
-    #@infiltrate
-
     cmd = `$(resvg_jll.resvg()) --resources-dir $(tempdir()) --width $w --height $h - -c`
-    #cmd = `$(resvg_jll.resvg()) --width $w --height $h - -c`
-    #cmd = `$(resvg_jll.resvg()) --width $w --height $h -c -`
     png = read(pipeline(cmd; stdin = IOBuffer(svg.data)))
     img = convert(Matrix{RGBA{N0f8}}, PNGFiles.load(IOBuffer(png)))
 
     return img
 end
-
-# function render(svg::SVGImage, dims::Tuple{Integer,Integer}; method = :auto)
-#     h, w = dims
-#     (h > 0 && w > 0) || throw(ArgumentError("target dimensions must be positive"))
-
-#     cmd = `$(resvg_jll.resvg()) --width $w --height $h - -`
-#     png = read(pipeline(cmd; stdin = IOBuffer(svg.data)))
-#     img = convert(Matrix{RGBA{N0f8}}, PNGFiles.load(IOBuffer(png)))
-
-#     size(img) == (h, w) && return img
-
-#     # resvg fits the image inside w×h preserving aspect ratio, so the result
-#     # can be smaller in one dimension. Center it on a transparent canvas.
-#     canvas = fill(RGBA{N0f8}(0, 0, 0, 0), h, w)
-#     imstack!(canvas, img, (h - size(img, 1)) ÷ 2 + 1, (w - size(img, 2)) ÷ 2 + 1)
-#     return canvas
-# end
-
-# function render(svg::SVGImage, dims::Tuple{Integer,Integer}; method = :auto)
-#     h, w = dims
-#     (h > 0 && w > 0) || throw(ArgumentError("target dimensions must be positive"))
-#     cmd = `$(Librsvg_jll.rsvg_convert()) --width $w --height $h --format png`
-#     png = read(pipeline(cmd; stdin = IOBuffer(svg.data)))
-#     return convert(Matrix{RGBA{N0f8}}, PNGFiles.load(IOBuffer(png)))
-# end
 
 load(path) = SVGImage(read(path))
 

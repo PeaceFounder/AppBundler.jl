@@ -522,7 +522,10 @@ function stage(msix::MSIX, destination::String)
 
     materialize(msix.icon, joinpath(destination, "Assets")) do src, dest
         img = IconTools.load(src)
-        IconTools.msix_icons(img, dest; msix.store_icon_plate)
+        mkpath(dest)
+        for (file, icon) in IconTools.tomsix(img; msix.store_icon_plate)
+            IconTools.save(joinpath(dest, file), icon)
+        end
     end
 
     (; predicate, parameters) = msix
@@ -589,7 +592,7 @@ function stage(dmg::DMG, destination::String; dsstore = false)
 
     materialize(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns")) do src, dest
         img = IconTools.load(src)
-        IconTools.toicns(img, dest)
+        write(dest, IconTools.toicns(img))
     end
 
     install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)

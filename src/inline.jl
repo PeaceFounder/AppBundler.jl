@@ -23,7 +23,13 @@ const TEMPLATE_TARGETS = Dict(
 const GENERATED_TARGETS = Dict{String,Function}(
     "meta/msix/Assets" => function (project_dir, destination, preferences)
         msix = MSIX(project_dir; preferences)
-        IconTools.msix_icons(IconTools.load(msix.icon), destination; msix.store_icon_plate);
+
+        img = IconTools.load(msix.icon)
+        mkpath(destination)
+        for (file, icon) in IconTools.tomsix(img; msix.store_icon_plate)
+            IconTools.save(joinpath(destination, file), icon);
+        end
+        #IconTools.msix_icons(IconTools.load(msix.icon), destination; msix.store_icon_plate);
     end,
 
     "meta/msix/certificate.pfx" => (_, destination, preferences) ->
@@ -31,7 +37,7 @@ const GENERATED_TARGETS = Dict{String,Function}(
 
     "meta/dmg/icon.icns" => function (project_dir, destination, preferences)
         dmg = DMG(project_dir; preferences)
-        IconTools.toicns(IconTools.load(dmg.icon), destination);
+        write(destination, IconTools.toicns(IconTools.load(dmg.icon)));
     end,
 
     "meta/dmg/DS_Store" => function (project_dir, destination, preferences)

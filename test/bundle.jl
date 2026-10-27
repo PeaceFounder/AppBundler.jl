@@ -83,6 +83,7 @@ predicate = "juliaimg"
 
     @test hash_stage() do dest
         stage(msix, dest)
+        #@infiltrate
     end == "bc797abd16f8f67c8f149577f5a5bbf11e3ea5522046f1b6517572c72d0e0d17"
 
     @test hash_stage() do stage_dir

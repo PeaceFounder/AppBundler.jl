@@ -30,50 +30,51 @@ const ICON_TYPES = [
     ("ic10", 1024),   # 512x512@2x
 ]
 
-function _write_element(io::IO, ostype::AbstractString, data::AbstractVector{UInt8})
-    ncodeunits(ostype) == 4 || throw(ArgumentError("OSType must be 4 bytes: $ostype"))
-    write(io, codeunits(ostype))
-    write(io, hton(UInt32(length(data) + 8)))
-    write(io, data)
-end
+# function _write_element(io::IO, ostype::AbstractString, data::AbstractVector{UInt8})
+#     ncodeunits(ostype) == 4 || throw(ArgumentError("OSType must be 4 bytes: $ostype"))
+#     write(io, codeunits(ostype))
+#     write(io, hton(UInt32(length(data) + 8)))
+#     write(io, data)
+# end
 
 """
-    write_icns(path, elements; toc=true)
+    encode_icns(elements; toc = true) -> Vector{UInt8}
 
-Write an ICNS file from `elements`, a vector of `OSType => png_bytes` pairs.
-The optional `TOC ` element mirrors the 8-byte header of every subsequent
-element and lets readers index the file without scanning it; macOS reads
-files without one fine.
+Encode an ICNS file from `elements`, a vector of `OSType => png_bytes` pairs,
+and return its bytes. The optional `TOC ` element mirrors the 8-byte header of
+every subsequent element and lets readers index the file without scanning it;
+macOS reads files without one fine.
 """
-function write_icns(path::AbstractString,
-                    elements::AbstractVector{<:Pair{<:AbstractString,<:AbstractVector{UInt8}}};
-                    toc::Bool = true)
-    body = IOBuffer()
+function encode_icns(elements::AbstractVector{<:Pair{<:AbstractString,<:AbstractVector{UInt8}}};
+                     toc::Bool = true)
+    for (ostype, _) in elements
+        ncodeunits(ostype) == 4 ||
+            throw(ArgumentError("OSType must be 4 bytes, got $(repr(ostype))"))
+    end
+
+    tocsize = toc ? 8 + 8 * length(elements) : 0
+    nbytes  = 8 + tocsize + sum(8 + length(data) for (_, data) in elements; init = 0)
+
+    io = IOBuffer(; sizehint = nbytes)
+    _write_header(io, "icns", nbytes)
 
     if toc
-        tocbuf = IOBuffer()
+        _write_header(io, "TOC ", tocsize)
         for (ostype, data) in elements
-            write(tocbuf, codeunits(ostype))
-            write(tocbuf, hton(UInt32(length(data) + 8)))
+            _write_header(io, ostype, 8 + length(data))
         end
-        _write_element(body, "TOC ", take!(tocbuf))
     end
 
     for (ostype, data) in elements
-        _write_element(body, ostype, data)
+        _write_header(io, ostype, 8 + length(data))
+        write(io, data)
     end
 
-    payload = take!(body)
-    open(path, "w") do io
-        write(io, codeunits("icns"))
-        write(io, hton(UInt32(length(payload) + 8)))
-        write(io, payload)
-    end
-    return path
+    return take!(io)
 end
 
-# --- image handling ---------------------------------------------------------
-
+_write_header(io::IO, ostype::AbstractString, len::Integer) =
+    (write(io, codeunits(ostype)); write(io, hton(UInt32(len))))
 
 
 function encode_png(img)::Vector{UInt8}
@@ -82,29 +83,22 @@ function encode_png(img)::Vector{UInt8}
     return take!(buf)
 end
 
-"""
-    toicns(png_path, output_path; resize=imresize)
 
-`resize(img, n, n)` is pluggable so a different resampler can be swapped in.
-Sizes shared by two OSTypes (32, 256, 512) are encoded once and reused.
 """
-function toicns(img, output_path::AbstractString)
-    #img = square_pad(RGBA{N0f8}.(PNGFiles.load(png_path)))
+    toicns(img; toc = true) -> Vector{UInt8}
 
+Encode `img` as a macOS `.icns` file and return its bytes:
+
+    write("MyApp.icns", toicns(img))
+
+Each size in `ICON_TYPES` is rendered with `toicon`; sizes shared by two
+OSTypes (32, 256, 512) are encoded once and reused.
+"""
+function toicns(img; toc::Bool = true)
     cache = Dict{Int,Vector{UInt8}}()
-    elements = Pair{String,Vector{UInt8}}[]
-    for (ostype, sz) in ICON_TYPES
-        data = get!(cache, sz) do
-            #encode_png(resize(img, sz, sz))
-            encode_png(toicon(img, sz))
-        end
-        push!(elements, ostype => data)
-    end
-
-    write_icns(output_path, elements)
-    
-    return
+    elements = [ostype => get!(() -> encode_png(toicon(img, sz)), cache, sz)
+                for (ostype, sz) in ICON_TYPES]
+    return encode_icns(elements; toc)
 end
-
 
 end # module

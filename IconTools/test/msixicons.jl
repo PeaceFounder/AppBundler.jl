@@ -5,26 +5,22 @@ outdir = joinpath(@__DIR__, "output")
 source = joinpath(@__DIR__, "icon.png")
 destination = joinpath(outdir, "icon-png")
 rm(destination; recursive=true, force=true)
+mkdir(destination)
 
 img = IconTools.load(source)
-IconTools.msix_icons(img, destination)
-
+icons = IconTools.tomsix(img)
+for (key, value) in icons
+    IconTools.save(joinpath(destination, key), value)
+end
 
 source = joinpath(@__DIR__, "icon.svg")
 destination = joinpath(outdir, "icon-svg")
 rm(destination; recursive=true, force=true)
+mkdir(destination)
 
 img = IconTools.load(source)
-IconTools.msix_icons(img, destination)
+icons = IconTools.tomsix(img)
 
-
-# img = IconTools.load(source)
-# IconTools.toicns(img, destination)
-
-# source = joinpath(@__DIR__, "icon.svg")
-# outdir = joinpath(@__DIR__, "output/icon-png")
-# rm(outdir; recursive=true, force=true)
-
-
-
-
+for (key, value) in icons
+    IconTools.save(joinpath(destination, key), value)
+end

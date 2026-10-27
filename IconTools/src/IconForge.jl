@@ -28,7 +28,6 @@ function load(path::AbstractString)
     end
 end
 
-
 function render(img::AbstractMatrix{T}, h::Int, w::Int) where {T}
     return ImageResizing.imresize(img, h, w)
 end
@@ -47,26 +46,6 @@ function issquare(img::AbstractMatrix{T}) where {T}
     return w == h
 end
 
-
-# """
-#     square_pad(img)
-
-# Centre a non-square image on a transparent square canvas. Note Julia indexes
-# images as (row, col) == (height, width), the transpose of PIL's `size`.
-# """
-# function square_pad(img::AbstractMatrix{<:Colorant})
-#     h, w = size(img)
-#     h == w && return convert(Matrix{RGBA{N0f8}}, img)
-
-#     n = max(h, w)
-#     out = fill(RGBA{N0f8}(0, 0, 0, 0), n, n)
-#     y0 = (n - h) ÷ 2
-#     x0 = (n - w) ÷ 2
-#     out[y0+1:y0+h, x0+1:x0+w] .= RGBA{N0f8}.(img)
-#     return out
-# end
-
-
 function toicon(img, side::Integer; background::Union{RGBA, Nothing} = nothing)
     issquare(img) || throw(ArgumentError("img is not square"))
 
@@ -79,7 +58,6 @@ function toicon(img, side::Integer; background::Union{RGBA, Nothing} = nothing)
         return ImageResizing.imstack!(canvas, icon, 1, 1)
     end
 end
-
 
 function totile(img, width::Integer, height::Integer; scale::Real = 1,
                 background::RGBA = RGBA{Float32}(0.0, 0.0, 0.0, 0.0))
@@ -96,9 +74,6 @@ function totile(img, width::Integer, height::Integer; scale::Real = 1,
     return ImageResizing.imstack!(canvas, icon, top, left)
 end
 
-# render(img) would also work just fine
-
 export totile, toicon, load
-
 
 end

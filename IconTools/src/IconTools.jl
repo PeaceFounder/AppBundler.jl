@@ -9,10 +9,8 @@ include("IconForge.jl")
 include("ICNS.jl")
 include("MSIXIcons.jl")
 
-hello() = 3
-
 import ..IconForge: toicon, totile, load
 import ..ICNS: toicns
-import ..MSIXIcons: msix_icons
+import ..MSIXIcons: tomsix
 
 end
