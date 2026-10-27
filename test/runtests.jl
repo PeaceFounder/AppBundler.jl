@@ -4,6 +4,10 @@ using SafeTestsets
     include("argtools.jl")
 end
 
+@time @safetestset "Status API tests" begin
+    include("status.jl")
+end
+
 @time @safetestset "Inlining API tests" begin
     include("inline.jl")
 end

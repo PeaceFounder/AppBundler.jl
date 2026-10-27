@@ -3,10 +3,14 @@ import .PrefTools: PreferenceStatus, PreferenceEntry
 format_value(v::AbstractVector) = "[" * join(map(format_value, v), ", ") * "]"
 format_value(v) = repr(v)
 
-function print_preferences(io::IO, entries::AbstractVector{PreferenceEntry})
-    width = maximum(e -> length(e.key), entries; init = 0)
 
-    for e in entries
+function print_preferences(io::IO, entries::AbstractVector{PreferenceEntry})
+    missing_entries = filter(e -> e.status == PreferenceStatus.ERROR && isnothing(e.value), entries)
+    value_entries   = filter(e -> !(e.status == PreferenceStatus.ERROR && isnothing(e.value)), entries)
+
+    width = maximum(e -> length(e.key), value_entries; init = 0)
+
+    for e in value_entries
         marker = e.status == PreferenceStatus.ERROR    ? "! " :
                  e.status == PreferenceStatus.INFERRED ? "* " : "  "
         line = string(marker, rpad(e.key, width), " = ", format_value(e.value))
@@ -20,6 +24,29 @@ function print_preferences(io::IO, entries::AbstractVector{PreferenceEntry})
         end
         println(io)
     end
+
+    if !isempty(missing_entries)
+        println(io)
+        printstyled(io, "! Could not be inferred:\n"; color = :red)
+        print_wrapped(io, [e.key for e in missing_entries]; indent = 4, color = :red)
+    end
+end
+
+# Print words separated by ", ", wrapping lines at the terminal width
+function print_wrapped(io::IO, words; indent = 0, color = :normal)
+    max_width = displaysize(io)[2]
+    pad = " "^indent
+    line = pad
+
+    for (i, word) in enumerate(words)
+        piece = i < length(words) ? word * ", " : word
+        if length(line) + length(piece) > max_width && line != pad
+            printstyled(io, rstrip(line), '\n'; color)
+            line = pad
+        end
+        line *= piece
+    end
+    printstyled(io, line, '\n'; color)
 end
 
 

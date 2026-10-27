@@ -51,7 +51,7 @@ function canonical_target_name(spec::Union{MSIX, DMG, Snap, AppImage})
 end
 
 
-function main_status(project_dir, raw_args)
+function main_status(project_dir, raw_args; io = stdout)
 
     args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
 
@@ -75,12 +75,12 @@ function main_status(project_dir, raw_args)
     end
 
     if preferences
-        println("LocalPreferences.toml:") # may need to look into the case when there are no overrides
-        print_preferences(stdout, project_dir)
+        println(io, "LocalPreferences.toml:") # may need to look into the case when there are no overrides
+        print_preferences(io, project_dir)
     end
 
     if files 
-        print_overrides(stdout, project_dir)
+        print_overrides(io, project_dir)
     end
 
     return

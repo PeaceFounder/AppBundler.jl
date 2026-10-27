@@ -1,4 +1,4 @@
 [AppBundler]
-app_name = "GLApp"
+app_name = false
 windowed = true
 bundler = "juliac"
