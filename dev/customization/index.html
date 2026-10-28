@@ -5,41 +5,74 @@ meta/                 ← optional file overrides
         ↓
 appbundler build . --build-dir=build
         ↓
-build/&lt;name&gt;.{msix,snap,dmg}</code></pre><p>Most builds require only a short <code>LocalPreferences.toml</code>. Build customization is done by placing files in <code>meta/</code> that override AppBundler&#39;s built-in bundle templates — no changes to the core tool needed.</p><blockquote><p><strong>Iterating quickly:</strong> Use <code>--debug</code> for faster iteration when troubleshooting packaging or sandboxing issues — see <a href="#surgical-overrides">Surgical Overrides</a>.</p></blockquote><h2 id="Command-Line-Parameters"><a class="docs-heading-anchor" href="#Command-Line-Parameters">Command-Line Parameters</a><a id="Command-Line-Parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Command-Line-Parameters" title="Permalink"></a></h2><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Usage: appbundler build &lt;project_dir&gt; [OPTIONS]
+build/&lt;name&gt;.{msix,snap,dmg}</code></pre><p>Most builds require only a short <code>LocalPreferences.toml</code>. Build customization is done by placing files in <code>meta/</code> that override AppBundler&#39;s built-in bundle templates — no changes to the core tool needed.</p><blockquote><p><strong>Iterating quickly:</strong> Use <code>--debug</code> for faster iteration when troubleshooting packaging or sandboxing issues — see <a href="#surgical-overrides">Surgical Overrides</a>.</p></blockquote><h2 id="Command-Line-Parameters"><a class="docs-heading-anchor" href="#Command-Line-Parameters">Command-Line Parameters</a><a id="Command-Line-Parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Command-Line-Parameters" title="Permalink"></a></h2><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Usage: appbundler &lt;command&gt; &lt;project_dir&gt; [OPTIONS]
 
-Arguments:
-  &lt;project_dir&gt;                     Path to the Julia project to bundle
+Commands:
+  build &lt;project_dir&gt;               Bundle a Julia project as dmg, msix,
+                                    snap or AppImage
+  inline &lt;project_dir&gt; &lt;target&gt;     Write a default file into the project
+                                    so it can be customized: a template,
+                                    an icon, a generated asset or signing
+                                    certificate, or LocalPreferences.toml.
+                                    An unknown target lists all available
+  status &lt;project_dir&gt;              Show active preferences and files that
+                                    override the defaults
 
-Options:
-  --build-dir DIR                   Output directory for the bundle
-                                    (default: temporary directory)
-                                    Use &#39;@temp&#39; to explicitly request a temp dir
-  --target-bundle {dmg|snap|appimage|msix}
+Build options:
+  --target-bundle {dmg|msix|snap|appimage}
                                     Package format to produce
-                                    (default: platform native — dmg on macOS,
-                                    snap on Linux, msix on Windows)
+                                    (default: dmg on macOS, msix on Windows,
+                                    snap on Linux)
   --target-arch {x86_64|aarch64}    Target CPU architecture
                                     (default: current system architecture)
-  --target-name NAME                Override the output file/directory name
-                                    (default: derived from app name and version)
-  --selfsign                        Sign the bundle with a self-signed certificate
-                                    (macOS / Windows; skips password prompt)
-  --password PASS                   Password for the signing certificate
-                                    (prompted interactively if omitted)
-  --force                           Overwrite an existing bundle at the target path
-  --debug                           Shorthand for --selfsign + uncompressed,
-                                    console-visible build; useful for quick iteration
-  -DKEY=VALUE                       Override a LocalPreferences.toml preference,
-                                    e.g. -Dbundler=&quot;juliac&quot;
+  --build-dir DIR                   Output directory, created if missing
+                                    (default: a new temporary directory;
+                                    &#39;@temp&#39; requests one explicitly)
+  --target-name NAME                Output name, without extension
+                                    (default: &lt;APP_NAME&gt;-&lt;APP_VERSION&gt;-&lt;arch&gt;)
+  --force                           Overwrite an existing bundle
+  --selfsign                        Sign with a self-signed certificate
+                                    (dmg, msix); no password needed
+  --skipsign                        Do not sign the bundle (dmg, msix)
+  --password PASS                   Password for the .pfx certificate
+                                    (prompted for when needed and omitted)
+  --debug                           Quick iteration build: --selfsign plus
+                                    -Dcompress=false -Dwindowed=false
+                                    (unpacked output, console visible)
+
+Inline options:
+  --force                           Overwrite the target if already present
+  --render                          Fill in template parameters from the
+                                    project preferences instead of copying
+                                    the raw template
+  --verbose                         Print the template parameters used
+                                    by --render
+
+Status options:
+  --preferences                     Show only LocalPreferences.toml settings
+  --files                           Show only overriding files
+
+Common options:
+  -DKEY=VALUE                       Override a LocalPreferences.toml entry
+                                    (build, inline); nested keys use dots,
+                                    e.g. -Djuliac.trim=true
   -h, --help                        Show this help message
 
 Examples:
   appbundler build .
   appbundler build . --build-dir=build --force
-  appbundler build . --build-dir=@temp --debug
-  appbundler build . --target-bundle=snap --target-arch=aarch64
-  appbundler build . --selfsign --password=secret
-  appbundler build . -Dbundler=&quot;juliac&quot; -Djuliac.trim=true</code></pre><h2 id="Preferences"><a class="docs-heading-anchor" href="#Preferences">Preferences</a><a id="Preferences-1"></a><a class="docs-heading-anchor-permalink" href="#Preferences" title="Permalink"></a></h2><p>Parameters are read from <code>LocalPreferences.toml</code> and from <code>Project.toml</code> (for the module name and application version; <code>LocalPreferences.toml</code> can override these). The full list of available parameters is in <code>joinpath(pkgdir(AppBundler), &quot;LocalPreferences.toml&quot;)</code>.</p><p>To enable AppBundler preferences, add the following to your application&#39;s <code>Project.toml</code>; otherwise the preferences for <code>AppBundler</code> will not be registered:</p><pre><code class="language-toml hljs">[extras]
+  appbundler build . --target-bundle=appimage --target-arch=aarch64
+  appbundler build . --password=secret
+  appbundler build . -Dbundler=&quot;juliac&quot; -Djuliac.trim=true
+  appbundler build . --target-bundle=msix -Dmsix.bootstrapper=true
+
+  appbundler inline . LocalPreferences.toml -Dbundler=&quot;juliac&quot;
+  appbundler inline . meta/snap/snap.yaml --render --verbose --force
+  appbundler inline . meta/msix/certificate.pfx -Dmsix.publisher=&quot;CN=Me&quot;
+  appbundler inline . .github/workflows/Release.yml
+
+  appbundler status .
+  appbundler status . --files</code></pre><h2 id="Preferences"><a class="docs-heading-anchor" href="#Preferences">Preferences</a><a id="Preferences-1"></a><a class="docs-heading-anchor-permalink" href="#Preferences" title="Permalink"></a></h2><p>Parameters are read from <code>LocalPreferences.toml</code> and from <code>Project.toml</code> (for the module name and application version; <code>LocalPreferences.toml</code> can override these). The full list of available parameters is in <code>joinpath(pkgdir(AppBundler), &quot;LocalPreferences.toml&quot;)</code>.</p><p>To enable AppBundler preferences, add the following to your application&#39;s <code>Project.toml</code>; otherwise the preferences for <code>AppBundler</code> will not be registered:</p><pre><code class="language-toml hljs">[extras]
 AppBundler = &quot;40eb83ae-c93a-480c-8f39-f018b568f472&quot;</code></pre><p>A typical <code>LocalPreferences.toml</code> is short:</p><pre><code class="language-toml hljs">[AppBundler]
 windowed = false
 bundler = &quot;juliac&quot;
@@ -63,4 +96,4 @@ Version={{APP_VERSION}}
 Comment={{APP_SUMMARY}}
 Terminal={{#WINDOWED}}false{{/WINDOWED}}{{^WINDOWED}}true{{/WINDOWED}}
 Type=Application
-Categories=Utility;</code></pre><p>The <code>{{#WINDOWED}}...{{/WINDOWED}}</code> / <code>{{^WINDOWED}}...{{/WINDOWED}}</code> pattern implements conditional logic driven by the <code>windowed</code> preference. When overriding a template, variables may be kept or replaced with static values.</p><p>Some files are not installed directly into the bundle but are used as inputs during the build. <code>meta/dmg/Entitlements.plist</code> configures the sandbox baked into the signature of the main launcher, and <code>meta/dmg/DS_Store.toml</code> is a user-editable TOML representation of <code>.DS_Store</code> that is compiled into a binary <code>.DS_Store</code> before being placed in the DMG.</p><h3 id="Bundler-Specific-Files"><a class="docs-heading-anchor" href="#Bundler-Specific-Files">Bundler-Specific Files</a><a id="Bundler-Specific-Files-1"></a><a class="docs-heading-anchor-permalink" href="#Bundler-Specific-Files" title="Permalink"></a></h3><p>Some files only apply to a specific bundler, indicated by a <code>juliac_</code> or <code>juliaimg_</code> prefix. For instance, <code>meta/snap/juliaimg_configure.sh</code> is picked up only when using <code>juliaimg</code>. The equivalent for <code>juliac</code> is <code>meta/snap/juliac_configure.sh</code> which does not exist hence is ignored at stagging. <code>meta/startup.jl</code> is specific to <code>juliaimg</code> bundles — it is placed in <code>etc/julia/</code> inside the bundle and is responsible for calling <code>AppEnv.init()</code> implicitly.</p><h3 id="Sandboxing-and-Capabilities"><a class="docs-heading-anchor" href="#Sandboxing-and-Capabilities">Sandboxing and Capabilities</a><a id="Sandboxing-and-Capabilities-1"></a><a class="docs-heading-anchor-permalink" href="#Sandboxing-and-Capabilities" title="Permalink"></a></h3><p>To customize sandboxing — such as granting access to hardware, networking, or custom launchers — override the relevant configuration file in your <code>meta/</code> folder: <code>Entitlements.plist</code> for DMG, <code>AppxManifest.xml</code> for MSIX, and <code>snap.yaml</code> for Snap. Use <code>--debug</code> to iterate quickly when working through capability changes, and refer to the <a href="../troubleshooting/">troubleshooting guide</a> if the application does not behave as expected.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Overview</a><a class="docs-footer-nextpage" href="../formats/msix/">MSIX »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Monday 28 September 2026 21:37">Monday 28 September 2026</span>. Using Julia version 1.13.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+Categories=Utility;</code></pre><p>The <code>{{#WINDOWED}}...{{/WINDOWED}}</code> / <code>{{^WINDOWED}}...{{/WINDOWED}}</code> pattern implements conditional logic driven by the <code>windowed</code> preference. When overriding a template, variables may be kept or replaced with static values.</p><p>Some files are not installed directly into the bundle but are used as inputs during the build. <code>meta/dmg/Entitlements.plist</code> configures the sandbox baked into the signature of the main launcher, and <code>meta/dmg/DS_Store.toml</code> is a user-editable TOML representation of <code>.DS_Store</code> that is compiled into a binary <code>.DS_Store</code> before being placed in the DMG.</p><h3 id="Bundler-Specific-Files"><a class="docs-heading-anchor" href="#Bundler-Specific-Files">Bundler-Specific Files</a><a id="Bundler-Specific-Files-1"></a><a class="docs-heading-anchor-permalink" href="#Bundler-Specific-Files" title="Permalink"></a></h3><p>Some files only apply to a specific bundler, indicated by a <code>juliac_</code> or <code>juliaimg_</code> prefix. For instance, <code>meta/snap/juliaimg_configure.sh</code> is picked up only when using <code>juliaimg</code>. The equivalent for <code>juliac</code> is <code>meta/snap/juliac_configure.sh</code> which does not exist hence is ignored at stagging. <code>meta/startup.jl</code> is specific to <code>juliaimg</code> bundles — it is placed in <code>etc/julia/</code> inside the bundle and is responsible for calling <code>AppEnv.init()</code> implicitly.</p><h3 id="Sandboxing-and-Capabilities"><a class="docs-heading-anchor" href="#Sandboxing-and-Capabilities">Sandboxing and Capabilities</a><a id="Sandboxing-and-Capabilities-1"></a><a class="docs-heading-anchor-permalink" href="#Sandboxing-and-Capabilities" title="Permalink"></a></h3><p>To customize sandboxing — such as granting access to hardware, networking, or custom launchers — override the relevant configuration file in your <code>meta/</code> folder: <code>Entitlements.plist</code> for DMG, <code>AppxManifest.xml</code> for MSIX, and <code>snap.yaml</code> for Snap. Use <code>--debug</code> to iterate quickly when working through capability changes, and refer to the <a href="../troubleshooting/">troubleshooting guide</a> if the application does not behave as expected.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Overview</a><a class="docs-footer-nextpage" href="../formats/msix/">MSIX »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Wednesday 28 October 2026 13:23">Wednesday 28 October 2026</span>. Using Julia version 1.13.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
