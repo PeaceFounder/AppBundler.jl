@@ -16,10 +16,8 @@ end
     include("dsstore.jl")
 end
 
-if Sys.isunix()
-    @time @safetestset "HFSImg builder" begin
-        include("hfsimg.jl")
-    end
+@time @safetestset "HFSImg builder" begin
+    include("hfsimg.jl")
 end
 
 @time @safetestset "Bundling core tetsts" begin

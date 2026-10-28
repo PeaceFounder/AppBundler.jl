@@ -29,7 +29,6 @@ const GENERATED_TARGETS = Dict{String,Function}(
         for (file, icon) in IconTools.tomsix(img; msix.store_icon_plate)
             IconTools.save(joinpath(destination, file), icon);
         end
-        #IconTools.msix_icons(IconTools.load(msix.icon), destination; msix.store_icon_plate);
     end,
 
     "meta/msix/certificate.pfx" => (_, destination, preferences) ->

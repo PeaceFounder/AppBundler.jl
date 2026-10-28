@@ -43,6 +43,42 @@ function errmsg(f)
     end
 end
 
+"""
+Set the access and modification times of `path` itself, not of a symlink's target
+(like `touch -h`). Goes through libuv's `uv_fs_lutime`, so it works on every OS.
+A `DateTime` is taken as UTC.
+"""
+function set_mtime(path::AbstractString, t::Real)
+    req = Libc.malloc(Base._sizeof_uv_fs)
+    try
+        ret = ccall(:uv_fs_lutime, Cint,
+                    (Ptr{Cvoid}, Ptr{Cvoid}, Cstring, Cdouble, Cdouble, Ptr{Cvoid}),
+                    C_NULL, req, path, t, t, C_NULL)        # no callback: synchronous
+        Base.uv_error("lutime($(repr(path)))", ret)
+    finally
+        ccall(:uv_fs_req_cleanup, Cvoid, (Ptr{Cvoid},), req)
+        Libc.free(req)
+    end
+    return path
+end
+set_mtime(path::AbstractString, t::DateTime) = set_mtime(path, datetime2unix(t))
+
+"""
+Recursive copy like `cp -Rp`: symlinks stay links, modes and mtimes are kept, while
+inodes and ctimes are new.
+"""
+function copy_tree(src, dst)
+    cp(src, dst; follow_symlinks = false)
+    function restore(s, d)
+        st = lstat(s)
+        isdir(st) && foreach(n -> restore(joinpath(s, n), joinpath(d, n)), readdir(s))
+        islink(st) || chmod(d, filemode(st))                 # sendfile/mkdir apply the umask
+        set_mtime(d, st.mtime)                               # after children and chmod
+    end
+    restore(src, dst)
+    return dst
+end
+
 be(bytes, off, T) = (x = zero(T); for i in 1:sizeof(T); x = (x << 8) | T(bytes[off + i]); end; x)
 image_bytes(img, off, n) = open(io -> (seek(io, off); read(io, n)), img)
 "Deterministic bytes; the period of 251 doesn't align with any block size."
@@ -132,7 +168,7 @@ function make_stage(stage)
         ("$res/Ünïcödé/$n" => "name: $n\n" for n in ("café.txt", "日本語.txt", "ZEBRA", "apple",
                                                     "a:b.txt", "emoji 🙂.txt", "\u2126 ohm.txt"))...,
     ])
-    run(`touch -h -t 196001011200.00 $(joinpath(stage, res, "old.txt"))`)   # before 1970: the epoch
+    set_mtime(joinpath(stage, res, "old.txt"), DateTime(1960, 1, 1, 12))   # before 1970: the epoch
     return stage
 end
 
@@ -268,7 +304,7 @@ end
     b = img("b.img")
     build_hfs(STAGE, b; volname = VOLNAME, uuid = UUID_A, timestamp = TIMESTAMP_UNIX)
     @test read(b) == read(img("ts.img"))                     # DateTime == Unix seconds
-    run(`cp -Rp $STAGE $(img("copy"))`)                      # new inodes and ctimes
+    copy_tree(STAGE, img("copy"))                            # new inodes and ctimes
     build_hfs(img("copy"), b; volname = VOLNAME, uuid = UUID_A, timestamp = TIMESTAMP)
     @test read(b) == read(img("ts.img"))
 
@@ -285,7 +321,8 @@ end
     # Without a timestamp the volume is dated by the newest mtime, not the build time
     dated = mkpath(img("dated"))
     write(joinpath(dated, "a.txt"), "a\n")
-    run(`touch -t 202001021230.45 $(joinpath(dated, "a.txt")) $dated`)
+    t = DateTime(2020, 1, 2, 12, 30, 45)
+    set_mtime(joinpath(dated, "a.txt"), t); set_mtime(dated, t)
     build_hfs(dated, b; uuid = UUID_A)
     @test volume_info(b).create == floor(Int, mtime(dated))
 end
@@ -310,11 +347,13 @@ end
     @test v.depth >= 3
 end
 
-@testset "Read back with libdmg-hfsplus" begin
-    @test isempty(hfsplus_compare(img("test.img"), STAGE))
-    @test isempty(hfsplus_compare(img("ts.img"), STAGE))
-    @test isempty(hfsplus_compare(img("many.img"), img("many"); cat = false))
-    @test read(`$(hfsplus()) $(img("many.img")) cat /flat/f_00999.txt`) == b"flat 999\n"
+if Sys.isunix()
+    @testset "Read back with libdmg-hfsplus" begin
+        @test isempty(hfsplus_compare(img("test.img"), STAGE))
+        @test isempty(hfsplus_compare(img("ts.img"), STAGE))
+        @test isempty(hfsplus_compare(img("many.img"), img("many"); cat = false))
+        @test read(`$(hfsplus()) $(img("many.img")) cat /flat/f_00999.txt`) == b"flat 999\n"
+    end
 end
 
 if Sys.isapple()

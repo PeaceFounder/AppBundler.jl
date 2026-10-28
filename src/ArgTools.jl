@@ -304,8 +304,6 @@ const LIST_HINT = """
         -Dsysimg=a,b        or        -Dsysimg=[a, b]
     """
 
-
-
 """
     coerce(defines, schema) -> Vector{Pair{String, Any}}
 
@@ -376,7 +374,6 @@ function resets_list(raw)
     isquoted(s) && (s = strip(unquote(s)))
     return islist(s)
 end
-
 
 
 """
