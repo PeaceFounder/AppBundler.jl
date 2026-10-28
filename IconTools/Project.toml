@@ -18,6 +18,7 @@ Colors = "0.13.3"
 FixedPointNumbers = "0.8.6"
 PNGFiles = "0.4.5"
 resvg_jll = "0.48.1"
+julia = "1.10"
 
 [extras]
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
