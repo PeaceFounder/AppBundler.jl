@@ -4,14 +4,20 @@ using SafeTestsets
     include("argtools.jl")
 end
 
+@time @safetestset "Status API tests" begin
+    include("status.jl")
+end
+
+@time @safetestset "Inlining API tests" begin
+    include("inline.jl")
+end
+
 @time @safetestset "DS_Store parser" begin
     include("dsstore.jl")
 end
 
-if Sys.isunix()
-    @time @safetestset "HFSImg builder" begin
-        include("hfsimg.jl")
-    end
+@time @safetestset "HFSImg builder" begin
+    include("hfsimg.jl")
 end
 
 @time @safetestset "Bundling core tetsts" begin

@@ -21,10 +21,16 @@ function (@main)(ARGS)
             error("No project path provided for `build` command. See `build --help` for usage.")
         end
 
-        main_build(ARGS[3:end]; sources_dir = realpath(ARGS[2]))
+        #main_build(ARGS[3:end]; sources_dir = realpath(ARGS[2]))
+        main_build(realpath(ARGS[2]), ARGS[3:end])
 
-    # elseif command == "init"
-    #     ...
+    elseif command == "inline"
+        
+        main_inline(realpath(ARGS[2]), ARGS[3], ARGS[4:end])
+
+    elseif command == "status"
+
+        main_status(realpath(ARGS[2]), ARGS[3:end])
 
     else
         error("Unsupported command `$command`. See `--help` for available commands.")
@@ -44,10 +50,78 @@ function canonical_target_name(spec::Union{MSIX, DMG, Snap, AppImage})
     return "$(app_name)-$version-$(spec.arch)"
 end
 
-function main_build(ARGS; sources_dir)
 
-    config, preference_overrides = parse_build_args(ARGS)
-    extended_preferences = get_extended_preferences(sources_dir; preference_overrides) 
+function main_status(project_dir, raw_args; io = stdout)
+
+    args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
+
+    @assert isempty(defines) "Nonempty defins not supported"
+
+    show_preferences = true
+    show_files = true
+    
+    for (key, value) in args
+    
+        if key == "--help"
+            print_help()
+            exit(0)
+        elseif key == "--preferences"
+            show_files = false
+        elseif key == "--files"
+            show_preferences = false
+        else
+            @warn "Unknown argument: $key"
+        end
+    end
+
+    if !show_preferences && !show_files       # no filter given → show everything
+        show_preferences = show_files = true
+    end
+
+    if show_preferences
+        println(io, "LocalPreferences.toml:") # may need to look into the case when there are no overrides
+        print_preferences(io, project_dir)
+    end
+
+    if show_files 
+        print_overrides(io, project_dir)
+    end
+
+    return
+end
+
+
+function main_inline(project_dir, target, raw_args::AbstractVector{<:AbstractString})
+
+    args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
+
+    force = false
+    render = false
+    verbose = false
+
+    for (option, value) in args
+        if option == "--help"
+            print_help()
+            exit(0)
+        elseif option == "--force"
+            force = true
+        elseif option == "--render"
+            render = true
+        elseif option == "--verbose"
+            verbose = true
+        else
+            @warn "Unknown argument: $option"
+        end
+    end
+
+    return inline(project_dir, target; defines, force, render, verbose)
+end
+
+
+function main_build(sources_dir, ARGS)
+
+    config, defines = parse_build_args(ARGS)
+    extended_preferences = load_preferences(sources_dir; defines)
     preferences = extended_preferences["AppBundler"]
 
     if config[:build_dir] == "@temp"
@@ -178,8 +252,10 @@ forbid(option, value)  = value === nothing || error("$option does not take a val
 
 function parse_build_args(raw_args::Vector{<:AbstractString}) 
 
-    args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
-
+    args, defines_raw = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
+    defines = ArgTools.coerce(defines_raw, LOCAL_PREFERENCES_SCHEMA)
+    reverse!(defines)
+    
     # Default values
     config = Dict(
         :build_dir => mktempdir(),  # Use nothing to distinguish "not set" from ""
@@ -188,8 +264,6 @@ function parse_build_args(raw_args::Vector{<:AbstractString})
         :target_name => nothing,
         :password => nothing
     )
-
-    preferences = Dict()
 
     for (option, value) in args
         if option == "--help"
@@ -206,72 +280,100 @@ function parse_build_args(raw_args::Vector{<:AbstractString})
         elseif option == "--target-bundle"
             config[:target_bundle] = Symbol(require(option, value))
         elseif option == "--force"
-            forbid(option, value); preferences["overwrite_target"] = true
+            forbid(option, value)
+            push!(defines, "overwrite_target" => true)
         elseif option == "--selfsign"
             forbid(option, value)
-            preferences["selfsign"] = true
+            push!(defines, "selfsign" => true)
         elseif option == "--skipsign"
             forbid(option, value)
-            preferences["skipsign"] = true
+            push!(defines, "skipsign" => true)
         elseif option == "--debug"
             forbid(option, value)
-            preferences["compress"] = false
-            preferences["selfsign"] = true
-            preferences["windowed"] = false
+            push!(defines, "compress" => false)
+            push!(defines, "selfsign" => true)
+            push!(defines, "windowed" => false)
         else
             @warn "Unknown argument: $option"
         end
     end
 
-    schema = get_preferences_schema()
-    overrides = ArgTools.parse_preferences(defines, schema)
-    #merged_preferences = merge(preferences, overrides)
+    # This is propper as long as we don't consider lists
+    unique!(first, defines)
 
-    custom_merge(a::Dict, b::Dict) = merge(a, b)
-    custom_merge(a::T, b::T) where T = b
-    custom_merge(a, b) = error("Incompatable types")
-    merged_preferences = mergewith(custom_merge, preferences, overrides)
-    
-    return config, merged_preferences
+    return config, defines
 end
 
 
 const HELP_TEXT = """
-Usage: appbundler build <project_dir> [OPTIONS]
+Usage: appbundler <command> <project_dir> [OPTIONS]
 
-Arguments:
-  <project_dir>                     Path to the Julia project to bundle
+Commands:
+  build <project_dir>               Bundle a Julia project as dmg, msix,
+                                    snap or AppImage
+  inline <project_dir> <target>     Write a default file into the project
+                                    so it can be customized: a template,
+                                    an icon, a generated asset or signing
+                                    certificate, or LocalPreferences.toml.
+                                    An unknown target lists all available
+  status <project_dir>              Show active preferences and files that
+                                    override the defaults
 
-Options:
-  --build-dir DIR                   Output directory for the bundle
-                                    (default: temporary directory)
-                                    Use '@temp' to explicitly request a temp dir
-  --target-bundle {dmg|snap|appimage|msix}   
+Build options:
+  --target-bundle {dmg|msix|snap|appimage}
                                     Package format to produce
-                                    (default: platform native — dmg on macOS,
-                                    snap on Linux, msix on Windows)
+                                    (default: dmg on macOS, msix on Windows,
+                                    snap on Linux)
   --target-arch {x86_64|aarch64}    Target CPU architecture
                                     (default: current system architecture)
-  --target-name NAME                Override the output file/directory name
-                                    (default: derived from app name and version)
-  --selfsign                        Sign the bundle with a self-signed certificate
-                                    (macOS / Windows; skips password prompt)
-  --password PASS                   Password for the signing certificate
-                                    (prompted interactively if omitted)
-  --force                           Overwrite an existing bundle at the target path
-  --debug                           Shorthand for --selfsign + uncompressed,
-                                    console-visible build; useful for quick iteration
-  -DKEY=VALUE                       Override a LocalPreferences.toml preference,
-                                    e.g. -Dbundler="juliac"
+  --build-dir DIR                   Output directory, created if missing
+                                    (default: a new temporary directory;
+                                    '@temp' requests one explicitly)
+  --target-name NAME                Output name, without extension
+                                    (default: <APP_NAME>-<APP_VERSION>-<arch>)
+  --force                           Overwrite an existing bundle
+  --selfsign                        Sign with a self-signed certificate
+                                    (dmg, msix); no password needed
+  --skipsign                        Do not sign the bundle (dmg, msix)
+  --password PASS                   Password for the .pfx certificate
+                                    (prompted for when needed and omitted)
+  --debug                           Quick iteration build: --selfsign plus
+                                    -Dcompress=false -Dwindowed=false
+                                    (unpacked output, console visible)
+
+Inline options:
+  --force                           Overwrite the target if already present
+  --render                          Fill in template parameters from the
+                                    project preferences instead of copying
+                                    the raw template
+  --verbose                         Print the template parameters used
+                                    by --render
+
+Status options:
+  --preferences                     Show only LocalPreferences.toml settings
+  --files                           Show only overriding files
+
+Common options:
+  -DKEY=VALUE                       Override a LocalPreferences.toml entry
+                                    (build, inline); nested keys use dots,
+                                    e.g. -Djuliac.trim=true
   -h, --help                        Show this help message
 
 Examples:
   appbundler build .
   appbundler build . --build-dir=build --force
-  appbundler build . --build-dir=@temp --debug
-  appbundler build . --target-bundle=snap --target-arch=aarch64
-  appbundler build . --selfsign --password=secret
+  appbundler build . --target-bundle=appimage --target-arch=aarch64
+  appbundler build . --password=secret
   appbundler build . -Dbundler="juliac" -Djuliac.trim=true
+  appbundler build . --target-bundle=msix -Dmsix.bootstrapper=true
+
+  appbundler inline . LocalPreferences.toml -Dbundler="juliac"
+  appbundler inline . meta/snap/snap.yaml --render --verbose --force
+  appbundler inline . meta/msix/certificate.pfx -Dmsix.publisher="CN=Me"
+  appbundler inline . .github/workflows/Release.yml
+
+  appbundler status .
+  appbundler status . --files
 """
 
 function print_help()

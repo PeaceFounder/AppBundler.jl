@@ -53,14 +53,16 @@ runtime_cache() = @get_scratch!("runtimes")
 Download the prebuilt type-2 runtime for `arch` (cached in `cachedir`), and
 check that it is an ELF carrying the AppImage magic `AI\\x02` at offset 8.
 """
-function get_runtime(arch::AbstractString; cachedir::AbstractString = runtime_cache())
+function get_runtime(arch::AbstractString; cachedir::AbstractString = runtime_cache(), verbose = false)
     arch in RUNTIME_ARCHS ||
         error("unknown runtime architecture $arch; expected one of $(join(RUNTIME_ARCHS, ", "))")
 
     mkpath(cachedir)
     dest = joinpath(cachedir, "runtime-$(arch)")
     if !isfile(dest) || filesize(dest) == 0
-        @info "Downloading runtime-$(arch)"
+        if  verbose
+            @info "Downloading runtime-$(arch)"
+        end
         tmp = dest * ".part"
         try
             Downloads.download(runtime_url(arch), tmp)
@@ -69,7 +71,9 @@ function get_runtime(arch::AbstractString; cachedir::AbstractString = runtime_ca
             rm(tmp; force = true)
         end
     else
-        @info "Using cached runtime-$(arch)"
+        if verbose
+            @info "Using cached runtime-$(arch)"
+        end
     end
 
     # Belongs to the tests

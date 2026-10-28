@@ -23,7 +23,8 @@ meta/msix/certificate.pfx  # Windows
 Before purchasing a certificate, you can generate self-signed certificates to test the full signing workflow:
 
 ```julia
-AppBundler.generate_signing_certificates()
+appbundler inline . meta/dmg/certificate.pfx
+appbundler inline . meta/msix/certificate.pfx
 ```
 
 This prints two passwords to the terminal: `MACOS_PFX_PASSWORD` and `WINDOWS_PFX_PASSWORD`. You can then pass the password when building:
@@ -41,7 +42,7 @@ GitHub Actions is the recommended CI solution for cross-platform Julia applicati
 An example workflow is available at [Release.yml](https://github.com/JanisErdmanis/Jumbo/blob/main/.github/workflows/Release.yml). It can be installed into your project automatically by running:
 
 ```julia
-AppBundler.install_github_workflow()
+appbundler inline . .github/workflows/Release.yml
 ```
 
 This places the workflow file at `.github/workflows/Release.yml`, where GitHub picks it up. The workflow can be triggered manually from the Actions tab and will compile the application for all platforms, then attach the resulting installers to a new GitHub Release.

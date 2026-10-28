@@ -1,0 +1,67 @@
+# .gitlab-ci.yml
+
+stages:
+  - build
+  - upload
+
+variables:
+  BUILD_DIR: "build"
+
+.build_template:
+  stage: build
+  image: julia:1.11
+  script:
+    - julia --project=meta -e 'using Pkg; Pkg.instantiate()'
+    - |
+      if [ "$XVFB_ENABLED" = "true" ]; then
+        xvfb-run -a -s '-screen 0 1024x768x24' julia --project=meta meta/build.jl --target-platform=$TARGET_PLATFORM --target-arch=$TARGET_ARCH --build-dir=$BUILD_DIR
+      else
+        julia --project=meta meta/build.jl --target-platform=$TARGET_PLATFORM --target-arch=$TARGET_ARCH --build-dir=$BUILD_DIR
+      fi
+  artifacts:
+    paths:
+      - build/*
+    expire_in: 1 day
+  rules:
+    - if: '$CI_COMMIT_TAG'  # Run on tags (releases)
+    - when: manual  # Or run manually
+
+build:linux-x86_64:
+  extends: .build_template
+  before_script:
+    - apt-get update && apt-get install -y xvfb
+  variables:
+    TARGET_PLATFORM: "linux"
+    TARGET_ARCH: "x86_64"
+    XVFB_ENABLED: "true"
+
+build:linux-aarch64:
+  extends: .build_template
+  tags:
+    - arm64
+  before_script:
+    - apt-get update && apt-get install -y xvfb
+  variables:
+    TARGET_PLATFORM: "linux"
+    TARGET_ARCH: "aarch64"
+    XVFB_ENABLED: "true"
+
+upload:release:
+  stage: upload
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  dependencies:
+    - build:linux-x86_64
+    - build:linux-aarch64
+  script:
+    - echo "Creating release $CI_COMMIT_TAG"
+  release:
+    tag_name: '$CI_COMMIT_TAG'
+    description: 'Release $CI_COMMIT_TAG'
+    assets:
+      links:
+        - name: 'Linux x86_64 Build'
+          url: '${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/download?job=build:linux-x86_64'
+        - name: 'Linux aarch64 Build'
+          url: '${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/download?job=build:linux-aarch64'
+  rules:
+    - if: '$CI_COMMIT_TAG'

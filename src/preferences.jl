@@ -1,3 +1,66 @@
+struct ColorString end
+
+const HEX_COLOR_RE = r"^#(?:[0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})\z"
+is_hex_color(s::AbstractString) = occursin(HEX_COLOR_RE, s)
+
+ArgTools.coerce(::ColorString, value) = is_hex_color(value) ? value : throw(ArgTools.CoercionError("expects color hex, got '$v'")) # 
+PrefTools.isallowed(::ColorString, value) = is_hex_color(value)
+
+const LOCAL_PREFERENCES_SCHEMA = Dict{String, Any}(
+    "app_name" => String,
+    "app_display_name" => String,
+    "app_exe" => String,
+    "app_summary" => String,
+    "app_description" => String,
+    "bundle_identifier" => String,
+    "module_name" => String,
+    "publisher_name" => String,
+    "version" => String,
+    "build_number" => Int,
+
+    "bundler" => ("juliaimg", "juliac"),
+    "windowed" => Bool,
+    "compress" => Bool,
+    "selfsign" => Bool,
+    "skipsign" => Bool,
+    "overwrite_target" => Bool,
+    "verbose" => Bool,
+
+    "juliaimg.precompile" => Bool,
+    "juliaimg.incremental" => Bool,
+    "juliaimg.mainless" => Bool,
+    "juliaimg.selective_assets" => Bool,
+    "juliaimg.sysimg" => Vector{String},
+
+    "juliac.trim" => Bool,
+
+    "msix.command" => Vector{String},
+    "msix.publisher" => String,
+    #"msix.store_icon_plate" => String,
+    "msix.store_icon_plate" => ColorString(),
+    "msix.path_length_threshold" => Int,
+    "msix.skip_long_paths" => Bool,
+    "msix.skip_symlinks" => Bool,
+    "msix.skip_unicode_paths" => Bool,
+    "msix.bootstrapper" => Bool,
+    "msix.bootstrapper_windowed" => Bool,
+
+    "dmg.command" => Vector{String},
+    "dmg.backend" => ("xorriso", "hfsplus"),
+    "dmg.compression" => ("lzma", "bzip2", "zlib", "lzfse"),
+    "dmg.hardened_runtime" => Bool,
+    "dmg.sandboxed_runtime" => Bool,
+    "dmg.shallow_signing" => Bool,
+    "dmg.xorriso.hfsplus" => Bool,
+    "dmg.hfsplus.free_space" => Int,
+
+    "snap.command" => Vector{String},
+
+    "appimage.command" => Vector{String},
+    "appimage.compression" => ("zstd", "gzip", "xz"),
+)
+
+
 function get_module_name(project_toml)
 
     project_name = get_project_name(project_toml)
@@ -83,11 +146,18 @@ function get_bundle_parameters(preferences)
     return extract_template_parameters!(Dict{String, Any}(), preferences)
 end
 
+function set_default!(f::Function, dict::AbstractDict, key::AbstractString)
+    parts = split(key, '.')
+    for part in parts[1:end-1]
+        dict = get!(Dict{String, Any}, dict, part)
+        dict isa AbstractDict || error("cannot set default for $key: `$part` is not a table")
+    end
+    return get!(f, dict, parts[end])
+end
 
+set_default!(dict::AbstractDict, key::AbstractString, value) = set_default!(() -> value, dict, key)
 
-section!(prefs::Dict, name) = get!(Dict{String,Any}, prefs, name)
-
-function merge_dynamic_defaults!(preferences::Dict, project_dir)
+function apply_defaults!(preferences::Dict, project_dir)
 
     project_toml = joinpath(project_dir, "Project.toml")
 
@@ -116,54 +186,43 @@ function merge_dynamic_defaults!(preferences::Dict, project_dir)
 
     runs_module = preferences["bundler"] == "juliaimg" && !get(preferences["juliaimg"], "mainless", false)
 
+    module_name = get!(preferences, "module_name") do
+        runs_module ? get_module_name(project_toml) : ""
+    end
+
     # Could introduce getnested! method 
     if runs_module
-        module_name = get!(preferences, "module_name") do
-            get_module_name(project_toml)
-        end
 
-        get!(get!(Dict{String,Any}, preferences, "snap"), "command", ["bin/julia", "-m", module_name])
-        get!(get!(Dict{String,Any}, preferences, "appimage"), "command", ["bin/julia", "--eval", "using $module_name", "--"])
-        get!(get!(Dict{String,Any}, preferences, "dmg"), "command", ["Libraries/bin/julia", "--eval", "using $module_name", "--"])
-        get!(get!(Dict{String,Any}, preferences, "msix"), "command", ["bin\\julia.exe", "--eval", "using $module_name"])
+
+        set_default!(preferences, "snap.command", ["bin/julia", "-m", module_name])
+        set_default!(preferences, "appimage.command", ["bin/julia", "--eval", "using $module_name", "--"])
+        set_default!(preferences, "dmg.command", ["Libraries/bin/julia", "--eval", "using $module_name", "--"])
+        set_default!(preferences, "msix.command", ["bin\\julia.exe", "--eval", "using $module_name"])
+
     else
         app_exe = preferences["bundler"] == "juliaimg" ? "julia" : preferences["app_exe"]
 
-        get!(get!(Dict{String,Any}, preferences, "snap"), "command", ["bin/$app_exe"])
-        get!(get!(Dict{String,Any}, preferences, "appimage"), "command", ["bin/$app_exe"])
-        get!(get!(Dict{String,Any}, preferences, "dmg"), "command", ["Libraries/bin/$app_exe"])
-        get!(get!(Dict{String,Any}, preferences, "msix"), "command", ["bin\\$app_exe.exe"])
+        set_default!(preferences, "snap.command", ["bin/$app_exe"])
+        set_default!(preferences, "appimage.command", ["bin/$app_exe"])
+        set_default!(preferences, "dmg.command", ["Libraries/bin/$app_exe"])
+        set_default!(preferences, "msix.command", ["bin\\$app_exe.exe"])
     end
 
     return
 end
 
-function get_preferences_schema()
+function load_preferences(project; defines = Pair{String, Any}[], schema = LOCAL_PREFERENCES_SCHEMA)
 
-    preferences = TOML.parse(String(read(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml"))))["AppBundler"]
+    #preferences = deepcopy(Resources.get_project_preferences(project))
+    preferences = deepcopy(PrefTools.get_project_preferences(project))
+    PrefTools.validate(preferences["AppBundler"], schema)
 
-    preferences["app_name"] = "myapp"
-    preferences["bundler"] = "juliac"
-    preferences["build_number"] = 1
-    preferences["version"] = "0.0.1"
-    
-    merge_dynamic_defaults!(preferences, "")
+    overrides = ArgTools.coerce(defines, schema)
 
-    return preferences
-end
-
-function get_extended_preferences(project; preference_overrides = Dict())
-
-    preferences = deepcopy(Resources.get_project_preferences(project))
-
-    custom_merge(a::Dict, b::Dict) = merge(a, b)
-    custom_merge(a::T, b::T) where T = b
-    custom_merge(a, b) = error("Incompatable types")
-    mergewith!(custom_merge, preferences["AppBundler"], preference_overrides)
-
-    merge_dynamic_defaults!(preferences["AppBundler"], project)
+    PrefTools.apply_overrides!(preferences["AppBundler"], overrides)
+    apply_defaults!(preferences["AppBundler"], project)
 
     return preferences
 end
 
-get_project_preferences(project) = get_extended_preferences(project)["AppBundler"]
+preferences_status(project; schema = LOCAL_PREFERENCES_SCHEMA, defines = Pair{String,Any}[]) = PrefTools.preferences_status(project, schema; infer! = x -> apply_defaults!(x, project), defines)
