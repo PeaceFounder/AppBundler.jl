@@ -43,40 +43,40 @@ function generate_windows_signing_certificate(destination; person_name = "AppBun
     return password
 end
 
-# instantiation of self signed keys could be done at a seperate command!
-function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force = false)
+# # instantiation of self signed keys could be done at a seperate command!
+# function install_github_workflow(; root = dirname(Base.ACTIVE_PROJECT[]), force = false)
 
-    preferences = load_preferences(root)["AppBundler"]
-    parameters = get_bundle_parameters(preferences)
+#     preferences = load_preferences(root)["AppBundler"]
+#     parameters = get_bundle_parameters(preferences)
 
-    mkpath(joinpath(root, ".github/workflows"))
+#     mkpath(joinpath(root, ".github/workflows"))
 
-    cp(joinpath(dirname(@__DIR__), "recipes/workflows/GitHub.yml"), joinpath(root, ".github/workflows/Release.yml"); force)
+#     cp(joinpath(dirname(@__DIR__), "recipes/workflows/GitHub.yml"), joinpath(root, ".github/workflows/Release.yml"); force)
 
-    if Sys.isunix() # chmod on windows can segfault
-        chmod(joinpath(root, ".github/workflows/Release.yml"), 0o666)
-    end
+#     if Sys.isunix() # chmod on windows can segfault
+#         chmod(joinpath(root, ".github/workflows/Release.yml"), 0o666)
+#     end
 
-    println("""
-    Setup done. You may now commit the workflow to the repo that will automatically build artifiacts and attach for new GitHub releases. You can also test builds before releasing. See documentation for more.
+#     println("""
+#     Setup done. You may now commit the workflow to the repo that will automatically build artifiacts and attach for new GitHub releases. You can also test builds before releasing. See documentation for more.
 
-    You may now want to add signing certificates for macos and windows builds at `meta/dmg/certificate.pfx` and `meta/msix/certificate.pfx` accordingly. You can generate self signing certificates runing `generate_signing_certiifcates()`
+#     You may now want to add signing certificates for macos and windows builds at `meta/dmg/certificate.pfx` and `meta/msix/certificate.pfx` accordingly. You can generate self signing certificates runing `generate_signing_certiifcates()`
 
-    To test the workflow locally run meta/build.jl. See extra options to customize your build there. 
-    """)
+#     To test the workflow locally run meta/build.jl. See extra options to customize your build there. 
+#     """)
 
-    return
-end
+#     return
+# end
 
-# Need to specify password
-# Also deriving from active project does not work unless that is a meta
-function generate_signing_certificates(; root = dirname(Base.ACTIVE_PROJECT[]), person_name = "AppBundler", country = "XX", validity_days = 365, force = false)
+# # Need to specify password
+# # Also deriving from active project does not work unless that is a meta
+# function generate_signing_certificates(; root = dirname(Base.ACTIVE_PROJECT[]), person_name = "AppBundler", country = "XX", validity_days = 365, force = false)
     
-    password_macos = generate_macos_signing_certificate(joinpath(root, "meta/dmg/certificate.pfx"); person_name, country, validity_days, force)
-    password_windows = generate_windows_signing_certificate(joinpath(root, "meta/msix/certificate.pfx"); person_name, country, validity_days, force)
+#     password_macos = generate_macos_signing_certificate(joinpath(root, "meta/dmg/certificate.pfx"); person_name, country, validity_days, force)
+#     password_windows = generate_windows_signing_certificate(joinpath(root, "meta/msix/certificate.pfx"); person_name, country, validity_days, force)
 
-    return (; password_macos, password_windows)
-end
+#     return (; password_macos, password_windows)
+# end
 
 function is_windows_compatible(filename::String; path_length_threshold)
     # Check for invalid characters
