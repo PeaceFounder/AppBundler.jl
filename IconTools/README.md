@@ -39,18 +39,11 @@ end
 | `toicon(img, side; background)` | A single square icon of `side`×`side` pixels | Any |
 | `totile(img, width, height; scale, background)` | The icon centred on a `width`×`height` canvas | Any |
 | `toicns(img; toc)` | The bytes of an `.icns` file with all standard macOS icon sizes; write them with `write(path, ...)` | macOS |
-| `tomsix(img; altforms, splash_background, store_background)` | `filename => image` pairs for all MSIX logo and tile assets | Windows |
+| `tomsix(img; altforms, splash_icon_plate, store_icon_plate)` | `filename => image` pairs for all MSIX logo and tile assets | Windows |
 
 Each generator renders every size it needs from the source independently. With an SVG source, that means a fresh rasterization per size rather than downscaling one large bitmap.
 
-Both platform generators return values rather than writing files, so the output can go to disk, into an archive or into a build step. `toicns` returns the encoded file as `Vector{UInt8}`. `tomsix` returns `filename => image` pairs, so individual assets can be replaced before saving:
-
-```julia
-assets = IconTools.tomsix(img; altforms = false, splash_background = RGBA(1, 1, 1, 1))
-assets = filter(((file, _),) -> !startswith(file, "SplashScreen"), assets)  # drop the splash screens
-```
-
-Assets with identical pixel sizes share one matrix, so `copy` an image before modifying it in place.
+Both platform generators return values rather than writing files, so the output can go to disk, into an archive or into a build step. `toicns` returns the encoded file as `Vector{UInt8}`. `tomsix` returns `filename => image` pairs.
 
 ### Single icons and tiles
 
