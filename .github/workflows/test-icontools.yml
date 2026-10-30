@@ -1,0 +1,34 @@
+name: Tests (IconTools)
+
+on:
+  push:
+    branches: [main]
+    tags: ['*']
+  pull_request:
+    paths:
+      - 'IconTools/**'
+      - '.github/workflows/test-icontools.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.13'
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+        with:
+          project: IconTools
+      - uses: julia-actions/julia-runtest@v1
+        with:
+          project: IconTools
+      - uses: julia-actions/julia-processcoverage@v1
+        with:
+          directories: IconTools/src
+      - uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          flags: IconTools
