@@ -5,7 +5,7 @@
 # handling), loaded through FileIO (registration), rasterized with imresize
 # at exact and non-uniform sizes (checking colour and alpha at known
 # positions), and composited onto a canvas that is saved to
-# test/output/svg.png.
+# test/build/svg.png.
 
 using Test
 using ColorTypes
@@ -121,7 +121,7 @@ near(a, b; tol = 2 / 255) = abs(Float64(a) - Float64(b)) <= tol
         # disc corner (transparent) leaves cream
         @test canvas[165, 245] == cream
 
-        outdir = joinpath(@__DIR__, "output")
+        outdir = joinpath(@__DIR__, "build")
         mkpath(outdir)
         outpath = joinpath(outdir, "svg.png")
         save(outpath, canvas)

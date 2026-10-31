@@ -51,7 +51,7 @@ For a single bitmap, for example a Linux desktop icon or a favicon, use `toicon`
 
 ```julia
 icon = IconTools.toicon(img, 256)   # 256×256, transparency preserved
-IconTools.save("icon-256.png", icon)
+IconTools.save("build/icon-256.png", icon)
 
 # flatten onto a solid background
 icon = IconTools.toicon(img, 256; background = RGBA(1, 1, 1, 1))

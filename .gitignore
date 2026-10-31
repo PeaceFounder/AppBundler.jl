@@ -2,4 +2,4 @@
 **/build
 Manifest.toml
 /deps/build.log
-/IconTools/test/output
+/IconTools/test/build

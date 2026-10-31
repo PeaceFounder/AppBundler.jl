@@ -16,3 +16,7 @@ end
     include("msixicons.jl")
 end
 
+@time @safetestset "README" begin
+    include("readme.jl")
+end
+

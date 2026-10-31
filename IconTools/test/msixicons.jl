@@ -1,6 +1,6 @@
 using IconTools
 
-outdir = joinpath(@__DIR__, "output")
+outdir = joinpath(@__DIR__, "build")
 
 source = joinpath(@__DIR__, "icon.png")
 destination = joinpath(outdir, "icon-png")

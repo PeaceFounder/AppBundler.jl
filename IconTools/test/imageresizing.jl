@@ -5,7 +5,7 @@
 # stacking order, clipping at all four canvas edges (including negative
 # offsets), bilinear upsampling (a smooth gradient bar from a 1×2 image),
 # and area downsampling (a checkerboard patch). The result is saved to
-# test/output/boxes.png so it can be eyeballed as well as asserted on.
+# test/build/boxes.png so it can be eyeballed as well as asserted on.
 #
 # Test deps: Test, FileIO, ImageIO (PNG backend for FileIO.save), ColorTypes.
 
@@ -121,7 +121,7 @@ close(a::AbstractRGB, b::AbstractRGB; tol = 2 / 255) =
     @test canvas[62, 62] != RGB{N0f8}(patch[75, 75]) || canvas[62, 62] == cream  # first cream pixel past the patch
 
     # --- save ------------------------------------------------------------
-    outdir = joinpath(@__DIR__, "output")
+    outdir = joinpath(@__DIR__, "build")
     mkpath(outdir)
     outpath = joinpath(outdir, "boxes.png")
     save(outpath, canvas)
