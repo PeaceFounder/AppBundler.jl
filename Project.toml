@@ -43,6 +43,7 @@ IconTools = {path = "IconTools"}
 
 [compat]
 AppBundlerUtils_jll = "=0.4.0"
+IconTools = "0.1.0"
 AppEnv = "0.2.1"
 Base64 = "1.11.0"
 CodecZlib = "0.7.8"
