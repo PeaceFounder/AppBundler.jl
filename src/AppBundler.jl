@@ -1,4 +1,3 @@
-
 module AppBundler
 
 using Scratch
@@ -23,19 +22,19 @@ abstract type BuildSpec end
 
 function stage end
 
-include("DMG/DSStore.jl")
-include("DMG/HFSTools.jl")
-include("DMG/HFSImg.jl")
-include("DMG/DMGPack.jl")
+# include("DMG/DSStore.jl")
+# include("DMG/HFSTools.jl")
+# include("DMG/HFSImg.jl")
+# include("DMG/DMGPack.jl")
 
 include("Snap/SnapPack.jl")
 
 include("AppImage/AppImageRuntime.jl")
 include("AppImage/AppImagePack.jl")
 
-include("MSIX/MSIXPack.jl")
-include("MSIX/WinSubsystem.jl")
-include("MSIX/MSIX2EXEPack.jl")
+# include("MSIX/MSIXPack.jl")
+# include("MSIX/WinSubsystem.jl")
+# include("MSIX/MSIX2EXEPack.jl")
 
 # JuliaC needs assets and pkgorigins_index which is shared between JuliaImg and JuliaC
 include("bundlers/Resources.jl") 
@@ -66,7 +65,7 @@ function __init__()
         global DOWNLOAD_CACHE = get_scratch!(@__MODULE__, "AppBundler")
     end
 
-    DSStore.__init__()
+    #DSStore.__init__()
 
 end
 

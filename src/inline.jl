@@ -1,22 +1,32 @@
+function asset(target)
+    return () -> joinpath(DEFAULT_DIR, target)
+end
+
+
+#target -> () -> joinpath(DEFAULT_DIR, target)
+
+
 const BINARY_TARGETS = Dict(
     # meta/icon.svg is not listed: there is no default SVG to inline
-    "meta/icon.png"           => "icon.png",
-    "meta/msix/resources.pri" => "msix/resources.pri",
+    "meta/icon.png"           => () -> joinpath(pkgdir(IconTools), "assets/icon.png"),
+    #"meta/msix/resources.pri" => "msix/resources.pri",
+    "meta/msix/resources.pri" => () -> joinpath(pkgdir(MsixPack), "assets/resources.pri"),
 )
 
+# Theese are simply defaults listed
 const TEMPLATE_TARGETS = Dict(
-    ".gitlab-ci.yml"                     => "workflows/GitLab.yml",
-    ".github/workflows/Release.yml"      => "workflows/GitHub.yml",
-    "meta/startup.jl"                    => "startup.jl",
-    "meta/msix/AppxManifest.xml"         => "msix/AppxManifest.xml",
-    "meta/msix/MSIXAppInstallerData.xml" => "msix/MSIXAppInstallerData.xml",
-    "meta/dmg/Info.plist"                => "dmg/Info.plist",
-    "meta/dmg/Entitlements.plist"        => "dmg/Entitlements.plist",
-    "meta/dmg/DS_Store.toml"             => "dmg/DS_Store.toml",
-    "meta/snap/snap.yaml"                => "snap/snap.yaml",
-    "meta/snap/main.desktop"             => "snap/main.desktop",
+    ".gitlab-ci.yml"                     => "workflows/GitLab.yml" |> asset,
+    ".github/workflows/Release.yml"      => "workflows/GitHub.yml" |> asset,
+    "meta/startup.jl"                    => "startup.jl" |> asset,
+    "meta/msix/AppxManifest.xml"         => "msix/AppxManifest.xml" |> asset,
+    "meta/msix/MSIXAppInstallerData.xml" => "msix/MSIXAppInstallerData.xml" |> asset,
+    "meta/dmg/Info.plist"                => "dmg/Info.plist" |> asset,
+    "meta/dmg/Entitlements.plist"        => "dmg/Entitlements.plist" |> asset,
+    "meta/dmg/DS_Store.toml"             => "dmg/DS_Store.toml" |> asset,
+    "meta/snap/snap.yaml"                => "snap/snap.yaml" |> asset,
+    "meta/snap/main.desktop"             => "snap/main.desktop" |> asset,
     # meta/snap/configure.sh is not listed; there is no default to inline
-    "meta/appimage/AppRun.sh"            => "appimage/AppRun.sh",
+    "meta/appimage/AppRun.sh"            => "appimage/AppRun.sh" |> asset,
 )
 
 # Each generator is called as f(project_dir, destination, preferences)
@@ -32,7 +42,7 @@ const GENERATED_TARGETS = Dict{String,Function}(
     end,
 
     "meta/msix/certificate.pfx" => (_, destination, preferences) ->
-        generate_windows_signing_certificate(destination; publisher = preferences["msix"]["publisher"]),
+        MsixPack.generate_signer(; path = destination, publisher = preferences["msix"]["publisher"]),
 
     "meta/dmg/icon.icns" => function (project_dir, destination, preferences)
         dmg = DMG(project_dir; preferences)
@@ -41,11 +51,13 @@ const GENERATED_TARGETS = Dict{String,Function}(
 
     "meta/dmg/DS_Store" => function (project_dir, destination, preferences)
         dmg = DMG(project_dir; preferences)
-        install_dsstore(dmg.dsstore, destination; dmg.parameters);
+        layout = stage_layout(dmg; full_layout = true)
+        DmgPack.materialize_dsstore(layout.dsstore, destination)
+        #install_dsstore(dmg.dsstore, destination; dmg.parameters); 
     end,
 
     "meta/dmg/certificate.pfx" => (_, destination, _) ->
-        generate_macos_signing_certificate(destination),
+        DmgPack.generate_signer(; path = destination),
 
     "meta/snap/icon.png" => function (project_dir, destination, preferences)
         snap = Snap(project_dir; preferences)
@@ -90,10 +102,12 @@ function inline(project_dir, target; force = false, render = false, defines = []
     mkpath(dirname(destination))
 
     if haskey(BINARY_TARGETS, target)
-        cp(joinpath(DEFAULT_DIR, BINARY_TARGETS[target]), destination)
+        #cp(joinpath(DEFAULT_DIR, BINARY_TARGETS[target]), destination)
+        cp(BINARY_TARGETS[target](), destination)
 
     elseif haskey(TEMPLATE_TARGETS, target)
-        source = joinpath(DEFAULT_DIR, TEMPLATE_TARGETS[target])
+        #source = joinpath(DEFAULT_DIR, TEMPLATE_TARGETS[target])
+        source = TEMPLATE_TARGETS[target]()
         if render
             parameters = get_template_parameters(project_dir, target; defines)
 

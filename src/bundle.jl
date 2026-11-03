@@ -1,8 +1,16 @@
-import Pkg, Artifacts
-using Pkg.BinaryPlatforms: MacOS
-using AppBundlerUtils_jll
+#import Pkg, Artifacts
+#using Pkg.BinaryPlatforms: MacOS
+#using AppBundlerUtils_jll
 import Mustache
 import IconTools
+import DmgPack
+import MsixPack
+
+function render_template(source, parameters)
+    template = Mustache.load(source)
+    return Mustache.render(template, parameters)
+end
+
 
 """
     Verbatim(path)
@@ -103,40 +111,76 @@ struct MSIX
     parameters::Dict{String, Any}
 end
 
-"""
-    xml_escape_args(args) -> String
 
-Turn an argument list (or a `Cmd`, whose first element is dropped as the executable)
-into a string suitable for an AppxManifest `Parameters="..."` attribute: arguments are
-quoted following Windows argv rules and then escaped for an XML attribute.
-"""
-function xml_escape_args(args::AbstractVector{<:AbstractString})
-    isempty(args) && return ""
-    cmdline = Base.escape_microsoft_c_args(args...)   # Windows argv quoting
-    return xml_escape_attr(cmdline)                   # XML attribute escaping
+function stage_layout(msix::MSIX)
+
+    manifest = render_template(msix.appxmanifest, msix.parameters)
+    assets = msix.icon isa Verbatim ? msix.icon.path : MSIXPack.IconSource(msix.icon, msix.store_icon_plate)
+    resources_pri = msix.resources_pri.path
+    installer_data = render_template(msix.msixinstallerdata, msix.parameters)
+
+    return MsixPack.MSIXLayout(
+        manifest, assets, resources_pri, installer_data
+    )
 end
 
-xml_escape_args(cmd::Cmd) = xml_escape_args(cmd[2:end])
+function stage(msix, destination)
 
-function xml_escape_attr(s::AbstractString)
-    io = IOBuffer()
-    for c in s
-        if     c == '&'  print(io, "&amp;")
-        elseif c == '<'  print(io, "&lt;")
-        elseif c == '>'  print(io, "&gt;")
-        elseif c == '"'  print(io, "&quot;")
-        elseif c == '\'' print(io, "&apos;")
-        elseif c == '\t' print(io, "&#9;")    # otherwise normalized to a space
-        elseif c == '\n' print(io, "&#10;")
-        elseif c == '\r' print(io, "&#13;")
-        elseif c < ' '
-            throw(ArgumentError("control character $(repr(c)) cannot appear in XML 1.0"))
-        else
-            print(io, c)
-        end
+    layout = stage_layout(msix)
+    MsixPack.stage(layout, destination)
+
+    return
+end
+
+
+
+
+
+# """
+#     xml_escape_args(args) -> String
+
+# Turn an argument list (or a `Cmd`, whose first element is dropped as the executable)
+# into a string suitable for an AppxManifest `Parameters="..."` attribute: arguments are
+# quoted following Windows argv rules and then escaped for an XML attribute.
+# """
+# function xml_escape_args(args::AbstractVector{<:AbstractString})
+#     isempty(args) && return ""
+#     cmdline = Base.escape_microsoft_c_args(args...)   # Windows argv quoting
+#     return xml_escape_attr(cmdline)                   # XML attribute escaping
+# end
+
+# xml_escape_args(cmd::Cmd) = xml_escape_args(cmd[2:end])
+
+# function xml_escape_attr(s::AbstractString)
+#     io = IOBuffer()
+#     for c in s
+#         if     c == '&'  print(io, "&amp;")
+#         elseif c == '<'  print(io, "&lt;")
+#         elseif c == '>'  print(io, "&gt;")
+#         elseif c == '"'  print(io, "&quot;")
+#         elseif c == '\'' print(io, "&apos;")
+#         elseif c == '\t' print(io, "&#9;")    # otherwise normalized to a space
+#         elseif c == '\n' print(io, "&#10;")
+#         elseif c == '\r' print(io, "&#13;")
+#         elseif c < ' '
+#             throw(ArgumentError("control character $(repr(c)) cannot appear in XML 1.0"))
+#         else
+#             print(io, c)
+#         end
+#     end
+#     return String(take!(io))
+# end
+
+function get_resources_pri(prefix, target)
+
+    path = get_path(prefix, "msix/resources.pri"; warn = false)
+    if !isnothing(path)
+        return path
+    else
+        return joinpath(pkgdir(MsixPack), "assets/resources.pri")
     end
-    return String(take!(io))
 end
+
 
 function MSIX(;
               prefix = joinpath(dirname(@__DIR__), "recipes"),
@@ -145,20 +189,21 @@ function MSIX(;
               store_icon_plate = ArgTools.coerce(ColorString(), preferences["msix"]["store_icon_plate"]), # need to reconsider ArgTools
               appxmanifest = get_path(prefix, "msix/AppxManifest.xml"),
               command = Cmd(preferences["msix"]["command"]),
-              resources_pri = get_path(prefix, "msix/resources.pri") |> Verbatim,
+              #resources_pri = get_path(prefix, "msix/resources.pri") |> Verbatim,
+              resources_pri = get_resources_pri(prefix, "msix/resources.pri") |> Verbatim,
               msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml"),
               path_length_threshold = preferences["msix"]["path_length_threshold"],
               skip_long_paths = preferences["msix"]["skip_long_paths"],
               skip_symlinks = preferences["msix"]["skip_symlinks"],
               skip_unicode_paths = preferences["msix"]["skip_unicode_paths"],
               selfsign = preferences["selfsign"],              
-              publisher = preferences["msix"]["publisher"] |> normalize_publisher, 
+              publisher = preferences["msix"]["publisher"], # |> normalize_publisher, 
               pfx_cert = preferences["skipsign"] ? nothing : get_path(prefix, "msix/certificate.pfx"; warn=false), # We actually want the warning
               windowed = preferences["windowed"],
               compress = preferences["compress"],
               arch = Sys.ARCH,
               predicate = preferences["bundler"],
-              parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher, "COMMAND_EXE" => first(command), "COMMAND_ARGS" => xml_escape_args(command))
+              parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher, "COMMAND_EXE" => first(command), "COMMAND_ARGS" => DmgPack.xml_escape_args(command))
               )
     
     return MSIX(icon, store_icon_plate, appxmanifest, command, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, selfsign, publisher, pfx_cert, windowed, compress, arch, predicate, parameters)
@@ -174,97 +219,105 @@ function MSIX(project; preferences = load_preferences(project)["AppBundler"], kw
     return msix
 end
 
-normalize_publisher(p) = join(strip.(split(p, ",")), ", ")
 
-"""
-    MSIX2EXE([project]; prefix, preferences, bootstrap, windowed, sfx_stub, title)
 
-Create an MSIX-to-EXE configuration object for creating self-extracting Windows installers from MSIX packages.
 
-The resulting installer is a 7-Zip-based self-extracting executable. When launched, the executable extracts the MSIX package and the configured PowerShell bootstrap script to a temporary directory and then executes the bootstrap script with the extracted MSIX package as its argument.
 
-This is useful for distributing self-signed MSIX packages, since the bootstrap script can extract the package's signing certificate and install it into the system's trusted root store before launching the MSIX installer.
 
-When `project` is provided, configuration files (such as `msix/bootstrap.ps1`) are searched in `project`, then `project/meta`, then the built-in recipes directory, and packaging defaults are read from `project/LocalPreferences.toml`. Without `project`, only the built-in recipes and the active project's `LocalPreferences.toml` are used.
 
-# Arguments
-- `project`: Path to a project directory containing optional `LocalPreferences.toml` and optional `meta/msix/` overrides
 
-# Keyword Arguments
-- `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
-- `preferences`: Dictionary of packaging preferences used for the defaults below; read from `project` when given, otherwise from the active project
-- `bootstrap = get_path(prefix, "msix/bootstrap.ps1")`: Path to the bootstrap script which is embedded in the self-extracting installer. The script is invoked with the extracted MSIX package as its first argument
-- `windowed`: If `true`, run the bootstrap process without displaying a console window and launch the graphical MSIX installer; defaults to `msix.bootstrapper_windowed` preference
-- `sfx_stub = get(preferences, "msix2exe_sfx_stub", MSIX2EXEPack.extract_stub())`: Path to the 7-Zip self-extracting executable stub used to construct the installer
-- `title = "Installer"`: Title displayed by the self-extracting installer
 
-# Bootstrap Script
+# normalize_publisher(p) = join(strip.(split(p, ",")), ", ")
 
-The bootstrap script is invoked after the embedded files have been extracted, with the MSIX package path supplied as its first argument. For example:
+# """
+#     MSIX2EXE([project]; prefix, preferences, bootstrap, windowed, sfx_stub, title)
 
-```powershell
-powershell.exe bootstrap.ps1 msix_archive.msix
-```
-"""
-struct MSIX2EXE
-    bootstrap::String
-    windowed::Bool
-    sfx_stub::String # Can be configured via preferences
-    title::String
-end
+# Create an MSIX-to-EXE configuration object for creating self-extracting Windows installers from MSIX packages.
 
-function MSIX2EXE(;
-    prefix = joinpath(dirname(@__DIR__), "recipes"),
-    preferences = preferences(),
-    bootstrap = get_path(prefix, "msix/bootstrap.ps1"),
-    windowed = preferences["msix"]["bootstrapper_windowed"],
-    sfx_stub = get(preferences, "msix2exe_sfx_stub", MSIX2EXEPack.extract_stub()),
-    title = "Installer" # Could be set from app_name from preferences
-    )
+# The resulting installer is a 7-Zip-based self-extracting executable. When launched, the executable extracts the MSIX package and the configured PowerShell bootstrap script to a temporary directory and then executes the bootstrap script with the extracted MSIX package as its argument.
+
+# This is useful for distributing self-signed MSIX packages, since the bootstrap script can extract the package's signing certificate and install it into the system's trusted root store before launching the MSIX installer.
+
+# When `project` is provided, configuration files (such as `msix/bootstrap.ps1`) are searched in `project`, then `project/meta`, then the built-in recipes directory, and packaging defaults are read from `project/LocalPreferences.toml`. Without `project`, only the built-in recipes and the active project's `LocalPreferences.toml` are used.
+
+# # Arguments
+# - `project`: Path to a project directory containing optional `LocalPreferences.toml` and optional `meta/msix/` overrides
+
+# # Keyword Arguments
+# - `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
+# - `preferences`: Dictionary of packaging preferences used for the defaults below; read from `project` when given, otherwise from the active project
+# - `bootstrap = get_path(prefix, "msix/bootstrap.ps1")`: Path to the bootstrap script which is embedded in the self-extracting installer. The script is invoked with the extracted MSIX package as its first argument
+# - `windowed`: If `true`, run the bootstrap process without displaying a console window and launch the graphical MSIX installer; defaults to `msix.bootstrapper_windowed` preference
+# - `sfx_stub = get(preferences, "msix2exe_sfx_stub", MSIX2EXEPack.extract_stub())`: Path to the 7-Zip self-extracting executable stub used to construct the installer
+# - `title = "Installer"`: Title displayed by the self-extracting installer
+
+# # Bootstrap Script
+
+# The bootstrap script is invoked after the embedded files have been extracted, with the MSIX package path supplied as its first argument. For example:
+
+# ```powershell
+# powershell.exe bootstrap.ps1 msix_archive.msix
+# ```
+# """
+# struct MSIX2EXE
+#     bootstrap::String
+#     windowed::Bool
+#     sfx_stub::String # Can be configured via preferences
+#     title::String
+# end
+
+# function MSIX2EXE(;
+#     prefix = joinpath(dirname(@__DIR__), "recipes"),
+#     preferences = preferences(),
+#     bootstrap = get_path(prefix, "msix/bootstrap.ps1"),
+#     windowed = preferences["msix"]["bootstrapper_windowed"],
+#     sfx_stub = get(preferences, "msix2exe_sfx_stub", MSIX2EXEPack.extract_stub()),
+#     title = "Installer" # Could be set from app_name from preferences
+#     )
     
-    return MSIX2EXE(bootstrap, windowed, sfx_stub, title)
-end
+#     return MSIX2EXE(bootstrap, windowed, sfx_stub, title)
+# end
 
-function MSIX2EXE(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
+# function MSIX2EXE(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
 
-    prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
-    spec = MSIX2EXE(; prefix, preferences, kwargs...)
+#     prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+#     spec = MSIX2EXE(; prefix, preferences, kwargs...)
 
-    return spec
-end
+#     return spec
+# end
 
-"""
-    repack(msix_archive, msix2exe, destination; force=false)
+# """
+#     repack(msix_archive, msix2exe, destination; force=false)
 
-Repackage an existing MSIX archive as a self-extracting EXE installer.
+# Repackage an existing MSIX archive as a self-extracting EXE installer.
 
-The MSIX archive and the PowerShell bootstrap script configured by `msix2exe::MSIX2EXE` are embedded into a 7-Zip self-extracting executable. When the resulting executable is launched, it extracts its contents to a temporary directory and runs the bootstrap script with the extracted MSIX archive as its argument.
+# The MSIX archive and the PowerShell bootstrap script configured by `msix2exe::MSIX2EXE` are embedded into a 7-Zip self-extracting executable. When the resulting executable is launched, it extracts its contents to a temporary directory and runs the bootstrap script with the extracted MSIX archive as its argument.
 
-# Arguments
-- `msix_archive::String`: Path to the existing MSIX package to embed in the installer
-- `msix2exe::MSIX2EXE`: configuration object describing the bootstrap script,
-  SFX stub, window mode, and installer title
-- `destination::String`: Path of the output self-extracting EXE
+# # Arguments
+# - `msix_archive::String`: Path to the existing MSIX package to embed in the installer
+# - `msix2exe::MSIX2EXE`: configuration object describing the bootstrap script,
+#   SFX stub, window mode, and installer title
+# - `destination::String`: Path of the output self-extracting EXE
 
-# Keyword Arguments
-- `force = false`: If `true`, remove an existing file at `destination` before creating the installer
+# # Keyword Arguments
+# - `force = false`: If `true`, remove an existing file at `destination` before creating the installer
 
-# Examples
-```julia
-spec = MSIX2EXE(project)
-repack("MyApplication.msix", spec, "MyApplication.exe"; force = true)
-```
-"""
-function repack(msix_archive::String, msix2exe::MSIX2EXE, destination::String; force = false)
+# # Examples
+# ```julia
+# spec = MSIX2EXE(project)
+# repack("MyApplication.msix", spec, "MyApplication.exe"; force = true)
+# ```
+# """
+# function repack(msix_archive::String, msix2exe::MSIX2EXE, destination::String; force = false)
 
-    if force
-        rm(destination; force=true)
-    end
+#     if force
+#         rm(destination; force=true)
+#     end
     
-    MSIX2EXEPack.pack(msix_archive, msix2exe.bootstrap, destination; title = msix2exe.title, console = !msix2exe.windowed)
+#     MSIX2EXEPack.pack(msix_archive, msix2exe.bootstrap, destination; title = msix2exe.title, console = !msix2exe.windowed)
 
-    return
-end
+#     return
+# end
 
 
 const SNAP_COMMAND_RE = r"^[A-Za-z0-9/. _#:$-]*$"
@@ -422,7 +475,8 @@ struct DMG
     hardened_runtime::Bool
     sandboxed_runtime::Bool
     main_launcher::Union{String, Nothing}
-    backend::DMGPack.ImageBackend
+    #backend::DMGPack.ImageBackend
+    backend::DmgPack.ImageBackend
     windowed::Bool
     compress::Bool
     compression::Symbol
@@ -432,13 +486,61 @@ struct DMG
 end
 
 
+function get_bundle_name(dmg::DMG)
+    appname = dmg.parameters["APP_DISPLAY_NAME"]
+    return "$appname.app"
+end
+
+
+function stage_layout(dmg::DMG; full_layout = false, bundle_name = get_bundle_name(dmg))
+
+    info_plist = render_template(dmg.info_config, dmg.parameters)
+    icon = dmg.icon isa Verbatim ? dmg.icon.path : DmgPack.IconSource(dmg.icon)
+    launcher = DmgPack.launcher_stub(dmg.arch)
+    
+    if full_layout
+        if dmg.dsstore isa Verbatim 
+            dsstore = dmg.dsstore.path 
+        else
+            dsstore_toml = render_template(dmg.dsstore, dmg.parameters)
+            dsstore = TOML.parse(dsstore_toml)
+        end
+        applications_link = true
+    else
+        dsstore = nothing
+        applications_link = false
+    end
+
+    return DmgPack.DMGLayout(bundle_name, info_plist, icon, launcher, dsstore, applications_link)
+end
+
+
+function stage(dmg::DMG, destination; full_layout = false, bundle_name = get_bundle_name(dmg))
+
+    layout = stage_layout(dmg; full_layout, bundle_name)
+    DmgPack.stage(layout, destination)
+
+    return
+end
+
+
+# function stage_app(dmg::DMG, destination)
+    
+#     bundle_name = basename(destination)
+#     layout = stage_layout(dmg; full_layout = false, bundle_name)
+#     DmgPack.stage(layout, dirname(destination))
+
+#     return
+# end
+
+
 function dmg_backend(preferences)
 
     backend = preferences["dmg"]["backend"]
     if backend == "xorriso"
-        return DMGPack.XorrisoBackend(; hfsplus = preferences["dmg"]["xorriso"]["hfsplus"])
+        return DmgPack.XorrisoBackend(; hfsplus = preferences["dmg"]["xorriso"]["hfsplus"])
     elseif backend == "hfsplus"
-        return DMGPack.HFSPlusBackend(; free_space = preferences["dmg"]["hfsplus"]["free_space"])
+        return DmgPack.HFSPlusBackend(; free_space = preferences["dmg"]["hfsplus"]["free_space"])
     else
         error("Unrecognized backend $backend. Allowed values xorriso|hfsplus")
     end
@@ -482,156 +584,157 @@ function DMG(project; preferences = load_preferences(project)["AppBundler"], kwa
 end
 
 
-"""
-    stage(config, destination::String; [dsstore=false])
+
+# """
+#     stage(config, destination::String; [dsstore=false])
  
-Stage package metadata and directory structure into `destination` in preparation for bundling.
+# Stage package metadata and directory structure into `destination` in preparation for bundling.
  
-`config` is a format-specific configuration object — [`MSIX`](@ref), [`DMG`](@ref),
-[`Snap`](@ref), or [`AppImage`](@ref) — that carries the template files, parameters, and
-settings for the target platform. Mustache-rendered templates are written using the parameters
-stored in `config`. Assets wrapped in [`Verbatim`](@ref) are copied as-is; other assets are
-converted or rendered.
+# `config` is a format-specific configuration object — [`MSIX`](@ref), [`DMG`](@ref),
+# [`Snap`](@ref), or [`AppImage`](@ref) — that carries the template files, parameters, and
+# settings for the target platform. Mustache-rendered templates are written using the parameters
+# stored in `config`. Assets wrapped in [`Verbatim`](@ref) are copied as-is; other assets are
+# converted or rendered.
  
-`stage` is called automatically by [`bundle`](@ref), but can be used directly when you need
-to inspect or modify the staging directory before compression and signing. The `dsstore`
-keyword is accepted only for `DMG`.
+# `stage` is called automatically by [`bundle`](@ref), but can be used directly when you need
+# to inspect or modify the staging directory before compression and signing. The `dsstore`
+# keyword is accepted only for `DMG`.
  
-## Staged layout by format
+# ## Staged layout by format
  
-**MSIX**
-- `Assets/` — application icons (generated from an icon source, or copied verbatim from a ready-made `msix/Assets` directory)
-- `AppxManifest.xml` — rendered package manifest
-- `resources.pri` — package resource index, copied verbatim
-- `Msix.AppInstaller.Data/MSIXAppInstallerData.xml` — rendered installer configuration
+# **MSIX**
+# - `Assets/` — application icons (generated from an icon source, or copied verbatim from a ready-made `msix/Assets` directory)
+# - `AppxManifest.xml` — rendered package manifest
+# - `resources.pri` — package resource index, copied verbatim
+# - `Msix.AppInstaller.Data/MSIXAppInstallerData.xml` — rendered installer configuration
  
-**DMG**
-- `Contents/Resources/icon.icns` — application icon
-- `Contents/Info.plist` — rendered application metadata
-- `Contents/MacOS/<APP_EXE>` and `Contents/Libraries/main` (optional) — native launcher and the
-  rendered launcher script it runs, when `main_launcher` is set
+# **DMG**
+# - `Contents/Resources/icon.icns` — application icon
+# - `Contents/Info.plist` — rendered application metadata
+# - `Contents/MacOS/<APP_EXE>` and `Contents/Libraries/main` (optional) — native launcher and the
+#   rendered launcher script it runs, when `main_launcher` is set
  
-  When `dsstore = true`, also writes into the *parent* of `destination`:
-  - `Applications` — symlink to `/Applications` for drag-and-drop installation
-  - `.DS_Store` — custom Finder window appearance (rendered from TOML or copied verbatim)
+#   When `dsstore = true`, also writes into the *parent* of `destination`:
+#   - `Applications` — symlink to `/Applications` for drag-and-drop installation
+#   - `.DS_Store` — custom Finder window appearance (rendered from TOML or copied verbatim)
  
-**Snap**
-- `meta/icon.png` — application icon
-- `meta/snap.yaml` — rendered Snap package metadata
-- `meta/gui/<APP_EXE>.desktop` — rendered desktop launcher
-- `meta/hooks/configure` (optional) — configuration hook when `configure_hook` is set
+# **Snap**
+# - `meta/icon.png` — application icon
+# - `meta/snap.yaml` — rendered Snap package metadata
+# - `meta/gui/<APP_EXE>.desktop` — rendered desktop launcher
+# - `meta/hooks/configure` (optional) — configuration hook when `configure_hook` is set
  
-**AppImage**
-- `AppRun` — rendered, executable entry point
+# **AppImage**
+# - `AppRun` — rendered, executable entry point
  
-# Examples
-```julia
-stage(MSIX(app_dir), "build/msix_staging")
-stage(DMG(app_dir),  "build/MyApp.app"; dsstore = true)
-stage(Snap(app_dir), "build/snap_staging")
-stage(AppImage(app_dir), "build/MyApp.AppDir")
-```
-"""
-function stage(msix::MSIX, destination::String)
+# # Examples
+# ```julia
+# stage(MSIX(app_dir), "build/msix_staging")
+# stage(DMG(app_dir),  "build/MyApp.app"; dsstore = true)
+# stage(Snap(app_dir), "build/snap_staging")
+# stage(AppImage(app_dir), "build/MyApp.AppDir")
+# ```
+# """
+# function stage(msix::MSIX, destination::String)
 
-    if !isdir(destination)
-        mkdir(destination)
-    end
+#     if !isdir(destination)
+#         mkdir(destination)
+#     end
 
-    materialize(msix.icon, joinpath(destination, "Assets")) do src, dest
-        img = IconTools.load(src)
-        mkpath(dest)
-        for (file, icon) in IconTools.tomsix(img; msix.store_icon_plate)
-            IconTools.save(joinpath(dest, file), icon)
-        end
-    end
+#     materialize(msix.icon, joinpath(destination, "Assets")) do src, dest
+#         img = IconTools.load(src)
+#         mkpath(dest)
+#         for (file, icon) in IconTools.tomsix(img; msix.store_icon_plate)
+#             IconTools.save(joinpath(dest, file), icon)
+#         end
+#     end
 
-    (; predicate, parameters) = msix
-    install(msix.appxmanifest, joinpath(destination, "AppxManifest.xml"); parameters, predicate)
+#     (; predicate, parameters) = msix
+#     install(msix.appxmanifest, joinpath(destination, "AppxManifest.xml"); parameters, predicate)
 
-    materialize(msix.resources_pri, joinpath(destination, "resources.pri")) do src, dest
-        error("Generation of resources.pri file not implemented.")
-    end
-    install(msix.msixinstallerdata, joinpath(destination, "Msix.AppInstaller.Data/MSIXAppInstallerData.xml"); parameters)
+#     materialize(msix.resources_pri, joinpath(destination, "resources.pri")) do src, dest
+#         error("Generation of resources.pri file not implemented.")
+#     end
+#     install(msix.msixinstallerdata, joinpath(destination, "Msix.AppInstaller.Data/MSIXAppInstallerData.xml"); parameters)
 
-    return
-end
+#     return
+# end
 
-function install_dsstore(source::String, dsstore_destination::String; parameters = Dict())
+# function install_dsstore(source::String, dsstore_destination::String; parameters = Dict())
 
-    rm(dsstore_destination; force=true)
+#     rm(dsstore_destination; force=true)
 
-    dsstore_toml = Mustache.render(read(source, String), parameters)
-    dsstore = TOML.parse(dsstore_toml)
+#     dsstore_toml = Mustache.render(read(source, String), parameters)
+#     dsstore = TOML.parse(dsstore_toml)
 
-    DSStore.open_dsstore(dsstore_destination, "w+") do ds
+#     DSStore.open_dsstore(dsstore_destination, "w+") do ds
 
-        ds[".", "icvl"] = ("type", "icnv")
-        ds[".", "vSrn"] = ("long", 1)
+#         ds[".", "icvl"] = ("type", "icnv")
+#         ds[".", "vSrn"] = ("long", 1)
 
-        for file_key in keys(dsstore)
-            file_dict = dsstore[file_key]
-            for entry_key in keys(file_dict)
-                ds[file_key, entry_key] = file_dict[entry_key]
-            end
-        end
-    end
+#         for file_key in keys(dsstore)
+#             file_dict = dsstore[file_key]
+#             for entry_key in keys(file_dict)
+#                 ds[file_key, entry_key] = file_dict[entry_key]
+#             end
+#         end
+#     end
     
-    return
-end
+#     return
+# end
 
 
 
-function retrieve_macos_launcher(platform::MacOS)
+# function retrieve_macos_launcher(platform::MacOS)
 
-    artifacts_toml = joinpath(dirname(dirname(pathof(AppBundlerUtils_jll))), "Artifacts.toml")
-    artifacts = Artifacts.select_downloadable_artifacts(artifacts_toml; platform)["AppBundlerUtils"]
+#     artifacts_toml = joinpath(dirname(dirname(pathof(AppBundlerUtils_jll))), "Artifacts.toml")
+#     artifacts = Artifacts.select_downloadable_artifacts(artifacts_toml; platform)["AppBundlerUtils"]
 
-    try 
+#     try 
 
-        Artifacts.ARTIFACTS_DIR_OVERRIDE[] = artifacts_cache()
+#         Artifacts.ARTIFACTS_DIR_OVERRIDE[] = artifacts_cache()
 
-        hash = artifacts["git-tree-sha1"]
-        Pkg.Artifacts.ensure_artifact_installed("AppBundlerUtils", artifacts, artifacts_toml) 
+#         hash = artifacts["git-tree-sha1"]
+#         Pkg.Artifacts.ensure_artifact_installed("AppBundlerUtils", artifacts, artifacts_toml) 
 
-        return joinpath(artifacts_cache(), hash, "bin", "macos_launcher")
+#         return joinpath(artifacts_cache(), hash, "bin", "macos_launcher")
 
-    finally
-        Artifacts.ARTIFACTS_DIR_OVERRIDE[] = nothing
-    end
+#     finally
+#         Artifacts.ARTIFACTS_DIR_OVERRIDE[] = nothing
+#     end
 
-    return
-end
+#     return
+# end
 
-function stage(dmg::DMG, destination::String; dsstore = false) 
+# function stage(dmg::DMG, destination::String; dsstore = false) 
 
-    (; predicate, parameters) = dmg
-    app_exe = parameters["APP_EXE"]
+#     (; predicate, parameters) = dmg
+#     app_exe = parameters["APP_EXE"]
 
-    materialize(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns")) do src, dest
-        img = IconTools.load(src)
-        write(dest, IconTools.toicns(img))
-    end
+#     materialize(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns")) do src, dest
+#         img = IconTools.load(src)
+#         write(dest, IconTools.toicns(img))
+#     end
 
-    install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)
+#     install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)
 
-    if dsstore
-        symlink("/Applications", joinpath(dirname(destination), "Applications"); dir_target=true)
+#     if dsstore
+#         symlink("/Applications", joinpath(dirname(destination), "Applications"); dir_target=true)
 
-        materialize(dmg.dsstore, joinpath(dirname(destination), ".DS_Store")) do src, dest
-            install_dsstore(src, dest; parameters)
-        end
-    end
+#         materialize(dmg.dsstore, joinpath(dirname(destination), ".DS_Store")) do src, dest
+#             install_dsstore(src, dest; parameters)
+#         end
+#     end
 
-    if !isnothing(dmg.main_launcher)
-        launcher = retrieve_macos_launcher(MacOS(dmg.arch))
-        install(launcher, joinpath(destination, "Contents/MacOS/$app_exe"); executable = true)
+#     if !isnothing(dmg.main_launcher)
+#         launcher = retrieve_macos_launcher(MacOS(dmg.arch))
+#         install(launcher, joinpath(destination, "Contents/MacOS/$app_exe"); executable = true)
 
-        install(dmg.main_launcher, joinpath(destination, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
-    end
+#         install(dmg.main_launcher, joinpath(destination, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
+#     end
 
-    return
-end
+#     return
+# end
 
 # It is also possible to directly install svg icon in the snap. 
 # this requires templating myapp.desktop, hence not done at the moment
@@ -723,9 +826,9 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
     
     installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
 
-    if length(installer_title) > 32
-        error("Installer title \"$installer_title\" exceeds the maximum 32 characters allowed by xorriso (current length: $(length(installer_title))). Please shorten APP_DISPLAY_NAME to $(32 - length(" Installer")) characters or less.")
-    end
+    # if length(installer_title) > 32
+    #     error("Installer title \"$installer_title\" exceeds the maximum 32 characters allowed by xorriso (current length: $(length(installer_title))). Please shorten APP_DISPLAY_NAME to $(32 - length(" Installer")) characters or less.")
+    # end
 
     if ispath(destination)
         if force
@@ -737,44 +840,112 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
 
     @info "Initializing DMG staging layout..."
     if dmg.compress
-        appname = parameters["APP_DISPLAY_NAME"]
-        app_stage = joinpath(mktempdir(), "$appname.app")
-        stage(dmg, app_stage; dsstore = true)        
+        #appname = parameters["APP_DISPLAY_NAME"]
+        #app_stage = joinpath(mktempdir(), "$appname.app")
+        
+        #stage(dmg, app_stage; dsstore = true)        
+        
+        app_stage = joinpath(mktempdir(), get_bundle_name(dmg))
+        full_layout = true
+
     else
         app_stage = destination
-        stage(dmg, app_stage; dsstore = false)
+        full_layout = false
+        #stage_app(dmg, app_stage) #; dsstore = false)
     end
-
+    stage(dmg, dirname(app_stage); full_layout, bundle_name = basename(app_stage))
+    
     @info "Installing app into staging area..."
     setup(app_stage)
 
-    # Remove AppleDouble metadata files (._*) that macOS creates to preserve extended attributes
-    # and executable permissions on non-HFS+ filesystems. These files are created by xorriso during
-    # ISO creation but get stripped during DMG compression, causing codesign verification to fail
-    # when the installed app is checked, since the code signature references files that no longer exist.
-    # Example errors without this cleanup:
-    #   file missing: .../SparseArrays/gen/._generator.jl
-    #   file missing: .../julia/._julia-config.jl
-    #   file missing: .../terminfos/._make-fancy-terminfo.sh
-    # These ._* files typically appear alongside executable .jl or .sh files in the Julia stdlib.
-    run(`find $app_stage -name "._*" -delete`)
+    DmgPack.clean_app_stage(app_stage)
 
+    @info "Codesigning app..."
     if dmg.selfsign
-        @info "Generating self signing certificate"
-        pfx_path = joinpath(tempdir(), "certificate.pfx")
-        DMGPack.generate_self_signing_pfx(pfx_path; password = "")        
+        signer = DMGPack.generate_signer()
+        #pfx_path = joinpath(tempdir(), "certificate.pfx")
+        #DMGPack.generate_self_signing_pfx(pfx_path; password = "")        
     else
-        pfx_path = dmg.pfx_cert
+        #pfx_path = dmg.pfx_cert
+        signer = DMGPack.PfxSigner(dmg.pfx_cert, password)
     end        
 
+    entitlements = render_template(dmg.entitlements; parameters, predicate)
+    DmgPack.sign(app_stage, signer; entitlements, dmg.shallow_signing, dmg.hardened_runtime)
+        
     @info "Packaging staging area into DMG..."
-    entitlements = joinpath(mktempdir(), "Entitlements.plist")
-    install(dmg.entitlements, entitlements; parameters, predicate)
-    
-    DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, backend = dmg.backend, verbose)
+    #entitlements = joinpath(mktempdir(), "Entitlements.plist")
+    #install(dmg.entitlements, entitlements; parameters, predicate)
+    #DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, backend = dmg.backend, verbose)
 
+    if dmg.compress
+        DMGPack.pack(dirname(app_stage), destination; dmg.installer_title, dmg.compression, dmg.backend, verbose)
+    end
+    
     return
 end
+
+
+
+# function bundle(setup::Function, dmg::DMG, destination::String; force = false, password = "", verbose = false) 
+
+#     (; parameters, predicate) = dmg
+    
+#     installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
+
+#     if length(installer_title) > 32
+#         error("Installer title \"$installer_title\" exceeds the maximum 32 characters allowed by xorriso (current length: $(length(installer_title))). Please shorten APP_DISPLAY_NAME to $(32 - length(" Installer")) characters or less.")
+#     end
+
+#     if ispath(destination)
+#         if force
+#             rm(destination; force=true, recursive=true)
+#         else
+#             error("Destination $destination already exists. Use `force = true` argument.")
+#         end
+#     end
+
+#     @info "Initializing DMG staging layout..."
+#     if dmg.compress
+#         appname = parameters["APP_DISPLAY_NAME"]
+#         app_stage = joinpath(mktempdir(), "$appname.app")
+#         stage(dmg, app_stage; dsstore = true)        
+#     else
+#         app_stage = destination
+#         stage(dmg, app_stage; dsstore = false)
+#     end
+
+#     @info "Installing app into staging area..."
+#     setup(app_stage)
+
+#     # Remove AppleDouble metadata files (._*) that macOS creates to preserve extended attributes
+#     # and executable permissions on non-HFS+ filesystems. These files are created by xorriso during
+#     # ISO creation but get stripped during DMG compression, causing codesign verification to fail
+#     # when the installed app is checked, since the code signature references files that no longer exist.
+#     # Example errors without this cleanup:
+#     #   file missing: .../SparseArrays/gen/._generator.jl
+#     #   file missing: .../julia/._julia-config.jl
+#     #   file missing: .../terminfos/._make-fancy-terminfo.sh
+#     # These ._* files typically appear alongside executable .jl or .sh files in the Julia stdlib.
+#     run(`find $app_stage -name "._*" -delete`)
+
+#     if dmg.selfsign
+#         @info "Generating self signing certificate"
+#         pfx_path = joinpath(tempdir(), "certificate.pfx")
+#         DMGPack.generate_self_signing_pfx(pfx_path; password = "")        
+#     else
+#         pfx_path = dmg.pfx_cert
+#     end        
+
+#     @info "Packaging staging area into DMG..."
+#     entitlements = joinpath(mktempdir(), "Entitlements.plist")
+#     install(dmg.entitlements, entitlements; parameters, predicate)
+    
+#     DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, backend = dmg.backend, verbose)
+
+#     return
+# end
+
 
 function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "", verbose = false)
 
@@ -793,22 +964,58 @@ function bundle(setup::Function, msix::MSIX, destination::String; force = false,
     setup(app_stage)
 
     (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
-    ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
+    MsixPack.ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
 
     if msix.compress
         if msix.selfsign
             @info "Generating self signing certificate"
-            pfx_path = joinpath(tempdir(), "certificate.pfx")
-            MSIXPack.generate_self_signed_certificate(pfx_path; password, publisher = msix.publisher)
+            signer = MsixPack.generate_signer()
         else
-            pfx_path = msix.pfx_cert
+            signer = MsixPack.PfxSigner(msix.pfx_cert, password)
         end        
         @info "Packaging staging area into MSIX..."
-        MSIXPack.pack(app_stage, destination; pfx_path, password)        
+        MSIXPack.pack(app_stage, destination; signer)
     end
 
     return
 end
+
+
+# function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "", verbose = false)
+
+#     if ispath(destination)
+#         if force
+#             rm(destination; force=true, recursive=true)
+#         else
+#             error("Destination $destination already exists. Use `force = true` argument.")
+#         end
+#     end
+#     app_stage = msix.compress ? mktempdir() : destination
+
+#     @info "Initializing MSIX staging layout..."
+#     stage(msix, app_stage)
+#     @info "Installing app into staging area..."
+#     setup(app_stage)
+
+#     (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
+#     ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
+
+#     if msix.compress
+#         if msix.selfsign
+#             @info "Generating self signing certificate"
+#             pfx_path = joinpath(tempdir(), "certificate.pfx")
+#             MSIXPack.generate_self_signed_certificate(pfx_path; password, publisher = msix.publisher)
+#         else
+#             pfx_path = msix.pfx_cert
+#         end        
+#         @info "Packaging staging area into MSIX..."
+#         MSIXPack.pack(app_stage, destination; pfx_path, password)        
+#     end
+
+#     return
+# end
+
+
 
 function bundle(setup::Function, snap::Snap, destination::String; force = false, verbose = false)
 

@@ -12,7 +12,8 @@ function fresh_project()
     return project
 end
 
-recipe(path) = joinpath(DEFAULT_DIR, path)
+#recipe(path) = joinpath(DEFAULT_DIR, path)
+
 
 const MUSTACHE_TAG = r"\{\{[^}]*\}\}"
 
@@ -26,7 +27,7 @@ const MUSTACHE_TAG = r"\{\{[^}]*\}\}"
         
         destination = joinpath(project, target)
 
-        @test read(destination) == read(recipe(source))
+        @test read(destination) == read(source())
     end
 
     @testset "Existing destination requires force" begin
@@ -40,7 +41,7 @@ const MUSTACHE_TAG = r"\{\{[^}]*\}\}"
         @test read(destination, String) == "customised"
 
         inline(project, "meta/icon.png"; render = false, force = true)
-        @test read(destination) == read(recipe(BINARY_TARGETS["meta/icon.png"]))
+        @test read(destination) == read(BINARY_TARGETS["meta/icon.png"]())
     end
 end
 
@@ -51,7 +52,7 @@ end
         project = fresh_project()
         inline(project, target; render = false)
         destination = joinpath(project, target)
-        @test read(destination, String) == read(recipe(source), String)
+        @test read(destination, String) == read(source(), String)
     end
 
     # # CI workflows are skipped: GitHub Actions' own `${{ ... }}` syntax is not Mustache
@@ -62,7 +63,7 @@ end
         main_inline(project, target, String["--render"])
         destination = joinpath(project, target)
         content = read(destination, String)
-        raw = read(recipe(TEMPLATE_TARGETS[target]), String)
+        raw = read(TEMPLATE_TARGETS[target](), String)
 
         @test !occursin(MUSTACHE_TAG, content)
         if occursin(MUSTACHE_TAG, raw)
