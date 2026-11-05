@@ -1,6 +1,7 @@
 using Test
 import AppBundler.JuliaC: JuliaCBundle, get_juliac, juliac_shim
-import AppBundler: stage, Snap, MSIX, DMG, AppImage, MSIX2EXE, bundle, repack
+import AppBundler: stage, Snap, MSIX, DMG, AppImage, bundle
+import MsixPack: msix2exe
 
 # If we set environment variable JuliaC 
 withenv("JULIAC"=>"juliac_backup") do
@@ -62,9 +63,10 @@ elseif Sys.iswindows()
     msix_path = joinpath(build_dir, "cmdapp-juliac.msix")
     bundle(spec, msix, msix_path; force = true)
 
-    exe_spec = MSIX2EXE(project; windowed = false)
+    #exe_spec = MSIX2EXE(project; windowed = false)
     exe_path = joinpath(build_dir, "cmdapp-juliac.exe")
-    repack(msix_path, exe_spec, exe_path)
+    #repack(msix_path, exe_spec, exe_path)
+    msix2exe(msix_path, exe_path; windowed = false)
 
 else
     @warn "Nothing tested for JuliaC on this platform"

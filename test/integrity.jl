@@ -28,12 +28,12 @@ if target_bundle == "snap"
     AppBundler.main(["inline", app_dir, "meta/snap/icon.png"])
 elseif target_bundle == "dmg"
     AppBundler.main(["inline", app_dir, "meta/dmg/icon.icns"])
-    password = AppBundler.main_inline(app_dir, "meta/dmg/certificate.pfx", String[])
-    push!(args, "--password", password) 
+    signer = AppBundler.main_inline(app_dir, "meta/dmg/certificate.pfx", String[])
+    push!(args, "--password", signer.password) 
 elseif target_bundle == "msix"
     AppBundler.main(["inline", app_dir, "meta/msix/Assets"])
-    password = AppBundler.main_inline(app_dir, "meta/msix/certificate.pfx", String[])
-    push!(args, "--password", password) 
+    signer = AppBundler.main_inline(app_dir, "meta/msix/certificate.pfx", String[])
+    push!(args, "--password", signer.password) 
 end
 
 AppBundler.main(args)

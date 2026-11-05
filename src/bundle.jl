@@ -115,7 +115,7 @@ end
 function stage_layout(msix::MSIX)
 
     manifest = render_template(msix.appxmanifest, msix.parameters)
-    assets = msix.icon isa Verbatim ? msix.icon.path : MSIXPack.IconSource(msix.icon, msix.store_icon_plate)
+    assets = msix.icon isa Verbatim ? msix.icon.path : MsixPack.IconSource(msix.icon, msix.store_icon_plate)
     resources_pri = msix.resources_pri.path
     installer_data = render_template(msix.msixinstallerdata, msix.parameters)
 
@@ -131,10 +131,6 @@ function stage(msix, destination)
 
     return
 end
-
-
-
-
 
 # """
 #     xml_escape_args(args) -> String
@@ -520,6 +516,8 @@ function stage(dmg::DMG, destination; full_layout = false, bundle_name = get_bun
     layout = stage_layout(dmg; full_layout, bundle_name)
     DmgPack.stage(layout, destination)
 
+    install(dmg.main_launcher, joinpath(destination, bundle_name, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
+
     return
 end
 
@@ -824,8 +822,6 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
 
     (; parameters, predicate) = dmg
     
-    installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
-
     # if length(installer_title) > 32
     #     error("Installer title \"$installer_title\" exceeds the maximum 32 characters allowed by xorriso (current length: $(length(installer_title))). Please shorten APP_DISPLAY_NAME to $(32 - length(" Installer")) characters or less.")
     # end
@@ -862,15 +858,17 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
 
     @info "Codesigning app..."
     if dmg.selfsign
-        signer = DMGPack.generate_signer()
+        signer = DmgPack.generate_signer()
         #pfx_path = joinpath(tempdir(), "certificate.pfx")
         #DMGPack.generate_self_signing_pfx(pfx_path; password = "")        
     else
         #pfx_path = dmg.pfx_cert
-        signer = DMGPack.PfxSigner(dmg.pfx_cert, password)
+        #signer = DMGPack.PfxSigner(dmg.pfx_cert, password)
+        signer = DmgPack.PfxSigner(dmg.pfx_cert, password)
     end        
 
-    entitlements = render_template(dmg.entitlements; parameters, predicate)
+    #entitlements = render_template(dmg.entitlements; parameters, predicate)
+    entitlements = render_template(dmg.entitlements, parameters)
     DmgPack.sign(app_stage, signer; entitlements, dmg.shallow_signing, dmg.hardened_runtime)
         
     @info "Packaging staging area into DMG..."
@@ -879,7 +877,8 @@ function bundle(setup::Function, dmg::DMG, destination::String; force = false, p
     #DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, backend = dmg.backend, verbose)
 
     if dmg.compress
-        DMGPack.pack(dirname(app_stage), destination; dmg.installer_title, dmg.compression, dmg.backend, verbose)
+        installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
+        DmgPack.pack(dirname(app_stage), destination; installer_title, dmg.compression, dmg.backend, verbose)
     end
     
     return
@@ -961,20 +960,20 @@ function bundle(setup::Function, msix::MSIX, destination::String; force = false,
     @info "Initializing MSIX staging layout..."
     stage(msix, app_stage)
     @info "Installing app into staging area..."
-    setup(app_stage)
+    #setup(app_stage)
 
     (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
-    MsixPack.ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
+    #MsixPack.ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
 
     if msix.compress
         if msix.selfsign
             @info "Generating self signing certificate"
-            signer = MsixPack.generate_signer()
+            signer = MsixPack.generate_signer(publisher = msix.publisher)
         else
-            signer = MsixPack.PfxSigner(msix.pfx_cert, password)
+            signer = MsixPack.PfxSigner(msix.pfx_cert, msix.publisher, password)
         end        
         @info "Packaging staging area into MSIX..."
-        MSIXPack.pack(app_stage, destination; signer)
+        MsixPack.pack(app_stage, destination; signer)
     end
 
     return

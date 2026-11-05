@@ -131,7 +131,7 @@ end
 IconSource(path; plate = "#00000000") = IconSource(path, plate)
 
 
-function materialize(process, path::String, destination)
+function materialize(path::String, destination)
     mkpath(dirname(destination))
     cp(path, destination)
     return
@@ -158,7 +158,7 @@ end
 # One could also load the MSIXLayout from existing packaging
 
 
-function stage(layout::MSIXLayout, destination)
+function stage(msix::MSIXLayout, destination)
 
     if !isdir(destination)
         mkdir(destination)
@@ -173,8 +173,9 @@ function stage(layout::MSIXLayout, destination)
     end
 
     if !isnothing(msix.installer_data)
-        mkdir(joinpath(destination, "Msix.AppInstaller.Data"))
-        write(msix.installer_data, "Msix.AppInstaller.Data/MSIXAppInstallerData.xml")
+        path = joinpath(destination, "Msix.AppInstaller.Data/MSIXAppInstallerData.xml")
+        mkdir(dirname(path))
+        write(path, msix.installer_data)
     end
 
     return
@@ -297,7 +298,7 @@ function msix2exe(msix_archive::String, destination::String;
         rm(destination; force=true)
     end
     
-    MSIX2EXEPack.pack(msix_archive, destination; bootstrap, title, windowed, sfx_stub, console = !windowed)
+    MSIX2EXEPack.pack(msix_archive, bootstrap, destination; title, sfx_stub, console = !windowed)
 
     return
 end

@@ -191,7 +191,7 @@ function verify(exe::AbstractString, expected::Vector{String})
     occursin("Method = Copy", out) || @warn "payload is not store-only"
 end
 
-function pack(msix, bootstrap, output_exe; title = "MyApp Installer", console = true)
+function pack(msix, bootstrap, output_exe; title = "MyApp Installer", console = true, sfx_stub = extract_stub())
 
     inputs = String[bootstrap, msix]
     for p in inputs
@@ -208,12 +208,12 @@ function pack(msix, bootstrap, output_exe; title = "MyApp Installer", console = 
         console_flag
     )
 
-    stub    = extract_stub()
+    #stub    = extract_stub()
     config  = sfx_config(; title, run_program)
     payload = make_payload(inputs)
 
     open(output_exe, "w") do io
-        write(io, read(stub))
+        write(io, read(sfx_stub))
         write(io, config)
         write(io, payload)
     end

@@ -205,8 +205,10 @@ function main_build(sources_dir, ARGS)
 
         if msix2exe # false by default because depends on external resources
             
-            exespec = MSIX2EXE(sources_dir; preferences)
-            repack(target, exespec, join((first(splitext(target)), ".exe")); force = overwrite_target)
+            MsixPack.msix2exe(target, join((first(splitext(target)), ".exe")); bootstrap = sources_dir |> asset("meta/msix/bootstrap.ps1"), force = overwrite_target, windowed = preferences["msix"]["bootstrapper_windowed"])
+
+            #exespec = MSIX2EXE(sources_dir; preferences)
+            #repack(target, exespec, join((first(splitext(target)), ".exe")); force = overwrite_target)
 
         end
 

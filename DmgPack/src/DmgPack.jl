@@ -12,6 +12,12 @@ using Dates
 using Base.BinaryPlatforms: Platform # Need to revise this part to rmove Pkg dependency
 import AppBundlerUtils_jll
 using Artifacts
+using IconTools
+
+using libdmg_hfsplus_jll: dmg, hfsplus
+using Xorriso_jll: xorriso
+using .HFSImg: build_hfs
+
 
 
 """
@@ -152,11 +158,57 @@ function generate_signer(; path = tempname(), person_name = "AppBundler", countr
     mkpath(dirname(path))
 
     password = Base64.base64encode(rand(RandomDevice(), UInt8, 16))
-    generate_self_signed_certificate(path; person_name, country, validity_days)
+    generate_self_signed_certificate(path; person_name, country, validity_days, password)
 
     return PfxSigner(path, password)
 end
 
+function construct_dsstore_dict(; bundle_name = "MyApp.app", items = ["Applications" => [432, 150], bundle_name => [161, 150]], iconSize = 180, textSize = 16, gridSpacing = 100 )
+
+    dsstore_dict = Dict{String, Any}(
+        "." => Dict{String, Any}(
+            "bwsp" => Dict{String, Any}(
+                "WindowBounds" => "{ {200, 120}, {600, 360} }",
+                "ShowToolbar" => false,
+                "ShowTabView" => false,
+                "PreviewPaneVisibility" => false,
+                "ShowStatusBar" => false,
+                "SidebarWidth" => 180,
+                "ContainerShowSidebar" => false,
+                "ShowPathbar" => false,
+                "ShowSidebar" => false
+            ),
+            "icvp" => Dict{String, Any}(
+                "textSize" => float(textSize),
+                "iconSize" => float(iconSize),
+                "gridOffsetX" => 0.0,
+                "gridOffsetY" => 0.0,
+                "gridSpacing" => float(gridSpacing),
+                "backgroundColorRed" => 1.0,
+                "backgroundColorGreen" => 1.0,
+                "backgroundColorBlue" => 1.0,
+                "backgroundType" => 0,
+                "showItemInfo" => false,
+                "showIconPreview" => false,
+                "arrangeBy" => "none",
+                "labelOnBottom" => true,
+                "viewOptionsVersion" => 1,
+                "scrollPositionX" => 0.0,
+                "scrollPositionY" => 0.0
+            ),
+            "icvl" => ("type", "icnv"),
+            "vSrn" => ("long", 1)
+        )
+    )
+
+    for (key, value) in items
+        dsstore_dict[key] = Dict{String, Any}(
+            "Iloc" => value
+        )
+    end
+    
+    return dsstore_dict
+end
 
 function materialize_dsstore(dsstore::Dict, destination::String)
 
@@ -184,9 +236,6 @@ function materialize_dsstore(dsstore::String, destination::String)
 end
 
 
-
-
-
 """
     IconSource(path)
 
@@ -196,16 +245,16 @@ struct IconSource
     path::String
 end
 
-function materialize_icon(source, destination)
+function materialize_icon(source::String, destination)
     mkpath(dirname(destination))
     cp(source, destination)
 end
 
-function materializ_icon(source, destination)
+function materialize_icon(source::IconSource, destination)
 
     mkpath(dirname(destination))
-    img = IconTools.load(src)
-    write(dest, IconTools.toicns(img))
+    img = IconTools.load(source.path)
+    write(destination, IconTools.toicns(img))
 
     return
 end
@@ -220,11 +269,20 @@ Base.@kwdef struct DMGLayout
 end
 
 
+function extract_executable_name(info_plist)
+
+    re = r"<key>\s*CFBundleExecutable\s*</key>\s*<string>\s*(.*?)\s*</string>"
+    value = match(re, info_plist).captures[1]
+
+    return value
+end
+
+
 function stage(dmg::DMGLayout, destination::String)
 
 
     #bundle_dir = joinpath(destination, "$(dmg.bundle_name).app", "Contents")
-    bundle_dir = joinpath(destination, bundle_name, "Contents")
+    bundle_dir = joinpath(destination, dmg.bundle_name, "Contents")
 
     materialize_icon(dmg.icon, joinpath(bundle_dir, "Resources/icon.icns"))
 
@@ -232,8 +290,11 @@ function stage(dmg::DMGLayout, destination::String)
     
     if !isnothing(dmg.launcher)
 
+        @show executable_name = extract_executable_name(dmg.info_plist)
+
         #    executable_name::Union{String,Nothing} = nothing     # default: CFBundleExecutable of info_plist
-        executable_name = "myapp" # ToDo: some regex magic
+        #executable_name = "myapp" # ToDo: some regex magic
+
         exe_path = joinpath(bundle_dir, "MacOS", executable_name)
 
         mkpath(dirname(exe_path))
@@ -256,15 +317,15 @@ function sign(app_stage, signer::PfxSigner; entitlements = nothing, shallow_sign
     shallow_flag = shallow_signing ? `--shallow` : ``
     runtime_flag = hardened_runtime ? `--code-signature-flags runtime` : ``
 
-    if isnothing(entitlements)
-        enitlements_flag = ``
-    else
+    entitlements_flag = ``
+
+    if !isnothing(entitlements)
         entitlements_path = tempname()
         write(entitlements_path, entitlements)
-        enitlements_flag = `--entitlements-xml-path $entitlements_path`
+        entitlements_flag = `--entitlements-xml-path $entitlements_path`
     end
 
-    run(`$(rcodesign()) sign $shallow_flag --p12-file "$(signer.path)" --p12-password "$password" $runtime_flag $entitlements_flag "$app_stage"`)
+    run(`$(rcodesign()) sign $shallow_flag --p12-file "$(signer.path)" --p12-password "$(signer.password)" $runtime_flag $entitlements_flag "$app_stage"`)
 
     return
 end
@@ -314,7 +375,7 @@ function pack(root, destination;
     img = tempname() 
 
     println("Forming image at $img")
-    build_image(backend, root, img; volume_name, verbose)
+    build_image(backend, root, img; volume_name = installer_title, verbose)
 
     println("Compressing img to dmg with $compression algorithm at $destination")
     compress_image(backend, img, destination; compression)

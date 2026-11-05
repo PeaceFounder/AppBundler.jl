@@ -1,9 +1,35 @@
-function asset(target)
+function defaultdir(target)
     return () -> joinpath(DEFAULT_DIR, target)
 end
 
+function default_asset(target)
+    if haskey(BINARY_TARGETS, target)
+        return BINARY_TARGETS[target]()
+    elseif haskey(TEMPLATE_TARGETS, target)
+        return TEMPLATE_TARGETS[target]()
+    else
+        error("Target $target not found")
+    end
+end
 
-#target -> () -> joinpath(DEFAULT_DIR, target)
+function asset(target::AbstractString)
+    # Fail early on unknown targets, without resolving (e.g. downloading) anything
+    if !(haskey(BINARY_TARGETS, target) || haskey(TEMPLATE_TARGETS, target))
+        error("Target $target not found")
+    end
+
+    return function (project::Union{AbstractString,Nothing} = nothing)
+        if project !== nothing
+            path = joinpath(project, target)
+            isfile(path) && return path
+        end
+        return default_asset(target)
+    end
+end
+
+# Optional: keep the old two-argument form working
+asset(target::AbstractString, project) = asset(target)(project)
+
 
 
 const BINARY_TARGETS = Dict(
@@ -15,18 +41,19 @@ const BINARY_TARGETS = Dict(
 
 # Theese are simply defaults listed
 const TEMPLATE_TARGETS = Dict(
-    ".gitlab-ci.yml"                     => "workflows/GitLab.yml" |> asset,
-    ".github/workflows/Release.yml"      => "workflows/GitHub.yml" |> asset,
-    "meta/startup.jl"                    => "startup.jl" |> asset,
-    "meta/msix/AppxManifest.xml"         => "msix/AppxManifest.xml" |> asset,
-    "meta/msix/MSIXAppInstallerData.xml" => "msix/MSIXAppInstallerData.xml" |> asset,
-    "meta/dmg/Info.plist"                => "dmg/Info.plist" |> asset,
-    "meta/dmg/Entitlements.plist"        => "dmg/Entitlements.plist" |> asset,
-    "meta/dmg/DS_Store.toml"             => "dmg/DS_Store.toml" |> asset,
-    "meta/snap/snap.yaml"                => "snap/snap.yaml" |> asset,
-    "meta/snap/main.desktop"             => "snap/main.desktop" |> asset,
+    ".gitlab-ci.yml"                     => "workflows/GitLab.yml" |> defaultdir,
+    ".github/workflows/Release.yml"      => "workflows/GitHub.yml" |> defaultdir,
+    "meta/startup.jl"                    => "startup.jl" |> defaultdir,
+    "meta/msix/AppxManifest.xml"         => "msix/AppxManifest.xml" |> defaultdir,
+    "meta/msix/MSIXAppInstallerData.xml" => "msix/MSIXAppInstallerData.xml" |> defaultdir,
+    "meta/msix/bootstrap.ps1"             => () -> joinpath(pkgdir(MsixPack), "assets/bootstrap.ps1"),
+    "meta/dmg/Info.plist"                => "dmg/Info.plist" |> defaultdir,
+    "meta/dmg/Entitlements.plist"        => "dmg/Entitlements.plist" |> defaultdir,
+    "meta/dmg/DS_Store.toml"             => "dmg/DS_Store.toml" |> defaultdir,
+    "meta/snap/snap.yaml"                => "snap/snap.yaml" |> defaultdir,
+    "meta/snap/main.desktop"             => "snap/main.desktop" |> defaultdir,
     # meta/snap/configure.sh is not listed; there is no default to inline
-    "meta/appimage/AppRun.sh"            => "appimage/AppRun.sh" |> asset,
+    "meta/appimage/AppRun.sh"            => "appimage/AppRun.sh" |> defaultdir,
 )
 
 # Each generator is called as f(project_dir, destination, preferences)
