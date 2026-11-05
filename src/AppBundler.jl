@@ -44,17 +44,21 @@ include("bundlers/JuliaC.jl")
 using .JuliaImg: install
 using .JuliaImg.Resources: merge_directories
 
-include("utils.jl")
-include("bundle.jl")
-include("recipes.jl") 
+include("utils.jl") # get_path will be replaced with rules.jl which may make this part redundant
+include("bundle.jl") # every asset needs now to be called out as resolve(project, target) 
+include("recipes.jl") # little change in this module 
 
 include("ArgTools.jl")
 include("PrefTools.jl")
 
 include("preferences.jl")
 
+
+include("resolve.jl") # better would be called rules.jl
+
+
 include("status.jl")
-include("inline.jl")
+#include("inline.jl")
 include("main.jl")
 
 function __init__()

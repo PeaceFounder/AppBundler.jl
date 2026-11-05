@@ -2,7 +2,7 @@ using IconTools
 
 outdir = joinpath(@__DIR__, "build")
 
-source = joinpath(@__DIR__, "icon.png")
+source = joinpath(pkgdir(IconTools), "assets/icon.png")
 destination = joinpath(outdir, "icon-png")
 rm(destination; recursive=true, force=true)
 mkdir(destination)
@@ -13,7 +13,7 @@ for (key, value) in icons
     IconTools.save(joinpath(destination, key), value)
 end
 
-source = joinpath(@__DIR__, "icon.svg")
+source = joinpath(pkgdir(IconTools), "assets/icon.svg")
 destination = joinpath(outdir, "icon-svg")
 rm(destination; recursive=true, force=true)
 mkdir(destination)

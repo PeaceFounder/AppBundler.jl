@@ -72,11 +72,19 @@ const GENERATED_TARGETS = Dict{String,Function}(
         MsixPack.generate_signer(; path = destination, publisher = preferences["msix"]["publisher"]),
 
     "meta/dmg/icon.icns" => function (project_dir, destination, preferences)
+        
+        # source = resolve(project, "meta/dmg/icon.icns"; skip_first=true)
+        # DmgPack.stage_icon(source, destination)
+
         dmg = DMG(project_dir; preferences)
         write(destination, IconTools.toicns(IconTools.load(dmg.icon)));
     end,
 
     "meta/dmg/DS_Store" => function (project_dir, destination, preferences)
+
+        # source = resolve(project, "meta/dmg/DS_Store"; skip_first=true)
+        # stage_dsstore(source, destination)
+
         dmg = DMG(project_dir; preferences)
         layout = stage_layout(dmg; full_layout = true)
         DmgPack.materialize_dsstore(layout.dsstore, destination)
@@ -87,6 +95,10 @@ const GENERATED_TARGETS = Dict{String,Function}(
         DmgPack.generate_signer(; path = destination),
 
     "meta/snap/icon.png" => function (project_dir, destination, preferences)
+
+        # source = resolve(project, "meta/snap/icon.png"; skip_first=true)
+        # stage_pngicon(source, destination)
+
         snap = Snap(project_dir; preferences)
         icon = IconTools.toicon(IconTools.load(snap.icon), 512)
         IconTools.save(destination, icon);
@@ -105,58 +117,58 @@ function get_template_parameters(project_dir, target; defines = [])
 end
 
 
-"""
-    inline(project_dir, target; preferences = nothing, force = false, render = true)
+# """
+#     inline(project_dir, target; preferences = nothing, force = false, render = true)
 
-Copy, render or generate `target` into `project_dir` so it can be customised.
-Templates are rendered with `preferences` unless `render = false`, in which case
-the raw template is copied. `preferences` is required when `render = true` and
-for generated targets.
-"""
-function inline(project_dir, target; force = false, render = false, defines = [], verbose = false, destination = joinpath(project_dir, target))
+# Copy, render or generate `target` into `project_dir` so it can be customised.
+# Templates are rendered with `preferences` unless `render = false`, in which case
+# the raw template is copied. `preferences` is required when `render = true` and
+# for generated targets.
+# """
+# function inline(project_dir, target; force = false, render = false, defines = [], verbose = false, destination = joinpath(project_dir, target))
 
-    if target == "LocalPreferences.toml" 
-        defines = ArgTools.coerce(defines, LOCAL_PREFERENCES_SCHEMA)
-        PrefTools.inline_preferences(destination, defines; section = "AppBundler")
-        return
-    else
-        if ispath(destination)
-            force || error("$destination already exists; pass `force = true` to overwrite it")
-            rm(destination; recursive = true)
-        end
-    end
+#     if target == "LocalPreferences.toml" 
+#         defines = ArgTools.coerce(defines, LOCAL_PREFERENCES_SCHEMA)
+#         PrefTools.inline_preferences(destination, defines; section = "AppBundler")
+#         return
+#     else
+#         if ispath(destination)
+#             force || error("$destination already exists; pass `force = true` to overwrite it")
+#             rm(destination; recursive = true)
+#         end
+#     end
 
-    mkpath(dirname(destination))
+#     mkpath(dirname(destination))
 
-    if haskey(BINARY_TARGETS, target)
-        #cp(joinpath(DEFAULT_DIR, BINARY_TARGETS[target]), destination)
-        cp(BINARY_TARGETS[target](), destination)
+#     if haskey(BINARY_TARGETS, target)
+#         #cp(joinpath(DEFAULT_DIR, BINARY_TARGETS[target]), destination)
+#         cp(BINARY_TARGETS[target](), destination)
 
-    elseif haskey(TEMPLATE_TARGETS, target)
-        #source = joinpath(DEFAULT_DIR, TEMPLATE_TARGETS[target])
-        source = TEMPLATE_TARGETS[target]()
-        if render
-            parameters = get_template_parameters(project_dir, target; defines)
+#     elseif haskey(TEMPLATE_TARGETS, target)
+#         #source = joinpath(DEFAULT_DIR, TEMPLATE_TARGETS[target])
+#         source = TEMPLATE_TARGETS[target]()
+#         if render
+#             parameters = get_template_parameters(project_dir, target; defines)
 
-            if verbose
-                println("-------------- TEMPLATE PARAMETERS -----------")
-                for (key, value) in parameters
-                    println("$key = $(repr(value))")
-                end
-                println("----------------------------------------------")
-            end
+#             if verbose
+#                 println("-------------- TEMPLATE PARAMETERS -----------")
+#                 for (key, value) in parameters
+#                     println("$key = $(repr(value))")
+#                 end
+#                 println("----------------------------------------------")
+#             end
 
-            install(source, destination; parameters)
-        else
-            cp(source, destination)
-        end
+#             install(source, destination; parameters)
+#         else
+#             cp(source, destination)
+#         end
 
-    elseif haskey(GENERATED_TARGETS, target)
-        return GENERATED_TARGETS[target](project_dir, destination, load_preferences(project_dir; defines)["AppBundler"])
-    else
-        known = sort!(collect(keys(BINARY_TARGETS) ∪ keys(TEMPLATE_TARGETS) ∪ keys(GENERATED_TARGETS)))
-        error("Unknown target $target. Available targets:\n  " * join(known, "\n  "))
-    end
+#     elseif haskey(GENERATED_TARGETS, target)
+#         return GENERATED_TARGETS[target](project_dir, destination, load_preferences(project_dir; defines)["AppBundler"])
+#     else
+#         known = sort!(collect(keys(BINARY_TARGETS) ∪ keys(TEMPLATE_TARGETS) ∪ keys(GENERATED_TARGETS)))
+#         error("Unknown target $target. Available targets:\n  " * join(known, "\n  "))
+#     end
 
-    return
-end
+#     return
+# end

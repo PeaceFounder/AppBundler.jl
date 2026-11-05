@@ -963,7 +963,7 @@ function bundle(setup::Function, msix::MSIX, destination::String; force = false,
     #setup(app_stage)
 
     (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
-    #MsixPack.ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
+    MsixPack.ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
 
     if msix.compress
         if msix.selfsign

@@ -1,6 +1,6 @@
 using Test
 using AppBundler
-import AppBundler: inline, main_inline, DEFAULT_DIR, BINARY_TARGETS, TEMPLATE_TARGETS, GENERATED_TARGETS
+import AppBundler: inline, main_inline, DEFAULT_DIR, resolve
 
 const EXAMPLE_DIR = joinpath(pkgdir(AppBundler), "examples", "GLApp")
 
@@ -14,20 +14,20 @@ end
 
 #recipe(path) = joinpath(DEFAULT_DIR, path)
 
-
 const MUSTACHE_TAG = r"\{\{[^}]*\}\}"
 
+BINARY_TARGETS = [key for (key, rule) in AppBundler.RULES if rule.template == false && !isnothing(rule.default) ]
 
 @testset "Binary artifact inlining" begin
 
-    @testset "$target" for (target, source) in BINARY_TARGETS
+    @testset "$target" for target in BINARY_TARGETS
         project = fresh_project()
         #destination = inline(project, target; render = false)
         inline(project, target; render = false)
         
         destination = joinpath(project, target)
 
-        @test read(destination) == read(source())
+        @test read(destination) == read(resolve(target))
     end
 
     @testset "Existing destination requires force" begin
@@ -41,29 +41,32 @@ const MUSTACHE_TAG = r"\{\{[^}]*\}\}"
         @test read(destination, String) == "customised"
 
         inline(project, "meta/icon.png"; render = false, force = true)
-        @test read(destination) == read(BINARY_TARGETS["meta/icon.png"]())
+        @test read(destination) == read(resolve("meta/icon.png"))
     end
 end
 
 
+TEMPLATE_TARGETS = [key for (key, rule) in AppBundler.RULES if rule.template == true && !isnothing(rule.default)]
+
 @testset "Template rendering" begin
 
-    @testset "Raw copy: $target" for (target, source) in TEMPLATE_TARGETS
+    @testset "Raw copy: $target" for target in TEMPLATE_TARGETS
         project = fresh_project()
         inline(project, target; render = false)
         destination = joinpath(project, target)
-        @test read(destination, String) == read(source(), String)
+        @test read(destination, String) == read(resolve(target), String)
     end
 
     # # CI workflows are skipped: GitHub Actions' own `${{ ... }}` syntax is not Mustache
-    meta_templates = sort!([target for target in keys(TEMPLATE_TARGETS) if startswith(target, "meta/")])
+    #meta_templates = sort!([target for target in keys(TEMPLATE_TARGETS) if startswith(target, "meta/")])
+    meta_templates = sort!([target for target in TEMPLATE_TARGETS if startswith(target, "meta/")])
 
     @testset "Rendered: $target" for target in meta_templates
         project = fresh_project()
         main_inline(project, target, String["--render"])
         destination = joinpath(project, target)
         content = read(destination, String)
-        raw = read(TEMPLATE_TARGETS[target](), String)
+        raw = read(resolve(target), String)
 
         @test !occursin(MUSTACHE_TAG, content)
         if occursin(MUSTACHE_TAG, raw)
