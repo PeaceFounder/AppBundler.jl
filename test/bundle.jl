@@ -1,7 +1,9 @@
 using Test
 
-import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack, AppImage, DMGPack
+#import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack, AppImage, DMGPack
+import AppBundler: stage, bundle, MSIX, DMG, Snap, AppImage, MsixPack
 import AppBundler
+import DmgPack
 
 using osslsigncode_jll
 using OpenSSL_CLI_jll: openssl
@@ -43,9 +45,9 @@ end
 
 # ------------------------ DMG -------------------
 
-function build_dmg(dmg)
+function build_dmg(dmg, signer)
     dest = joinpath(mktempdir(), "gtkapp.dmg")
-    bundle(dmg, dest; verbose = true) do app_stage
+    bundle(dmg, dest; signer, verbose = true) do app_stage
         @info "The DMG app stage is $app_stage"
     end
     if Sys.isapple()
@@ -79,7 +81,11 @@ predicate = "juliaimg"
 
 @time @testset "MSIX bundling tests" begin
 
-    msix = MSIX(APP_DIR; selfsign=true, predicate, windowed = true)
+    #msix = MSIX(APP_DIR; selfsign=true, predicate, windowed = true)
+
+    #msix = MSIX(project = APP_DIR, windowed = true)
+    msix = MSIX(APP_DIR; windowed = true)
+    signer = MsixPack.generate_signer(; msix.publisher)
 
     @test hash_stage() do dest
         stage(msix, dest)
@@ -89,24 +95,26 @@ predicate = "juliaimg"
     @test hash_stage() do stage_dir
 
         dest = joinpath(mktempdir(), "gtkapp.msix")
-        bundle(msix, dest) do app_stage
+        bundle(msix, dest; signer) do app_stage
             @info "The MSIX app stage is $app_stage"
             touch(joinpath(app_stage, "MRF_signal_Δθ_23_NTRs_500.mrd"))
         end
 
         verify_msix_signature(dest)
 
-        MSIXPack.repack(dest, tempname()) # useful for debugging MSIX configuration issues
+        #MSIXPack.repack(dest, tempname()) # useful for debugging MSIX configuration issues
+        MsixPack.unpack(dest, stage_dir)
 
-        AppBundler.MSIXPack.unpack(dest, stage_dir)
 
         rm(joinpath(stage_dir, "AppxSignature.p7x")) # Signatures are always nondeterministic
 
         # @test hash_file(joinpath(stage_dir, "AppxBlockMap.xml")) == "70ff6695ec913326f645c1cd30e48f75f57545ee4ae546db5843bf0779e6ee7e"
         rm(joinpath(stage_dir, "AppxBlockMap.xml")) # AppxBlockMap.xml has a slight nondeterminism
 
-        msix2exe = AppBundler.MSIX2EXE(joinpath(@__DIR__, "../examples/GtkApp"))
-        AppBundler.repack(dest, msix2exe, join((dest, ".exe")))
+        #AppBundler.MsixPack.msix2exe(dest, tempname())
+
+        #msix2exe = AppBundler.MSIX2EXE(joinpath(@__DIR__, "../examples/GtkApp"))
+        #AppBundler.repack(dest, msix2exe, join((dest, ".exe")))
 
     end == "bc797abd16f8f67c8f149577f5a5bbf11e3ea5522046f1b6517572c72d0e0d17"
 end
@@ -117,25 +125,29 @@ if Sys.isunix()
 
     @time @testset "DMG bundling tests" begin
 
-        gtkapp_dmg(backend) = DMG(APP_DIR; backend, selfsign = true, predicate, arch = :x86_64, windowed = false)
-        
+        gtkapp_dmg(backend) = DMG(APP_DIR; backend, arch = :x86_64, windowed = false)
+        signer = DmgPack.generate_signer()
+
         @test hash_stage() do dest
-            stage(gtkapp_dmg(DMGPack.XorrisoBackend(true)), joinpath(dest, "GtkApp.app"); dsstore = true)
+            #stage(gtkapp_dmg(DmgPack.XorrisoBackend(true)), joinpath(dest, "GtkApp.app"); dsstore = true)
+            stage(gtkapp_dmg(DmgPack.XorrisoBackend(true)), dest; full_layout = true)
+
+            #@infiltrate
             normalize_app!(dest; signed = false)
             rm(joinpath(dest, "Applications"))
         end == "2342003fda87535b2ab5066441de1f4203008f0683c240a7089a28f727a206c2"
 
-        backends = [DMGPack.XorrisoBackend(; hfsplus = true), DMGPack.HFSPlusBackend(; uuid = UInt64(23))]
+        backends = [DmgPack.XorrisoBackend(; hfsplus = true), DmgPack.HFSPlusBackend(; uuid = UInt64(23))]
 
         @testset "$backend" for backend in backends
 
             dmg = gtkapp_dmg(backend)
-            dmg_path = build_dmg(dmg)
+            dmg_path = build_dmg(dmg, signer)
 
             Sys.isapple() && run(`hdiutil verify $dmg_path`)
 
             @test hash_stage() do stage_dir
-                AppBundler.DMGPack.unpack(dmg_path, stage_dir; verbose = true)
+                AppBundler.DmgPack.unpack(dmg_path, stage_dir; verbose = true)
                 Sys.isapple() && verify_codesign(joinpath(stage_dir, "GtkApp.app"); strict = true)
                 normalize_app!(stage_dir)
             end == "2342003fda87535b2ab5066441de1f4203008f0683c240a7089a28f727a206c2"

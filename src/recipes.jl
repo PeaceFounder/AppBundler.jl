@@ -29,9 +29,9 @@ cross-platform packaging is not supported.
 
 See also [`stage`](@ref), [`bundle(setup, config, destination)`](@ref).
 """
-function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = false, password = "", verbose = false)
+function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = false, signer = nothing, verbose = false)
 
-    bundle(dmg, destination; force, password) do app_stage
+    bundle(dmg, destination; force, signer) do app_stage
 
         app_name = dmg.parameters["APP_EXE"]
         bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
@@ -73,9 +73,9 @@ function normalize_executable(path::String)
     return
 end
 
-function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; force = false, password = "", verbose = false)
+function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; signer = nothing, force = false, verbose = false)
 
-    bundle(msix, destination; force, password) do app_stage
+    bundle(msix, destination; signer, force) do app_stage
         
         #app_name = msix.parameters["APP_NAME"]
         app_name = msix.parameters["APP_EXE"]
@@ -102,7 +102,7 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; force 
     return
 end
 
-function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = false, password = "", verbose = false)
+function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = false, signer = nothing, verbose = false)
 
     if !Sys.isapple()
         @warn "The build for the DMG will not work as it is not built on macos"
@@ -112,7 +112,7 @@ function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = fa
         @warn "In hardened runtime mode it is a known bug that GUI terminal won't launch"
     end
 
-    bundle(dmg, destination; force, password) do app_stage
+    bundle(dmg, destination; force, signer) do app_stage
 
         app_name = dmg.parameters["APP_EXE"]
         bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
@@ -137,13 +137,13 @@ function bundle(product::JuliaCBundle, snap::Snap, destination::String; force = 
     return
 end
 
-function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password = "", force = false, verbose = false)
+function bundle(product::JuliaCBundle, msix::MSIX, destination::String; signer = nothing, force = false, verbose = false)
 
     if !Sys.iswindows()
         @warn "The build for MSIX will not work as it is not built on Windows"
     end
     # I need to pass down the arguments here somehow for the template
-    bundle(msix, destination; password, force) do app_stage
+    bundle(msix, destination; signer, force) do app_stage
 
         app_name = msix.parameters["APP_EXE"]
         bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]

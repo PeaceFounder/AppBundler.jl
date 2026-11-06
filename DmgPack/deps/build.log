@@ -1,0 +1,56 @@
+Channels:
+ - conda-forge
+Platform: win-64
+Collecting package metadata (repodata.json): ...working... done
+Solving environment: ...working... done
+
+
+==> WARNING: A newer version of conda exists. <==
+    current version: 25.3.0
+    latest version: 26.9.4
+
+Please update conda by running
+
+    $ conda update -n base -c conda-forge conda
+
+
+
+## Package Plan ##
+
+  environment location: C:\Users\jerdmanis\.julia\conda\3\x86_64
+
+  added / updated specs:
+    - ds_store
+
+
+The following packages will be downloaded:
+
+    package                    |            build
+    ---------------------------|-----------------
+    ca-certificates-2026.10.23 |       h4c7d964_0         127 KB  conda-forge
+    certifi-2026.10.23         |     pyhd8ed1ab_3          13 KB  conda-forge
+    ------------------------------------------------------------
+                                           Total:         141 KB
+
+The following packages will be UPDATED:
+
+  ca-certificates                      2026.7.22-h4c7d964_0 --> 2026.10.23-h4c7d964_0 
+  certifi                            2026.7.22-pyhd8ed1ab_0 --> 2026.10.23-pyhd8ed1ab_3 
+
+
+
+Downloading and Extracting Packages: ...working...ca-certificates-2026 | 127 KB    |            |   0% 
+certifi-2026.10.23   | 13 KB     |            |   0% [Aca-certificates-2026 | 127 KB    | #2         |  13% 
+certifi-2026.10.23   | 13 KB     | ########## | 100% [A
+certifi-2026.10.23   | 13 KB     | ########## | 100% [Aca-certificates-2026 | 127 KB    | ########## | 100% 
+certifi-2026.10.23   | 13 KB     | ########## | 100% [Aca-certificates-2026 | 127 KB    | ########## | 100%                                                      
+                                                     [A done
+Preparing transaction: - done
+Verifying transaction: | done
+Executing transaction: - \ | / - \ | / - \ | / - \ done
+[ Info: Running `conda install -y -c conda-forge ds_store` in root environment
+    Building Conda ─→ `C:\Users\jerdmanis\.julia\scratchspaces\44cfe95a-1eb2-52ea-b672-e2afdf69b78f\8f06b0cfa4c514c7b9546756dbae91fcfbc92dc9\build.log`
+    Building PyCall → `C:\Users\jerdmanis\.julia\scratchspaces\44cfe95a-1eb2-52ea-b672-e2afdf69b78f\9d5dfe8ead7c9b0fbbc1c085da0680eae4af5a48\build.log`
+ Downloading artifact: AppBundlerUtils
+ Downloading artifact: AppBundlerUtils
+Python dependencies installed successfully via Conda!

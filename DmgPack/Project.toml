@@ -1,0 +1,35 @@
+name = "DmgPack"
+uuid = "6e7a0f3b-cf71-4857-a6ad-67c765e2dd4a"
+version = "0.1.0"
+authors = ["Janis Erdmanis <janiserdmanis@protonmail.ch>"]
+
+[deps]
+AppBundlerUtils_jll = "20612f45-4fe6-500a-af5c-19078bfe0d65"
+Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
+Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+IconTools = "16dc48d6-ba94-4448-aa2d-4d14f88e6f7d"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Unicode = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
+Xorriso_jll = "0906d627-f1e8-5757-b67e-5a72ed64a995"
+libdmg_hfsplus_jll = "a9dd9d48-4682-593d-95c5-5ff28a9e156e"
+rcodesign_jll = "81561df1-22b2-57e5-9f67-03318e1fa9d9"
+
+[sources]
+IconTools = {path = "../IconTools"}
+
+[compat]
+Artifacts = "1.11.0"
+Dates = "1.11.0"
+Pkg = "1.13.0"
+Unicode = "1.11.0"
+
+[extras]
+SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test", "SafeTestsets"]

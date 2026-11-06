@@ -39,10 +39,16 @@ function (@main)(ARGS)
     return 0
 end
 
-suffix(msix::MSIX) = msix.compress ? ".msix" : ""
-suffix(dmg::DMG) = dmg.compress ? ".dmg" : ""
-suffix(snap::Snap) = snap.compress ? ".snap" : ""
-suffix(appimage::AppImage) = appimage.compress ? ".AppImage" : ""
+# suffix(msix::MSIX) = msix.compress ? ".msix" : ""
+# suffix(dmg::DMG) = dmg.compress ? ".dmg" : ""
+# suffix(snap::Snap) = snap.compress ? ".snap" : ""
+# suffix(appimage::AppImage) = appimage.compress ? ".AppImage" : ""
+
+suffix(msix::MSIX) = ".msix"
+suffix(dmg::DMG) = ".dmg" 
+suffix(snap::Snap) = ".snap"
+suffix(appimage::AppImage) = ".AppImage"
+
 
 function canonical_target_name(spec::Union{MSIX, DMG, Snap, AppImage})
     version = spec.parameters["APP_VERSION"]
@@ -145,6 +151,7 @@ function main_build(sources_dir, ARGS)
     # Theese could be substituted with preferences
     selfsign = preferences["selfsign"]
     skipsign = preferences["skipsign"]
+    compress = preferences["compress"]
     overwrite_target = preferences["overwrite_target"]
     msix2exe = preferences["msix"]["bootstrapper"]
     verbose = preferences["verbose"]
@@ -178,35 +185,45 @@ function main_build(sources_dir, ARGS)
         error("Got unsupported bundler type $bundler")
     end
 
-    function target_path(spec)
+    function target_path(spec, compress)
         if !isnothing(config[:target_name])
             name = config[:target_name]
         else
             name = canonical_target_name(spec)
         end
-        joinpath(build_dir, name * suffix(spec))
+        
+        target = joinpath(build_dir, name)
+        if compress
+            return target * suffix(spec)
+        else
+            return target
+        end
     end
 
     if :msix == target_bundle
 
         msix = MSIX(sources_dir; arch = target_arch, preferences)
+        target = target_path(msix, compress)
 
-        if selfsign || skipsign
-            password = ""
-        elseif isnothing(msix.pfx_cert)
-            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
-        elseif isnothing(password)
-            print("Type in certificate password:")
-            password = readline() |> strip
+        if skipsign
+            signer = nothing
+        elseif selfsign
+            singer = MsixPack.generate_signer(; msix.publisher)
+        elseif !isnothing(msix.pfx_cert)
+            if isnothing(password)
+                print("Type in certificate password:")
+                password = readline() |> strip
+            end
+            signer = MsixPack.PfxSigner(msix.pfx_cert, msix.publisher, password)            
+        else
+            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign`, skip signing with `--skipsign` or generate pfx certificates")
         end
-        
-        target = target_path(msix)
-        bundle(spec, msix, target; force = overwrite_target, password)
+            
+        bundle(spec, msix, target; signer, force = overwrite_target)
 
         if msix2exe # false by default because depends on external resources
             
-            exespec = MSIX2EXE(sources_dir; preferences)
-            repack(target, exespec, join((first(splitext(target)), ".exe")); force = overwrite_target)
+            MsixPack.msix2exe(target, join((first(splitext(target)), ".exe")); bootstrap = resolve(sources_dir, "meta/msix/bootstrap.ps1"), force = overwrite_target, windowed = preferences["msix"]["bootstrapper_windowed"])
 
         end
 
@@ -214,26 +231,31 @@ function main_build(sources_dir, ARGS)
         
         dmg = DMG(sources_dir; arch = target_arch, preferences)
 
-        if selfsign || skipsign
-            password = ""
-        elseif isnothing(dmg.pfx_cert)
-            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
-        elseif isnothing(password)
-            print("Type in certificate password:")
-            password = readline() |> strip
+        if skipsign
+            signer = nothing
+        elseif selfsign
+            singer = DmgPack.generate_signer()
+        elseif !isnothing(dmg.pfx_cert)
+            if isnothing(password)
+                print("Type in certificate password:")
+                password = readline() |> strip
+            end
+            signer = DmgPack.PfxSigner(dmg.pfx_cert, password)
+        else
+            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign`, skip signing with `--skipsign` or generate pfx certificates")
         end
 
-        bundle(spec, dmg, target_path(dmg); force = overwrite_target, password, verbose)
+        bundle(spec, dmg, target_path(dmg, compress); force = overwrite_target, signer, verbose)
 
     elseif :snap == target_bundle
 
         snap = Snap(sources_dir; arch = target_arch, preferences)
-        bundle(spec, snap, target_path(snap); force = overwrite_target)
+        bundle(spec, snap, target_path(snap, compress); force = overwrite_target)
 
     elseif :appimage == target_bundle
         
         appimage = AppImage(sources_dir; arch = target_arch, preferences)
-        bundle(spec, appimage, target_path(appimage); force = overwrite_target)
+        bundle(spec, appimage, target_path(appimage, compress); force = overwrite_target)
 
     else
         error("Got unsupported bundle type $target_bundle")

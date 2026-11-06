@@ -19,7 +19,7 @@ is_repl_snippet(code) = occursin(r"^\s*(julia>|\(.*\) pkg>|pkg>|shell>|help\?>)"
 
     sandbox = Module(:ReadmeExamples)   # shared global environment for all snippets
 
-    cd(@__DIR__) do                     # relative paths in snippets resolve against test/
+    cd(joinpath(dirname(@__DIR__), "assets")) do                     # relative paths in snippets resolve against test/
 
         #isdir("build") && rm("build"; recursive = true)   # start clean; README must create it
         mkpath("build")                 # output directory the snippets write into; left in place
