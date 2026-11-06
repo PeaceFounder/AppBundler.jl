@@ -1,7 +1,7 @@
 using Test
 
 #import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack, AppImage, DMGPack
-import AppBundler: stage, bundle, MSIX, DMG, Snap, AppImage
+import AppBundler: stage, bundle, MSIX, DMG, Snap, AppImage, MsixPack
 import AppBundler
 import DmgPack
 
@@ -45,9 +45,9 @@ end
 
 # ------------------------ DMG -------------------
 
-function build_dmg(dmg)
+function build_dmg(dmg, signer)
     dest = joinpath(mktempdir(), "gtkapp.dmg")
-    bundle(dmg, dest; verbose = true) do app_stage
+    bundle(dmg, dest; signer, verbose = true) do app_stage
         @info "The DMG app stage is $app_stage"
     end
     if Sys.isapple()
@@ -81,7 +81,11 @@ predicate = "juliaimg"
 
 @time @testset "MSIX bundling tests" begin
 
-    msix = MSIX(APP_DIR; selfsign=true, predicate, windowed = true)
+    #msix = MSIX(APP_DIR; selfsign=true, predicate, windowed = true)
+
+    #msix = MSIX(project = APP_DIR, windowed = true)
+    msix = MSIX(APP_DIR; windowed = true)
+    signer = MsixPack.generate_signer(; msix.publisher)
 
     @test hash_stage() do dest
         stage(msix, dest)
@@ -91,7 +95,7 @@ predicate = "juliaimg"
     @test hash_stage() do stage_dir
 
         dest = joinpath(mktempdir(), "gtkapp.msix")
-        bundle(msix, dest) do app_stage
+        bundle(msix, dest; signer) do app_stage
             @info "The MSIX app stage is $app_stage"
             touch(joinpath(app_stage, "MRF_signal_Δθ_23_NTRs_500.mrd"))
         end
@@ -99,8 +103,7 @@ predicate = "juliaimg"
         verify_msix_signature(dest)
 
         #MSIXPack.repack(dest, tempname()) # useful for debugging MSIX configuration issues
-
-        AppBundler.MsixPack.unpack(dest, stage_dir)
+        MsixPack.unpack(dest, stage_dir)
 
 
         rm(joinpath(stage_dir, "AppxSignature.p7x")) # Signatures are always nondeterministic
@@ -122,8 +125,9 @@ if Sys.isunix()
 
     @time @testset "DMG bundling tests" begin
 
-        gtkapp_dmg(backend) = DMG(APP_DIR; backend, selfsign = true, predicate, arch = :x86_64, windowed = false)
-        
+        gtkapp_dmg(backend) = DMG(APP_DIR; backend, arch = :x86_64, windowed = false)
+        signer = DmgPack.generate_signer()
+
         @test hash_stage() do dest
             #stage(gtkapp_dmg(DmgPack.XorrisoBackend(true)), joinpath(dest, "GtkApp.app"); dsstore = true)
             stage(gtkapp_dmg(DmgPack.XorrisoBackend(true)), dest; full_layout = true)
@@ -138,7 +142,7 @@ if Sys.isunix()
         @testset "$backend" for backend in backends
 
             dmg = gtkapp_dmg(backend)
-            dmg_path = build_dmg(dmg)
+            dmg_path = build_dmg(dmg, signer)
 
             Sys.isapple() && run(`hdiutil verify $dmg_path`)
 

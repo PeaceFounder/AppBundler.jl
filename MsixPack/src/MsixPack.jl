@@ -199,10 +199,11 @@ end
 #             symlinks = :error, non_ascii = :error)
 # end
 
-function pack(app_stage, destination; signer::Union{Signer,Nothing} = nothing, verbose = false)
+#function pack(app_stage, destination; signer::Union{Signer,Nothing} = nothing, verbose = false)
 
-    if !isnothing(signer)
-        publisher = subject(signer)
+function pack(app_stage, destination; publisher = nothing, verbose = false)
+
+    if !isnothing(publisher)
         appxmanifest = joinpath(app_stage, "AppxManifest.xml")
         update_publisher_in_manifest(appxmanifest, publisher)
     end
@@ -210,7 +211,7 @@ function pack(app_stage, destination; signer::Union{Signer,Nothing} = nothing, v
     #MSIXPack.pack(app_stage, destination)
 
     run(`$(makemsix()) pack -d $app_stage -p $destination`)
-    sign(destination, signer) # It could be moved to temporary directory and then signing could be made
+    #sign(destination, signer) # It could be moved to temporary directory and then signing could be made
 
     return
 end

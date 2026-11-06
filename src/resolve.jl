@@ -17,15 +17,6 @@ import IconTools, MsixPack, DmgPack
 # Formats: wrappers for files that are inputs to a conversion
 # ─────────────────────────────────────────────────────────────────────────────
 
-"An .svg/.png that a target-specific icon is generated from."
-struct IconSource
-    path::String
-end
-
-"TOML description that a binary .DS_Store is generated from."
-struct DSStoreTOML
-    path::String
-end
 
 _path(x::String) = x
 _path(x::IconSource) = x.path
@@ -182,7 +173,7 @@ function resolve(target::AbstractString)
     end
 end
 
-
+resolve(::Nothing, target::AbstractString) = resolve(target)
 
 
 # "Like `resolve`, but for targets the bundle cannot be built without."
@@ -287,7 +278,7 @@ const GENERATORS = Dict{String, Function}(
 
 
 
-
+# need to make a pure function here
 function get_template_parameters(project_dir, target; defines = [])
 
     preferences = load_preferences(project_dir; defines)["AppBundler"]
