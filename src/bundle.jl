@@ -1,11 +1,7 @@
-#import Pkg, Artifacts
-#using Pkg.BinaryPlatforms: MacOS
-#using AppBundlerUtils_jll
 import Mustache
 import IconTools
 import DmgPack
 import MsixPack
-
 
 struct AppInfo
     predicate::Union{String, Nothing} 
@@ -13,7 +9,6 @@ struct AppInfo
     windowed::Bool
     app_name::String
     app_exe::String 
-    #module_name::Union{String, Nothing} # JuliaImg specific. Partially had been remdied with explicit COMMAND
     app_display_name::String 
     app_version::String
     build_number::Int
@@ -22,7 +17,6 @@ struct AppInfo
     bundle_identifier::String 
     publisher_name::String 
 end
-
 
 function AppInfo(preferences::Dict; 
                  predicate = get(preferences, "bundler", nothing),
@@ -54,11 +48,6 @@ function parameters(appinfo::AppInfo)
     # This one looks like a bug nest; need to refactor and test
     _parameters["APP_NAME"] = appinfo.app_name
     _parameters["APP_EXE"] = appinfo.app_exe
-
-    # if haskey(preferences, "module_name")
-    #     parameters["MODULE_NAME"] = preferences["module_name"]
-    # end
-
     _parameters["APP_DISPLAY_NAME"] = appinfo.app_display_name
     _parameters["APP_VERSION"] = appinfo.app_version
     _parameters["BUILD_NUMBER"] = appinfo.build_number
@@ -70,21 +59,16 @@ function parameters(appinfo::AppInfo)
     return _parameters
 end
 
-
-
-
 function render_template(source, parameters)
     template = Mustache.load(source)
     return Mustache.render(template, parameters)
 end
-
 
 function project_preferences(project)
     return load_preferences(project)["AppBundler"]    
 end
 
 project_preferences(::Nothing) = preferences()
-
 
 
 "An .svg/.png that a target-specific icon is generated from."
@@ -97,17 +81,6 @@ struct DSStoreTOML
     path::String
 end
 
-
-"""
-    Verbatim(path)
-
-Use the file or directory at `path` exactly as it is, skipping the processing the
-field would otherwise apply (icon conversion, `resources.pri` generation, `.DS_Store`
-rendering from TOML).
-"""
-struct Verbatim
-    path::String
-end
 
 function resolve_asset(prefix, finished, sources; dir = false)
     path = get_path(prefix, finished; dir, warn = false)
@@ -193,9 +166,6 @@ struct MSIX
     skip_unicode_paths::Bool
     publisher::String
     pfx_cert::Union{String, Nothing} 
-    #windowed::Bool # should be in AppInfo
-    #arch::Symbol # This belongs more to AppInfo
-    #parameters::Dict{String, Any}
 end
 
 function MSIX(project = nothing;
@@ -213,17 +183,10 @@ function MSIX(project = nothing;
               publisher = preferences["msix"]["publisher"],
               pfx_cert = resolve(project, "meta/msix/certificate.pfx"),
               kwargs...
-              #windowed = preferences["windowed"],
-              #arch = Sys.ARCH,
-              #parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher, "COMMAND_EXE" => first(command), "COMMAND_ARGS" => DmgPack.xml_escape_args(command))
               )
     
     appinfo = AppInfo(preferences; kwargs...)
 
-    #get_bundle_parameters!(parameters, preferences)
-
-
-    #return MSIX(icon, store_icon_plate, appxmanifest, command, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, publisher, pfx_cert, windowed, arch, parameters)
     return MSIX(appinfo, icon, store_icon_plate, appxmanifest, command, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, publisher, pfx_cert)
 end
 
@@ -241,13 +204,10 @@ end
 
 function stage_layout(msix::MSIX; parameters = parameters(msix))
 
-
     manifest = render_template(msix.appxmanifest, parameters)
     assets = msix.icon isa IconSource ? MsixPack.IconSource(msix.icon.path, msix.store_icon_plate) : msix.icon
     resources_pri = msix.resources_pri
     installer_data = render_template(msix.msixinstallerdata, parameters)
-
-    #@infiltrate
 
     return MsixPack.MSIXLayout(
         manifest, assets, resources_pri, installer_data
@@ -261,8 +221,6 @@ function stage(msix, destination; kwargs...)
 
     return
 end
-
-
 
 const SNAP_COMMAND_RE = r"^[A-Za-z0-9/. _#:$-]*$"
 
@@ -341,11 +299,6 @@ function Snap(project = nothing;
     return Snap(appinfo, icon, snap_config, command, desktop_launcher, configure_hook)
 end
 
-
-#Snap(project, predicate) = ...
-#Snap(project = nothing) = 
-
-
 function parameters(snap::Snap)
 
     _parameters = parameters(snap.appinfo)
@@ -353,16 +306,6 @@ function parameters(snap::Snap)
 
     return _parameters
 end
-
-
-# function Snap(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
-
-#     prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
-#     snap = Snap(; prefix, preferences, kwargs...)
-#     parameters = get_bundle_parameters!(snap.parameters, preferences)
-
-#     return snap
-# end
 
 
 # TODO: mention that application needs to be notarized by Apple. That can be done outside the build process by stapling already signed DMG archive. 
@@ -422,22 +365,14 @@ struct DMG
     command::Cmd
     entitlements::String
     dsstore::Union{String, DSStoreTOML} # if it's toml then use it as source for parsing
-    #selfsign::Bool # dropped
     pfx_cert::Union{String, Nothing}
     shallow_signing::Bool
     hardened_runtime::Bool
     sandboxed_runtime::Bool
     main_launcher::Union{String, Nothing}
     backend::DmgPack.ImageBackend
-    #windowed::Bool # In app info
-    #compress::Bool # dropped
     compression::Symbol 
-    #arch::Symbol
-    #predicate::String # dropped
-    #parameters::Dict{String, Any}
 end
-
-
 
 function dmg_backend(preferences)
 
@@ -466,28 +401,14 @@ function DMG(project = nothing;
              sandboxed_runtime = preferences["dmg"]["sandboxed_runtime"],
              main_launcher = resolve(project, "meta/dmg/main.sh"),
              backend = dmg_backend(preferences),
-             #windowed = preferences["windowed"],
              compression = preferences["dmg"]["compression"] |> Symbol,
              kwargs...
-             #arch = Sys.ARCH,
-             #parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => string(sandboxed_runtime), "COMMAND"=>Base.shell_escape_posixly(command))
              )
 
     appinfo = AppInfo(preferences; kwargs...)
-    #get_bundle_parameters!(parameters, preferences)
 
-    #return DMG(icon, info_config, command, entitlements, dsstore, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, backend, windowed, compression, arch, parameters)
     return DMG(appinfo, icon, info_config, command, entitlements, dsstore, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, backend, compression)
 end
-
-# function DMG(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
-
-#     prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
-#     dmg = DMG(; prefix, preferences, kwargs...)
-#     get_bundle_parameters!(dmg.parameters, preferences)
-    
-#     return dmg
-# end
 
 function parameters(dmg::DMG)
 
@@ -499,19 +420,14 @@ function parameters(dmg::DMG)
     return _parameters
 end
 
-
 function get_bundle_name(dmg::DMG)
-    #appname = dmg.parameters["APP_DISPLAY_NAME"]
     app_name = dmg.appinfo.app_name
-    #return "$appname.app"
     return "$app_name.app"
 end
-
 
 function stage_layout(dmg::DMG; full_layout = false, bundle_name = get_bundle_name(dmg), parameters = parameters(dmg))
 
     info_plist = render_template(dmg.info_config, parameters)
-    #icon = dmg.icon isa Verbatim ? dmg.icon.path : DmgPack.IconSource(dmg.icon)
     icon = dmg.icon isa IconSource ? DmgPack.IconSource(dmg.icon.path) : dmg.icon
     launcher = DmgPack.launcher_stub(dmg.appinfo.arch)
     
@@ -528,19 +444,13 @@ function stage_layout(dmg::DMG; full_layout = false, bundle_name = get_bundle_na
         applications_link = false
     end
 
-    #@infiltrate
-
     return DmgPack.DMGLayout(bundle_name, info_plist, icon, launcher, dsstore, applications_link)
 end
-
 
 function stage(dmg::DMG, destination; bundle_name = get_bundle_name(dmg), kwargs...)
 
     layout = stage_layout(dmg; bundle_name, kwargs...)
     DmgPack.stage(layout, destination)
-
-    # ToDo: refactor without install method
-    #install(dmg.main_launcher, joinpath(destination, bundle_name, "Contents/Libraries/main"); parameters = parameters(dmg), executable = true)
 
     main_launcher = render_template(dmg.main_launcher, parameters(dmg))
     main_path = joinpath(destination, bundle_name, "Contents/Libraries/main")
@@ -551,175 +461,6 @@ function stage(dmg::DMG, destination; bundle_name = get_bundle_name(dmg), kwargs
     return
 end
 
-
-# function stage_app(dmg::DMG, destination)
-    
-#     bundle_name = basename(destination)
-#     layout = stage_layout(dmg; full_layout = false, bundle_name)
-#     DmgPack.stage(layout, dirname(destination))
-
-#     return
-# end
-
-
-
-
-
-# """
-#     stage(config, destination::String; [dsstore=false])
- 
-# Stage package metadata and directory structure into `destination` in preparation for bundling.
- 
-# `config` is a format-specific configuration object — [`MSIX`](@ref), [`DMG`](@ref),
-# [`Snap`](@ref), or [`AppImage`](@ref) — that carries the template files, parameters, and
-# settings for the target platform. Mustache-rendered templates are written using the parameters
-# stored in `config`. Assets wrapped in [`Verbatim`](@ref) are copied as-is; other assets are
-# converted or rendered.
- 
-# `stage` is called automatically by [`bundle`](@ref), but can be used directly when you need
-# to inspect or modify the staging directory before compression and signing. The `dsstore`
-# keyword is accepted only for `DMG`.
- 
-# ## Staged layout by format
- 
-# **MSIX**
-# - `Assets/` — application icons (generated from an icon source, or copied verbatim from a ready-made `msix/Assets` directory)
-# - `AppxManifest.xml` — rendered package manifest
-# - `resources.pri` — package resource index, copied verbatim
-# - `Msix.AppInstaller.Data/MSIXAppInstallerData.xml` — rendered installer configuration
- 
-# **DMG**
-# - `Contents/Resources/icon.icns` — application icon
-# - `Contents/Info.plist` — rendered application metadata
-# - `Contents/MacOS/<APP_EXE>` and `Contents/Libraries/main` (optional) — native launcher and the
-#   rendered launcher script it runs, when `main_launcher` is set
- 
-#   When `dsstore = true`, also writes into the *parent* of `destination`:
-#   - `Applications` — symlink to `/Applications` for drag-and-drop installation
-#   - `.DS_Store` — custom Finder window appearance (rendered from TOML or copied verbatim)
- 
-# **Snap**
-# - `meta/icon.png` — application icon
-# - `meta/snap.yaml` — rendered Snap package metadata
-# - `meta/gui/<APP_EXE>.desktop` — rendered desktop launcher
-# - `meta/hooks/configure` (optional) — configuration hook when `configure_hook` is set
- 
-# **AppImage**
-# - `AppRun` — rendered, executable entry point
- 
-# # Examples
-# ```julia
-# stage(MSIX(app_dir), "build/msix_staging")
-# stage(DMG(app_dir),  "build/MyApp.app"; dsstore = true)
-# stage(Snap(app_dir), "build/snap_staging")
-# stage(AppImage(app_dir), "build/MyApp.AppDir")
-# ```
-# """
-# function stage(msix::MSIX, destination::String)
-
-#     if !isdir(destination)
-#         mkdir(destination)
-#     end
-
-#     materialize(msix.icon, joinpath(destination, "Assets")) do src, dest
-#         img = IconTools.load(src)
-#         mkpath(dest)
-#         for (file, icon) in IconTools.tomsix(img; msix.store_icon_plate)
-#             IconTools.save(joinpath(dest, file), icon)
-#         end
-#     end
-
-#     (; predicate, parameters) = msix
-#     install(msix.appxmanifest, joinpath(destination, "AppxManifest.xml"); parameters, predicate)
-
-#     materialize(msix.resources_pri, joinpath(destination, "resources.pri")) do src, dest
-#         error("Generation of resources.pri file not implemented.")
-#     end
-#     install(msix.msixinstallerdata, joinpath(destination, "Msix.AppInstaller.Data/MSIXAppInstallerData.xml"); parameters)
-
-#     return
-# end
-
-# function install_dsstore(source::String, dsstore_destination::String; parameters = Dict())
-
-#     rm(dsstore_destination; force=true)
-
-#     dsstore_toml = Mustache.render(read(source, String), parameters)
-#     dsstore = TOML.parse(dsstore_toml)
-
-#     DSStore.open_dsstore(dsstore_destination, "w+") do ds
-
-#         ds[".", "icvl"] = ("type", "icnv")
-#         ds[".", "vSrn"] = ("long", 1)
-
-#         for file_key in keys(dsstore)
-#             file_dict = dsstore[file_key]
-#             for entry_key in keys(file_dict)
-#                 ds[file_key, entry_key] = file_dict[entry_key]
-#             end
-#         end
-#     end
-    
-#     return
-# end
-
-
-
-# function retrieve_macos_launcher(platform::MacOS)
-
-#     artifacts_toml = joinpath(dirname(dirname(pathof(AppBundlerUtils_jll))), "Artifacts.toml")
-#     artifacts = Artifacts.select_downloadable_artifacts(artifacts_toml; platform)["AppBundlerUtils"]
-
-#     try 
-
-#         Artifacts.ARTIFACTS_DIR_OVERRIDE[] = artifacts_cache()
-
-#         hash = artifacts["git-tree-sha1"]
-#         Pkg.Artifacts.ensure_artifact_installed("AppBundlerUtils", artifacts, artifacts_toml) 
-
-#         return joinpath(artifacts_cache(), hash, "bin", "macos_launcher")
-
-#     finally
-#         Artifacts.ARTIFACTS_DIR_OVERRIDE[] = nothing
-#     end
-
-#     return
-# end
-
-# function stage(dmg::DMG, destination::String; dsstore = false) 
-
-#     (; predicate, parameters) = dmg
-#     app_exe = parameters["APP_EXE"]
-
-#     materialize(dmg.icon, joinpath(destination, "Contents/Resources/icon.icns")) do src, dest
-#         img = IconTools.load(src)
-#         write(dest, IconTools.toicns(img))
-#     end
-
-#     install(dmg.info_config, joinpath(destination, "Contents/Info.plist"); parameters, predicate)
-
-#     if dsstore
-#         symlink("/Applications", joinpath(dirname(destination), "Applications"); dir_target=true)
-
-#         materialize(dmg.dsstore, joinpath(dirname(destination), ".DS_Store")) do src, dest
-#             install_dsstore(src, dest; parameters)
-#         end
-#     end
-
-#     if !isnothing(dmg.main_launcher)
-#         launcher = retrieve_macos_launcher(MacOS(dmg.arch))
-#         install(launcher, joinpath(destination, "Contents/MacOS/$app_exe"); executable = true)
-
-#         install(dmg.main_launcher, joinpath(destination, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true, predicate = dmg.predicate)
-#     end
-
-#     return
-# end
-
-# It is also possible to directly install svg icon in the snap. 
-# this requires templating myapp.desktop, hence not done at the moment
-
-
 function stage(snap::Snap, destination::String; kwargs...)
     layout = stage_layout(snap; kwargs...)
     SnapPack.stage(layout, destination)
@@ -728,7 +469,6 @@ end
 
 function stage_layout(snap::Snap; parameters = parameters(snap))
 
-    #app_exe = snap.parameters["APP_EXE"] # It would be preferable not be so explicit here
     app_exe = snap.appinfo.app_exe
 
     snap_config = render_template(snap.snap_config, parameters)
@@ -740,28 +480,6 @@ function stage_layout(snap::Snap; parameters = parameters(snap))
     return SnapPack.SnapLayout(app_exe, icon, snap_config, desktop_launcher, configure_hook)
 end
 
-# function stage(snap::Snap, destination::String)
-
-#     (; parameters) = snap
-#     app_exe = parameters["APP_EXE"]
-
-#     materialize(snap.icon, joinpath(destination, "meta/icon.png")) 
-
-#     # do src, dest
-#     #         img = IconTools.load(src)
-#     #         icon_img = IconTools.toicon(img, 512)
-#     #         IconTools.save(dest, icon_img)
-#     #     end
-
-#     install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters, predicate = snap.appinfo.predicate)
-#     install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_exe.desktop"); parameters)
-    
-#     if !isnothing(snap.configure_hook)
-#         install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters, executable = true)
-#     end
-
-#     return
-# end
 
 """
     bundle(setup::Function, config, destination::String; force=false, [password="", verbose=false])
@@ -825,10 +543,6 @@ end
 """
 function bundle(setup::Function, dmg::DMG, destination::String; compress = true, force = false, signer = nothing, verbose = false, parameters = parameters(dmg)) 
 
-    # if length(installer_title) > 32
-    #     error("Installer title \"$installer_title\" exceeds the maximum 32 characters allowed by xorriso (current length: $(length(installer_title))). Please shorten APP_DISPLAY_NAME to $(32 - length(" Installer")) characters or less.")
-    # end
-
     if ispath(destination)
         if force
             rm(destination; force=true, recursive=true)
@@ -839,18 +553,11 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress = true,
 
     @info "Initializing DMG staging layout..."
     if compress
-        #appname = parameters["APP_DISPLAY_NAME"]
-        #app_stage = joinpath(mktempdir(), "$appname.app")
-        
-        #stage(dmg, app_stage; dsstore = true)        
-        
         app_stage = joinpath(mktempdir(), get_bundle_name(dmg))
         full_layout = true
-
     else
         app_stage = destination
         full_layout = false
-        #stage_app(dmg, app_stage) #; dsstore = false)
     end
     stage(dmg, dirname(app_stage); full_layout, bundle_name = basename(app_stage), parameters)
     
@@ -861,29 +568,12 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress = true,
 
     if !isnothing(signer)
         @info "Codesigning app..."
-    # if dmg.selfsign
-    #     signer = DmgPack.generate_signer()
-    #     #pfx_path = joinpath(tempdir(), "certificate.pfx")
-    #     #DMGPack.generate_self_signing_pfx(pfx_path; password = "")        
-    # else
-    #     #pfx_path = dmg.pfx_cert
-    #     #signer = DMGPack.PfxSigner(dmg.pfx_cert, password)
-    #     signer = DmgPack.PfxSigner(dmg.pfx_cert, password)
-    # end        
-
-    #entitlements = render_template(dmg.entitlements; parameters, predicate)
         entitlements = render_template(dmg.entitlements, parameters)
         DmgPack.sign(app_stage, signer; entitlements, dmg.shallow_signing, dmg.hardened_runtime)
     end
         
-    #entitlements = joinpath(mktempdir(), "Entitlements.plist")
-    #install(dmg.entitlements, entitlements; parameters, predicate)
-    #DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, backend = dmg.backend, verbose)
-
     if compress
-
         @info "Packaging staging area into DMG..."
-        #installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
         installer_title = join([dmg.appinfo.app_display_name, "Installer"], " ")
         DmgPack.pack(dirname(app_stage), destination; installer_title, dmg.compression, dmg.backend, verbose)
 
@@ -891,70 +581,6 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress = true,
     
     return
 end
-
-
-
-# function bundle(setup::Function, dmg::DMG, destination::String; force = false, password = "", verbose = false) 
-
-#     (; parameters, predicate) = dmg
-    
-#     installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
-
-#     if length(installer_title) > 32
-#         error("Installer title \"$installer_title\" exceeds the maximum 32 characters allowed by xorriso (current length: $(length(installer_title))). Please shorten APP_DISPLAY_NAME to $(32 - length(" Installer")) characters or less.")
-#     end
-
-#     if ispath(destination)
-#         if force
-#             rm(destination; force=true, recursive=true)
-#         else
-#             error("Destination $destination already exists. Use `force = true` argument.")
-#         end
-#     end
-
-#     @info "Initializing DMG staging layout..."
-#     if dmg.compress
-#         appname = parameters["APP_DISPLAY_NAME"]
-#         app_stage = joinpath(mktempdir(), "$appname.app")
-#         stage(dmg, app_stage; dsstore = true)        
-#     else
-#         app_stage = destination
-#         stage(dmg, app_stage; dsstore = false)
-#     end
-
-#     @info "Installing app into staging area..."
-#     setup(app_stage)
-
-#     # Remove AppleDouble metadata files (._*) that macOS creates to preserve extended attributes
-#     # and executable permissions on non-HFS+ filesystems. These files are created by xorriso during
-#     # ISO creation but get stripped during DMG compression, causing codesign verification to fail
-#     # when the installed app is checked, since the code signature references files that no longer exist.
-#     # Example errors without this cleanup:
-#     #   file missing: .../SparseArrays/gen/._generator.jl
-#     #   file missing: .../julia/._julia-config.jl
-#     #   file missing: .../terminfos/._make-fancy-terminfo.sh
-#     # These ._* files typically appear alongside executable .jl or .sh files in the Julia stdlib.
-#     run(`find $app_stage -name "._*" -delete`)
-
-#     if dmg.selfsign
-#         @info "Generating self signing certificate"
-#         pfx_path = joinpath(tempdir(), "certificate.pfx")
-#         DMGPack.generate_self_signing_pfx(pfx_path; password = "")        
-#     else
-#         pfx_path = dmg.pfx_cert
-#     end        
-
-#     @info "Packaging staging area into DMG..."
-#     entitlements = joinpath(mktempdir(), "Entitlements.plist")
-#     install(dmg.entitlements, entitlements; parameters, predicate)
-    
-#     DMGPack.pack(app_stage, destination, entitlements; pfx_path, password, compression = dmg.compress ? dmg.compression : nothing, installer_title, shallow_signing = dmg.shallow_signing, hardened_runtime = dmg.hardened_runtime, backend = dmg.backend, verbose)
-
-#     return
-# end
-
-
-#function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "", verbose = false)
 
 function bundle(setup::Function, msix::MSIX, destination::String; compress = true, signer = nothing, force = false, verbose = false, parameters = parameters(msix))
 
@@ -983,56 +609,8 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress = tru
         end
     end
 
-    # if msix.compress
-    #     if msix.selfsign
-    #         @info "Generating self signing certificate"
-    #         signer = MsixPack.generate_signer(publisher = msix.publisher)
-    #     else
-    #         signer = MsixPack.PfxSigner(msix.pfx_cert, msix.publisher, password)
-    #     end        
-    #     @info "Packaging staging area into MSIX..."
-    #     MsixPack.pack(app_stage, destination; signer)
-    # end
-
     return
 end
-
-
-# function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "", verbose = false)
-
-#     if ispath(destination)
-#         if force
-#             rm(destination; force=true, recursive=true)
-#         else
-#             error("Destination $destination already exists. Use `force = true` argument.")
-#         end
-#     end
-#     app_stage = msix.compress ? mktempdir() : destination
-
-#     @info "Initializing MSIX staging layout..."
-#     stage(msix, app_stage)
-#     @info "Installing app into staging area..."
-#     setup(app_stage)
-
-#     (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
-#     ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
-
-#     if msix.compress
-#         if msix.selfsign
-#             @info "Generating self signing certificate"
-#             pfx_path = joinpath(tempdir(), "certificate.pfx")
-#             MSIXPack.generate_self_signed_certificate(pfx_path; password, publisher = msix.publisher)
-#         else
-#             pfx_path = msix.pfx_cert
-#         end        
-#         @info "Packaging staging area into MSIX..."
-#         MSIXPack.pack(app_stage, destination; pfx_path, password)        
-#     end
-
-#     return
-# end
-
-
 
 function bundle(setup::Function, snap::Snap, destination::String; compress = true, force = false, verbose = false, parameters = parameters(snap))
 
@@ -1111,11 +689,6 @@ struct AppImage
     apprun::String # It is always AppRun.sh. 
     command::Cmd
     compression::Symbol
-    #compress::Bool
-    #arch::Symbol
-    #runtime::String
-    #predicate::String
-    #parameters::Dict{String, Any}
 end
 
 function AppImage(project = nothing;
@@ -1124,10 +697,6 @@ function AppImage(project = nothing;
                   command = Cmd(preferences["appimage"]["command"]),
                   compression = Symbol(get(preferences["appimage"], "compression", "zstd")),
                   windowed = preferences["windowed"],
-                  #compress = preferences["compress"],
-                  #arch = Sys.ARCH,
-                  #runtime = AppImageRuntime.get_runtime(arch),
-                  #parameters = Dict{String, Any}("WINDOWED" => windowed, "COMMAND" => Base.shell_escape_posixly(command))
                   kwargs...
                   )
 
@@ -1135,11 +704,8 @@ function AppImage(project = nothing;
         error("`appimage.compression` must be one of: " *
               join(AppImagePack.COMPRESSORS, ", ") * ". Got `$compression`.")
 
-    #get_bundle_parameters!(parameters, preferences)
-
     appinfo = AppInfo(preferences; kwargs...)
 
-    #return AppImage(apprun, command, compression, arch, parameters)
     return AppImage(appinfo, apprun, command, compression)
 end
 
@@ -1151,16 +717,6 @@ function parameters(appimage::AppImage)
 
     return _parameters
 end
-
-
-# function AppImage(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
-
-#     prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
-#     appimage = AppImage(; prefix, preferences, kwargs...)
-#     get_bundle_parameters!(appimage.parameters, preferences)
-
-#     return appimage
-# end
 
 function stage_layout(appimage::AppImage; parameters = parameters(appimage))
     
@@ -1177,15 +733,6 @@ function stage(appimage::AppImage, destination::String; kwargs...)
     return
 end
 
-
-# function stage(appimage::AppImage, destination::String)
-
-#     (; predicate, parameters) = appimage
-
-#     install(appimage.apprun, joinpath(destination, "AppRun"); parameters, executable = true, predicate)
-
-#     return
-# end
 
 function bundle(setup::Function, appimage::AppImage, destination::String; compress = true, force = false, parameters = parameters(appimage))
 

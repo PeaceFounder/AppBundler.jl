@@ -17,7 +17,6 @@ import IconTools, MsixPack, DmgPack
 # Formats: wrappers for files that are inputs to a conversion
 # ─────────────────────────────────────────────────────────────────────────────
 
-
 _path(x::String) = x
 _path(x::IconSource) = x.path
 _path(x::DSStoreTOML) = x.path
@@ -179,39 +178,6 @@ function with_predicate(path::AbstractString, predicate)
 end
 
 
-
-
-
-
-# """
-#     locate(project, target; skip_own = false)
-#         -> (; value, origin, from) | nothing
-
-# - `value`:  what `resolve` returns: a path `String`, or `IconSource`/`DSStoreTOML`
-# - `origin`: `:project` or `:default`
-# - `from`:   the target the file belongs to; differs from `target` when generated
-
-# `skip_own` ignores the project's own file for `target` (what `inline` needs).
-# """
-# function locate(project::AbstractString, target::AbstractString; skip_own::Bool = false, predicate = nothing)
-#     r = rule(target)
-
-#     if !skip_own
-#         path = joinpath(project, target)
-#         ispath(path) && return (; value = r.format(path), origin = :project, from = target)
-#     end
-
-#     if !isnothing(r.derive)
-#         found = locate(project, r.derive)
-#         isnothing(found) || return found
-#     end
-
-#     isnothing(r.default) && return nothing
-#     path = r.default()
-#     ispath(path) || error("Built-in default for $target is missing: $path. This is a packaging bug.")
-#     return (; value = r.format(path), origin = :default, from = target)
-# end
-
 """
     resolve(project, target) -> String | IconSource | DSStoreTOML | nothing
 
@@ -247,29 +213,7 @@ function resolve(target::AbstractString; predicate = nothing)
     end
 end
 
-# function resolve(target::AbstractString)
-    
-#     r = rule(target)
-#     if isnothing(r.default)
-#         if !isnothing(r.derive)
-#             resolve(r.derive)
-#         else
-#             error("Can't resolve $target")
-#         end
-#     else
-#         return r.default()
-#     end
-# end
-
 resolve(::Nothing, target::AbstractString; predicate = nothing) = resolve(target; predicate)
-
-
-# "Like `resolve`, but for targets the bundle cannot be built without."
-# function require(project::AbstractString, target::AbstractString)
-#     value = resolve(project, target)
-#     isnothing(value) && error("$target is required: add $(joinpath(project, target))")
-#     return value
-# end
 
 render(path::AbstractString, parameters) = Mustache.render(Mustache.load(path), parameters)
 
@@ -447,68 +391,5 @@ function inline(project_dir, target; force = false, render = false, defines = Pa
         cp(_path(found.value), destination)
     end
 
-    #return destination
     return nothing
 end
-
-
-
-# function inline(project::AbstractString, target::AbstractString; defines = [], 
-#                 force::Bool = false, render::Bool = false,
-#                 parameters = nothing, preferences = nothing)
-
-#     if target == "LocalPreferences.toml" 
-#         defines = ArgTools.coerce(defines, LOCAL_PREFERENCES_SCHEMA)
-#         PrefTools.inline_preferences(destination, defines; section = "AppBundler")
-#         return
-#     end 
-
-#     r     = rule(target)                                      # unknown target → error, nothing deleted
-#     found = locate(project, target; skip_own = true)
-#     gen   = get(GENERATORS, target, nothing)
-#     dest  = joinpath(project, target)
-
-#     derived = isnothing(found) || found.from != target
-#     derived && isnothing(gen) && error("$target has no default to inline")
-
-#     if ispath(dest)
-#         force || error("$dest already exists; pass `force = true` to overwrite it")
-#         rm(dest; recursive = true)
-#     end
-#     mkpath(dirname(dest))
-
-#     if derived
-#         gen(isnothing(found) ? nothing : found.value, dest; parameters, preferences)
-#     elseif render && r.template
-#         write(dest, AppBundler.render(found.value, parameters))   # qualified: the `render` keyword shadows it
-#     else
-#         cp(_path(found.value), dest)
-#     end
-#     return dest
-# end
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Tests that keep the table honest
-# ─────────────────────────────────────────────────────────────────────────────
-#
-# @testset "targets" begin
-#     for (target, r) in RULES
-#         if !isnothing(r.derive)
-#             @test haskey(RULES, r.derive)          # full target name
-#             @test haskey(GENERATORS, target)       # inline can produce it
-#         end
-#         isnothing(r.default) || @test ispath(r.default())
-#     end
-#     # derive chains terminate
-#     for target in keys(RULES)
-#         seen = Set{String}(); t = target
-#         while !isnothing(RULES[t].derive)
-#             @test t ∉ seen; push!(seen, t); t = RULES[t].derive
-#         end
-#     end
-#     # empty project: icon.icns comes from the IconTools png
-#     empty = mktempdir()
-#     @test resolve(empty, "meta/dmg/icon.icns") isa IconSource
-#     @test locate(empty, "meta/dmg/icon.icns").from == "meta/icon.png"
-#     @test resolve(empty, "meta/dmg/Info.plist") isa String
-# end

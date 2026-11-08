@@ -39,16 +39,10 @@ function (@main)(ARGS)
     return 0
 end
 
-# suffix(msix::MSIX) = msix.compress ? ".msix" : ""
-# suffix(dmg::DMG) = dmg.compress ? ".dmg" : ""
-# suffix(snap::Snap) = snap.compress ? ".snap" : ""
-# suffix(appimage::AppImage) = appimage.compress ? ".AppImage" : ""
-
 suffix(msix::MSIX) = ".msix"
 suffix(dmg::DMG) = ".dmg" 
 suffix(snap::Snap) = ".snap"
 suffix(appimage::AppImage) = ".AppImage"
-
 
 function canonical_target_name(spec::Union{MSIX, DMG, Snap, AppImage})
     version = spec.parameters["APP_VERSION"]

@@ -50,8 +50,6 @@ function bundle(product::JuliaImgBundle, snap::Snap, destination::String; force 
     configure_compiled_modules = JuliaImg.get_project_deps(product.source)
     parameters["PROJECT_DEPS"] = join(configure_compiled_modules, ",")
 
-    #snap.parameters["PROJECT_DEPS"] = join(configure_compiled_modules, ",")
-
     bundle(snap, destination; force, parameters) do app_stage
 
         app_name = snap.appinfo.app_exe

@@ -70,8 +70,6 @@ function pack(source, destination)
         -mkfs-time 0
         -all-time 0`)
 
-    #run(`$(mksquashfs()) $source $destination -noappend -comp xz`)
-
     return
 end
 

@@ -4,3 +4,4 @@ Manifest.toml
 /deps/build.log
 /IconTools/test/build
 /IconTools/assets/build
+/DmgPack/deps/build.log

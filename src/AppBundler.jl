@@ -22,19 +22,10 @@ abstract type BuildSpec end
 
 function stage end
 
-# include("DMG/DSStore.jl")
-# include("DMG/HFSTools.jl")
-# include("DMG/HFSImg.jl")
-# include("DMG/DMGPack.jl")
-
 include("Snap/SnapPack.jl")
 
 include("AppImage/AppImageRuntime.jl")
 include("AppImage/AppImagePack.jl")
-
-# include("MSIX/MSIXPack.jl")
-# include("MSIX/WinSubsystem.jl")
-# include("MSIX/MSIX2EXEPack.jl")
 
 # JuliaC needs assets and pkgorigins_index which is shared between JuliaImg and JuliaC
 include("bundlers/Resources.jl") 
@@ -58,7 +49,6 @@ include("resolve.jl") # better would be called rules.jl
 
 
 include("status.jl")
-#include("inline.jl")
 include("main.jl")
 
 function __init__()
