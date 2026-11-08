@@ -11,7 +11,7 @@ end
 
 struct SnapLayout
     app_exe::String
-    icon::IconSource
+    icon::Union{IconSource, String}
     snap_config::String
     desktop_launcher::String
     configure_hook::Union{String, Nothing}
