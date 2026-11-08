@@ -62,7 +62,7 @@ elseif Sys.isapple()
     bundle(spec, dmg, joinpath(build_dir, "cmdapp-juliac.dmg"); signer, force = true)
 
 elseif Sys.iswindows()
-    msix = MSIX(project; windowed = false, selfsign = true, predicate)
+    msix = MSIX(project; windowed = false, predicate)
     signer = MsixPack.generate_signer(; msix.publisher)
     msix_path = joinpath(build_dir, "cmdapp-juliac.msix")
     bundle(spec, msix, msix_path; signer, force = true)
