@@ -111,45 +111,6 @@ function commit_count(repo_path = ".")
     end
 end
 
-
-function extract_template_parameters!(parameters::Dict{String, Any}, preferences)
-
-    # This one looks like a bug nest; need to refactor and test
-    parameters["APP_NAME"] = preferences["app_name"]
-    parameters["APP_EXE"] = preferences["app_exe"]
-
-    if haskey(preferences, "module_name")
-        parameters["MODULE_NAME"] = preferences["module_name"]
-    end
-
-    parameters["APP_DISPLAY_NAME"] = preferences["app_display_name"]
-    parameters["APP_VERSION"] = preferences["version"]
-    parameters["BUILD_NUMBER"] = preferences["build_number"]
-    parameters["APP_SUMMARY"] = preferences["app_summary"]
-    parameters["APP_DESCRIPTION"] = preferences["app_description"]
-    parameters["BUNDLE_IDENTIFIER"] = preferences["bundle_identifier"]
-    parameters["PUBLISHER_DISPLAY_NAME"] = preferences["publisher_name"]
-    parameters[uppercase(preferences["bundler"])] = true
-
-    #parameters["JULIAC"] = true
-
-    #@show parameters
-
-    # can't put here because it's possible to create inconsistent bundle struct here
-    # parameters["WINDOWED"] = preferences["windowed"]
-    # parameters["PUBLISHER"] = preferences["msix_publisher"] |> normalize_publisher
-
-    return parameters
-end
-
-function get_bundle_parameters!(parameters::Dict{String, Any}, preferences)
-    return extract_template_parameters!(parameters, preferences)
-end
-
-function get_bundle_parameters(preferences)
-    return extract_template_parameters!(Dict{String, Any}(), preferences)
-end
-
 function set_default!(f::Function, dict::AbstractDict, key::AbstractString)
     parts = split(key, '.')
     for part in parts[1:end-1]

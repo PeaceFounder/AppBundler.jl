@@ -82,11 +82,6 @@ struct DSStoreTOML
 end
 
 
-function resolve_asset(prefix, finished, sources; dir = false)
-    path = get_path(prefix, finished; dir, warn = false)
-    isnothing(path) ? get_path(prefix, sources) : Verbatim(path)
-end
-
 function materialize(source::String, destination)
     mkpath(dirname(destination))
     cp(source, destination)

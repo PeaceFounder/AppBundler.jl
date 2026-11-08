@@ -3,7 +3,6 @@ import .PrefTools: PreferenceStatus, PreferenceEntry
 format_value(v::AbstractVector) = "[" * join(map(format_value, v), ", ") * "]"
 format_value(v) = repr(v)
 
-
 function print_preferences(io::IO, entries::AbstractVector{PreferenceEntry})
     missing_entries = filter(e -> e.status == PreferenceStatus.ERROR && isnothing(e.value), entries)
     value_entries   = filter(e -> !(e.status == PreferenceStatus.ERROR && isnothing(e.value)), entries)
@@ -64,20 +63,6 @@ function print_preferences(io::IO, project_dir; defines = Pair{String, Any}[])
 end
 
 print_preferences(project_dir) = print_preferences(stdout, project_dir)
-
-const DEFAULT_DIR = joinpath(dirname(@__DIR__), "recipes")
-
-function issubpath(path, parent)
-    p = splitpath(abspath(path))
-    q = splitpath(abspath(parent))
-    return length(p) >= length(q) && p[1:length(q)] == q
-end
-
-isoverride(path) = !isnothing(path) && !issubpath(path, DEFAULT_DIR)
-isoverride(path::Verbatim) = isoverride(path.path)
-
-isgenerated_asset(path) = true  #basename(path) in ("icon.png", "icon.svg")
-isgenerated_asset(::Verbatim) = false
 
 isoverridden(value) = value === true || (value isa Tuple && any(((_, v),) -> isoverridden(v), value))
 

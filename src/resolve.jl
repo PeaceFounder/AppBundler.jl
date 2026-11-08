@@ -13,6 +13,8 @@
 import Mustache, TOML
 import IconTools, MsixPack, DmgPack
 
+const DEFAULT_DIR = joinpath(dirname(@__DIR__), "recipes")
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Formats: wrappers for files that are inputs to a conversion
 # ─────────────────────────────────────────────────────────────────────────────
