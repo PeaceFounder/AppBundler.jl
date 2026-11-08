@@ -3,6 +3,31 @@ import IconTools
 import DmgPack
 import MsixPack
 
+"""
+    AppInfo([preferences::Dict]; kwargs...)
+
+Application metadata shared by all bundle configurations. Each field defaults to the matching key
+in `preferences` (the `AppBundler` preferences section), falling back to the values listed below.
+The format constructors [`MSIX`](@ref), [`DMG`](@ref), [`Snap`](@ref) and [`AppImage`](@ref)
+forward their remaining keyword arguments here.
+
+# Keyword Arguments
+- `predicate`: Bundler predicate; defaults to `bundler` preference, or `nothing`
+- `arch = Sys.ARCH`: Target CPU architecture
+- `windowed`: If `true`, the application runs without a console window; defaults to `windowed` preference, or `false`
+- `app_name`: defaults to `app_name` preference, or `"MyApp"`
+- `app_exe`: defaults to `app_exe` preference, or `lowercase(app_name)`
+- `app_display_name`: defaults to `app_display_name` preference, or `app_name`
+- `app_version`: defaults to `app_version` preference, or `"0.0.1"`
+- `build_number`: defaults to `build_number` preference, or `0`
+- `app_summary`, `app_description`: Short and long application descriptions
+- `bundle_identifier`: defaults to `bundle_identifier` preference, or `"org.appbundler.<app_exe>"`
+- `publisher_name`: defaults to `publisher_name` preference, or `"AppBundler"`
+
+`parameters(appinfo)` exposes these to Mustache templates as `WINDOWED`, `APP_NAME`, `APP_EXE`,
+`APP_DISPLAY_NAME`, `APP_VERSION`, `BUILD_NUMBER`, `APP_SUMMARY`, `APP_DESCRIPTION`,
+`BUNDLE_IDENTIFIER` and `PUBLISHER_DISPLAY_NAME`, plus the upper-cased predicate set to `true`.
+"""
 struct AppInfo
     predicate::Union{String, Nothing} 
     arch::Symbol 
@@ -98,53 +123,113 @@ function materialize(source::IconSource, destination)
     return
 end
 
+
 """
-    MSIX([project]; arch, compress, windowed, kwargs...)
+    bundle(setup::Function, config, destination::String; compress = true, force = false, parameters = parameters(config), [signer = nothing, verbose = false])
+
+Stage, populate, and optionally compress an application bundle for distribution.
+
+`config` is a format-specific configuration object — [`MSIX`](@ref) (Windows), [`DMG`](@ref)
+(macOS), [`Snap`](@ref) (Linux), or [`AppImage`](@ref) (Linux) — and `destination` is the path
+of the final artifact (e.g. `"MyApp.msix"`, `"MyApp.dmg"`, `"MyApp.snap"`, `"MyApp.AppImage"`)
+or, with `compress = false`, of the uncompressed staging directory.
+
+The function follows three steps:
+
+1. **Stage** — renders the configuration's templates with `parameters` and writes platform
+   metadata and directory structure into a staging area via [`stage`](@ref). The staging area is
+   a temporary directory when `compress = true` and `destination` itself otherwise. For DMG the
+   staging area is the `.app` bundle directory.
+2. **Setup** — calls `setup(staging_dir)`, where you copy or compile the application
+   files that should be included in the bundle.
+3. **Pack** — when `compress = true`, compresses the staging area into the final artifact.
+
+If `destination` already exists an error is thrown, unless `force = true`, in which case it is
+removed first.
+
+# Keyword Arguments
+- `compress = true`: Pack the staging area into `destination`; otherwise leave `destination` as an uncompressed staging directory
+- `force = false`: Remove an existing `destination` instead of throwing an error
+- `parameters = parameters(config)`: Mustache template parameters
+- `signer = nothing`: MSIX and DMG only. Code signing identity; the bundle is left unsigned when `nothing`
+- `verbose = false`: MSIX, DMG and Snap only. Verbose output while packing the DMG
+
+## Format-specific behavior
+
+- **MSIX** — after setup, the staging area is checked for Windows compatibility (path length,
+  symlinks, non-ASCII paths) according to the `skip_*` settings in the configuration. The package
+  is signed after packing, so it is signed only when `compress = true`; the signer's `publisher`
+  then replaces `config.publisher` when packing.
+- **DMG** — when compressed, the app is staged as `<APP_NAME>.app` together with the Finder
+  layout (`.DS_Store` and an `Applications` link), and `"<APP_DISPLAY_NAME> Installer"` is used as
+  the volume title, which must not exceed 32 characters. When uncompressed, `destination` is the
+  `.app` directory itself, without the Finder layout. AppleDouble `._*` files are removed from the
+  staging area before signing. The bundle is signed with the rendered entitlements whenever a
+  `signer` is given, also when left uncompressed.
+- **Snap** — not signed locally; packages are verified by the Snap Store after upload.
+- **AppImage** — not signed.
+
+# Examples
+```julia
+bundle(MSIX(app_dir), "MyApp.msix") do staging_dir
+    # copy or compile application files into staging_dir
+end
+
+bundle(DMG(app_dir), "MyApp.dmg") do staging_dir
+    # copy or compile application files into staging_dir
+end
+
+bundle(Snap(app_dir), "MyApp.snap") do staging_dir
+    # copy or compile application files into staging_dir
+end
+
+bundle(AppImage(app_dir), "MyApp.AppImage") do staging_dir
+    # copy or compile application files into staging_dir
+end
+```
+"""
+function bundle end
+
+
+"""
+    MSIX([project]; kwargs...)
 
 Create an MSIX configuration object for Windows application packaging.
 
-When `project` is provided, configuration files are searched in `project`, then `project/meta`,
-then the built-in recipes directory. Application parameters (`APP_NAME`, `APP_VERSION`, etc.) are
-read from `project/Project.toml`, and packaging defaults (`path_length_threshold`, `selfsign`,
-etc.) are read from `project/LocalPreferences.toml`. Without `project`, only the built-in recipes
-and the active project's `LocalPreferences.toml` are used.
+Templates and assets are resolved from `project/meta/msix/`, falling back to the built-in recipes.
+Defaults are read from the `AppBundler` section of the project's preferences, or of the active
+project's preferences when `project` is omitted.
 
 # Arguments
-- `project`: Path to a project directory containing `Project.toml`, optional `LocalPreferences.toml`, and optional `meta/msix/` overrides
+- `project`: Path to a project directory with optional `meta/msix/` overrides
 
 # Keyword Arguments
-- `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
-- `preferences`: Dictionary of packaging preferences used for the defaults below; read from `project` when given, otherwise from the active project
-- `icon = resolve_asset(prefix, "msix/Assets", ["icon.svg", "icon.png"]; dir = true)`: Application icon. A ready-made `msix/Assets` directory found in `prefix` is copied verbatim as a [`Verbatim`](@ref); otherwise the first `icon.svg` or `icon.png` found is converted into the full set of MSIX assets
-- `store_icon_plate`: Background plate color used when generating store icons; defaults to `msix.store_icon_plate` preference
-- `appxmanifest = get_path(prefix, "msix/AppxManifest.xml")`: Path to MSIX application manifest template
-- `command::Cmd`: Command launching the application; defaults to `msix.command` preference. Its executable and escaped arguments are exposed to the manifest template as `COMMAND_EXE` and `COMMAND_ARGS`
-- `resources_pri = Verbatim(get_path(prefix, "msix/resources.pri"))`: Package resource index file, always copied verbatim (generation is not supported)
-- `msixinstallerdata = get_path(prefix, "msix/MSIXAppInstallerData.xml")`: Path to installer configuration template
+- `preferences = project_preferences(project)`: Preferences dictionary used for the defaults below
+- `icon`: Path to a ready-made `Assets` directory, copied as is, or an [`IconSource`](@ref) from which the MSIX asset set is generated; resolved from `meta/msix/Assets`
+- `store_icon_plate`: Background plate color for generated store icons; defaults to `msix.store_icon_plate` preference
+- `appxmanifest`: Path to the `AppxManifest.xml` template; resolved from `meta/msix/AppxManifest.xml`
+- `command::Cmd`: Command launching the application; defaults to `msix.command` preference
+- `resources_pri`: Path to the package resource index, copied as is (generation is not supported); resolved from `meta/msix/resources.pri`
+- `msixinstallerdata`: Path to the installer configuration template; resolved from `meta/msix/MSIXAppInstallerData.xml`
 - `path_length_threshold`: Maximum allowed path length; defaults to `msix.path_length_threshold` preference
 - `skip_long_paths`: If `true`, skip files exceeding path length threshold; if `false`, throw an error; defaults to `msix.skip_long_paths` preference
 - `skip_symlinks`: If `true`, skip file and directory symlinks; defaults to `msix.skip_symlinks` preference
 - `skip_unicode_paths`: If `true`, skip files with non-ASCII paths; defaults to `msix.skip_unicode_paths` preference
-- `selfsign`: If `true`, generate a temporary self-signed certificate instead of using `pfx_cert`; defaults to `selfsign` preference
-- `publisher`: Publisher string embedded in the manifest (e.g. `"CN=Example, O=Example Ltd"`); defaults to `msix.publisher` preference, normalized to `", "`-separated fields
-- `pfx_cert = get_path(prefix, "msix/certificate.pfx")`: Path to code signing certificate, or `nothing` if none is found; always `nothing` when the `skipsign` preference is set
-- `windowed`: If `true`, the application runs without a console window; defaults to `windowed` preference
-- `compress`: If `true`, pack the staging directory into an `.msix` archive; defaults to `compress` preference
-- `arch = Sys.ARCH`: Target CPU architecture
-- `predicate`: Bundler predicate used for hook selection; defaults to `bundler` preference
-- `parameters`: Dictionary of parameters for Mustache template rendering. Always contains `WINDOWED`,
-  `PUBLISHER`, `COMMAND_EXE` and `COMMAND_ARGS`, derived from the keywords above. When `project` is
-  provided, it is further populated from `Project.toml` and preferences: `APP_NAME`,
-  `APP_DISPLAY_NAME`, `APP_VERSION`, `BUILD_NUMBER`, `APP_SUMMARY`, `APP_DESCRIPTION`,
-  `BUNDLE_IDENTIFIER`, `PUBLISHER_DISPLAY_NAME`, and `MODULE_NAME` (Julia-based bundles only)
+- `publisher`: Publisher string embedded in the manifest (e.g. `"CN=Example, O=Example Ltd"`); defaults to `msix.publisher` preference
+- `pfx_cert`: Path to a code signing certificate, or `nothing`; resolved from `meta/msix/certificate.pfx`
+
+Remaining keywords (`predicate`, `arch`, `windowed`, `app_name`, …) are forwarded to [`AppInfo`](@ref).
+
+Templates are rendered with the [`AppInfo`](@ref) parameters plus `PUBLISHER`, `COMMAND_EXE`
+(the command's executable) and `COMMAND_ARGS` (its XML-escaped arguments).
 
 # Examples
 ```julia
-MSIX()                                    # default recipes only
-MSIX(app_dir)                             # project with Project.toml parameters
+MSIX()                                    # active project preferences, built-in recipes
+MSIX(app_dir)                             # project with meta/msix overrides
 MSIX(app_dir; skip_long_paths = true)     # project with keyword overrides
 MSIX(app_dir; command = `bin\\myapp.exe --flag "a b"`)  # custom launch command
-MSIX(; prefix = ["custom/", "recipes/"])  # explicit search path
+MSIX(app_dir; icon = IconSource("icon.svg"))            # generate assets from an icon
 ```
 """
 struct MSIX
@@ -209,6 +294,7 @@ function stage_layout(msix::MSIX; parameters = parameters(msix))
     )
 end
 
+
 function stage(msix, destination; kwargs...)
 
     layout = stage_layout(msix; kwargs...)
@@ -217,6 +303,38 @@ function stage(msix, destination; kwargs...)
     return
 end
 
+
+function bundle(setup::Function, msix::MSIX, destination::String; compress = true, signer = nothing, force = false, verbose = false, parameters = parameters(msix))
+
+    if ispath(destination)
+        if force
+            rm(destination; force=true, recursive=true)
+        else
+            error("Destination $destination already exists. Use `force = true` argument.")
+        end
+    end
+    app_stage = compress ? mktempdir() : destination
+
+    @info "Initializing MSIX staging layout..."
+    stage(msix, app_stage; parameters)
+    @info "Installing app into staging area..."
+    #setup(app_stage)
+
+    (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
+    MsixPack.ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
+    
+    if compress
+        publisher = isnothing(signer) ? msix.publisher : signer.publisher
+        MsixPack.pack(app_stage, destination; publisher)
+        if !isnothing(signer)
+            MsixPack.sign(destination, signer)
+        end
+    end
+
+    return
+end
+
+
 const SNAP_COMMAND_RE = r"^[A-Za-z0-9/. _#:$-]*$"
 
 function is_valid_snap_command(cmd::Cmd)
@@ -224,44 +342,37 @@ function is_valid_snap_command(cmd::Cmd)
     occursin(SNAP_COMMAND_RE, s)
 end
 
+
 """
-    Snap([project]; arch, compress, windowed, kwargs...)
- 
+    Snap([project]; kwargs...)
+
 Create a Snap configuration object for Linux application packaging.
- 
-When `project` is provided, configuration files are searched in `project`, then `project/meta`,
-then the built-in recipes directory. Application parameters (`APP_NAME`, `APP_VERSION`, etc.) are
-read from `project/Project.toml`, and packaging defaults (`windowed`, `compress`, etc.) are read
-from `project/LocalPreferences.toml`. Without `project`, only the built-in recipes and the active
-project's `LocalPreferences.toml` are used.
- 
+
+Templates and assets are resolved from `project/meta/snap/`, falling back to the built-in recipes.
+Defaults are read from the `AppBundler` section of the project's preferences, or of the active
+project's preferences when `project` is omitted.
+
 # Arguments
-- `project`: Path to a project directory containing `Project.toml`, optional `LocalPreferences.toml`, and optional `meta/snap/` overrides
- 
+- `project`: Path to a project directory with optional `meta/snap/` overrides
+
 # Keyword Arguments
-- `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
-- `preferences`: Dictionary of packaging preferences used for the defaults below; read from `project` when given, otherwise from the active project
-- `icon = resolve_asset(prefix, "snap/icon.png", ["icon.svg", "icon.png"])`: Application icon. A ready-made `snap/icon.png` found in `prefix` is copied verbatim as a [`Verbatim`](@ref); otherwise the first `icon.svg` or `icon.png` found is converted to a 512×512 PNG
-- `snap_config = get_path(prefix, "snap/snap.yaml")`: Path to Snap package metadata template
-- `command::Cmd`: Command launching the application; defaults to `snap.command` preference. Its POSIX-escaped form is exposed to the templates as `COMMAND`. An error is thrown if the escaped command contains characters outside `[A-Za-z0-9/. _#:\$-]`
-- `desktop_launcher = get_path(prefix, "snap/main.desktop")`: Path to desktop entry file template for GUI integration
-- `configure_hook`: Path to configuration hook script run on `snap set`; resolved as `snap/configure.sh` from prefix using the bundler predicate; `nothing` if not found
-- `windowed`: If `true`, the application runs without a console window; defaults to `windowed` preference
-- `compress`: If `true`, pack the staging directory into a `.snap` archive; defaults to `compress` preference
-- `arch = Sys.ARCH`: Target CPU architecture
-- `predicate`: Bundler predicate used for hook selection; defaults to `bundler` preference
-- `parameters`: Dictionary of parameters for Mustache template rendering. Always contains `WINDOWED`
-  and `COMMAND`, derived from the keywords above. When `project` is provided, it is further
-  populated from `Project.toml` and preferences: `APP_NAME`, `APP_DISPLAY_NAME`, `APP_VERSION`,
-  `BUILD_NUMBER`, `APP_SUMMARY`, `APP_DESCRIPTION`, `BUNDLE_IDENTIFIER`, `PUBLISHER_DISPLAY_NAME`,
-  and `MODULE_NAME` (Julia-based bundles only)
- 
+- `preferences = project_preferences(project)`: Preferences dictionary used for the defaults below
+- `predicate`: Bundler predicate used to select the configure hook, also forwarded to [`AppInfo`](@ref); defaults to `bundler` preference
+- `icon`: Path to a ready-made PNG icon, copied as is, or an [`IconSource`](@ref) from which it is generated; resolved from `meta/snap/icon.png`
+- `snap_config`: Path to the `snap.yaml` metadata template; resolved from `meta/snap/snap.yaml`
+- `command::Cmd`: Command launching the application; defaults to `snap.command` preference. An error is thrown if its POSIX-escaped form contains characters outside `[A-Za-z0-9/. _#:\$-]`
+- `desktop_launcher`: Path to the desktop entry template; resolved from `meta/snap/main.desktop`
+- `configure_hook`: Path to the configuration hook template run on `snap set`; resolved from `meta/snap/configure.sh` using `predicate`, `nothing` if not found
+
+Remaining keywords (`arch`, `windowed`, `app_name`, …) are forwarded to [`AppInfo`](@ref).
+
+Templates are rendered with the [`AppInfo`](@ref) parameters plus `COMMAND`, the POSIX-escaped command.
+
 # Examples
 ```julia
-Snap()                                    # default recipes only
-Snap(app_dir)                             # project with Project.toml parameters
+Snap()                                    # active project preferences, built-in recipes
+Snap(app_dir)                             # project with meta/snap overrides
 Snap(app_dir; windowed = false)           # project with keyword overrides
-Snap(; prefix = ["custom/", "recipes/"]) # explicit search path
 ```
 """
 struct Snap # by extensions files could have multiple modes that are set via stage command
@@ -303,54 +414,91 @@ function parameters(snap::Snap)
 end
 
 
+function stage_layout(snap::Snap; parameters = parameters(snap))
+
+    app_exe = snap.appinfo.app_exe
+
+    snap_config = render_template(snap.snap_config, parameters)
+    desktop_launcher = render_template(snap.desktop_launcher, parameters)
+    configure_hook = isnothing(snap.configure_hook) ? nothing : render_template(snap.configure_hook, parameters)
+    
+    icon = snap.icon isa IconSource ? SnapPack.IconSource(snap.icon.path) : snap.icon
+
+    return SnapPack.SnapLayout(app_exe, icon, snap_config, desktop_launcher, configure_hook)
+end
+
+
+function stage(snap::Snap, destination::String; kwargs...)
+    layout = stage_layout(snap; kwargs...)
+    SnapPack.stage(layout, destination)
+end
+
+
+function bundle(setup::Function, snap::Snap, destination::String; compress = true, force = false, verbose = false, parameters = parameters(snap))
+
+    if ispath(destination)
+        if force
+            rm(destination; force=true, recursive=true)
+        else
+            error("Destination $destination already exists. Use `force = true` argument.")
+        end
+    end
+
+    app_stage = compress ? mktempdir() : destination
+
+    @info "Initializing Snap staging layout..."
+    stage(snap, app_stage; parameters)    
+    @info "Installing app into staging area..."
+    setup(app_stage)
+
+    if compress
+        @info "Packaging staging area into Snap..."
+        SnapPack.pack(app_stage, destination)
+    end
+
+    return
+end
+
+
 # TODO: mention that application needs to be notarized by Apple. That can be done outside the build process by stapling already signed DMG archive. 
 
 """
-    DMG([project]; arch, compress, windowed, kwargs...)
- 
+    DMG([project]; kwargs...)
+
 Create a DMG configuration object for macOS application packaging.
- 
-When `project` is provided, configuration files are searched in `project`, then `project/meta`,
-then the built-in recipes directory. Application parameters (`APP_NAME`, `APP_VERSION`, etc.) are
-read from `project/Project.toml`, and packaging defaults (`selfsign`, `compression`, etc.) are
-read from `project/LocalPreferences.toml`. Without `project`, only the built-in recipes and the
-active project's `LocalPreferences.toml` are used.
- 
+
+Templates and assets are resolved from `project/meta/dmg/`, falling back to the built-in recipes.
+Defaults are read from the `AppBundler` section of the project's preferences, or of the active
+project's preferences when `project` is omitted.
+
 # Arguments
-- `project`: Path to a project directory containing `Project.toml`, optional `LocalPreferences.toml`, and optional `meta/dmg/` overrides
- 
+- `project`: Path to a project directory with optional `meta/dmg/` overrides
+
 # Keyword Arguments
-- `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
-- `preferences`: Dictionary of packaging preferences used for the defaults below; read from `project` when given, otherwise from the active project
-- `icon = resolve_asset(prefix, "dmg/icon.icns", ["icon.svg", "icon.png"])`: Application icon. A ready-made `dmg/icon.icns` found in `prefix` is copied verbatim as a [`Verbatim`](@ref); otherwise the first `icon.svg` or `icon.png` found is converted to `.icns`
-- `info_config = get_path(prefix, "dmg/Info.plist")`: Path to Info.plist template with app metadata
-- `command::Cmd`: Command launching the application; defaults to `dmg.command` preference. Its POSIX-escaped form is exposed to the templates as `COMMAND`
-- `entitlements = get_path(prefix, "dmg/Entitlements.plist")`: Path to entitlements template for code signing
-- `dsstore = resolve_asset(prefix, "dmg/DS_Store", "dmg/DS_Store.toml")`: Finder window appearance. A ready-made `dmg/DS_Store` found in `prefix` is copied verbatim as a [`Verbatim`](@ref); otherwise `dmg/DS_Store.toml` is rendered as a template and converted into a `.DS_Store` file
-- `selfsign`: If `true`, generate a temporary self-signed certificate instead of using `pfx_cert`; defaults to `selfsign` preference
-- `pfx_cert = get_path(prefix, "dmg/certificate.pfx")`: Path to code signing certificate, or `nothing` if none is found; always `nothing` when the `skipsign` preference is set
+- `preferences = project_preferences(project)`: Preferences dictionary used for the defaults below
+- `icon`: Path to a ready-made `.icns` file, copied as is, or an [`IconSource`](@ref) from which it is generated; resolved from `meta/dmg/icon.icns`
+- `info_config`: Path to the `Info.plist` template; resolved from `meta/dmg/Info.plist`
+- `command::Cmd`: Command launching the application; defaults to `dmg.command` preference
+- `entitlements`: Path to the entitlements template used for code signing; resolved from `meta/dmg/Entitlements.plist`
+- `dsstore`: Finder window appearance, used only in the full (compressed) layout. Either a path to a ready-made `.DS_Store`, copied as is, or a [`DSStoreTOML`](@ref) that is rendered as a template and converted into a `.DS_Store`; resolved from `meta/dmg/DS_Store`
+- `pfx_cert`: Path to a code signing certificate, or `nothing`; resolved from `meta/dmg/certificate.pfx`
 - `shallow_signing`: If `true`, sign only the top-level bundle rather than all nested binaries; defaults to `dmg.shallow_signing` preference
 - `hardened_runtime`: If `true`, enable hardened runtime during signing (required for notarization); defaults to `dmg.hardened_runtime` preference
 - `sandboxed_runtime`: If `true`, enable the App Sandbox entitlement; defaults to `dmg.sandboxed_runtime` preference
-- `main_launcher`: Path to the main launcher script template, resolved as `dmg/main.sh` from prefix using the bundler predicate; `nothing` if not found. When set, the native `macos_launcher` binary from `AppBundlerUtils_jll` is installed at `Contents/MacOS/<APP_EXE>` and the rendered script at `Contents/Libraries/main`
-- `backend = dmg_backend(preferences)`: Disk image backend used to build the `.dmg` when `compress = true`. Either `DMGPack.XorrisoBackend` (`dmg.backend = "xorriso"`, with an optional `dmg.xorriso.hfsplus` setting) or `DMGPack.HFSPlusBackend` (`dmg.backend = "hfsplus"`, with `dmg.hfsplus.free_space` controlling spare space in the image). Defaults to the backend selected by the `dmg.backend` preference.
-- `windowed`: If `true`, the application runs without a console window; defaults to `windowed` preference
-- `compress`: If `true`, pack the staging directory into a `.dmg` disk image; defaults to `compress` preference
+- `main_launcher`: Path to the main launcher script template, rendered into `Contents/Libraries/main`; resolved from `meta/dmg/main.sh`
+- `backend = dmg_backend(preferences)`: Disk image backend used to build the `.dmg`. Either `DmgPack.XorrisoBackend` (`dmg.backend = "xorriso"`, with the `dmg.xorriso.hfsplus` setting) or `DmgPack.HFSPlusBackend` (`dmg.backend = "hfsplus"`, with `dmg.hfsplus.free_space` controlling spare space in the image)
 - `compression`: Compression algorithm for the disk image (`:lzma`, `:bzip2`, `:zlib`, or `:lzfse`); defaults to `dmg.compression` preference
-- `arch = Sys.ARCH`: Target CPU architecture
-- `predicate`: Bundler predicate used for hook selection; defaults to `bundler` preference
-- `parameters`: Dictionary of parameters for Mustache template rendering. Always contains `WINDOWED`,
-  `SANDBOXED_RUNTIME` and `COMMAND`, derived from the keywords above. When `project` is provided, it
-  is further populated from `Project.toml` and preferences: `APP_NAME`, `APP_DISPLAY_NAME`,
-  `APP_VERSION`, `BUILD_NUMBER`, `APP_SUMMARY`, `APP_DESCRIPTION`, `BUNDLE_IDENTIFIER`,
-  `PUBLISHER_DISPLAY_NAME`, and `MODULE_NAME` (Julia-based bundles only)
- 
+
+Remaining keywords (`predicate`, `arch`, `windowed`, `app_name`, …) are forwarded to [`AppInfo`](@ref).
+
+Templates are rendered with the [`AppInfo`](@ref) parameters plus `SANDBOXED_RUNTIME` (`"true"` or
+`"false"`) and `COMMAND`, the POSIX-escaped command.
+
 # Examples
 ```julia
-DMG()                                    # default recipes only
-DMG(app_dir)                             # project with Project.toml parameters
+DMG()                                    # active project preferences, built-in recipes
+DMG(app_dir)                             # project with meta/dmg overrides
 DMG(app_dir; hardened_runtime = false)   # project with keyword overrides
-DMG(; prefix = ["custom/", "recipes/"]) # explicit search path
 ```
 """
 struct DMG
@@ -456,86 +604,7 @@ function stage(dmg::DMG, destination; bundle_name = get_bundle_name(dmg), kwargs
     return
 end
 
-function stage(snap::Snap, destination::String; kwargs...)
-    layout = stage_layout(snap; kwargs...)
-    SnapPack.stage(layout, destination)
-end
 
-
-function stage_layout(snap::Snap; parameters = parameters(snap))
-
-    app_exe = snap.appinfo.app_exe
-
-    snap_config = render_template(snap.snap_config, parameters)
-    desktop_launcher = render_template(snap.desktop_launcher, parameters)
-    configure_hook = isnothing(snap.configure_hook) ? nothing : render_template(snap.configure_hook, parameters)
-    
-    icon = snap.icon isa IconSource ? SnapPack.IconSource(snap.icon.path) : snap.icon
-
-    return SnapPack.SnapLayout(app_exe, icon, snap_config, desktop_launcher, configure_hook)
-end
-
-
-"""
-    bundle(setup::Function, config, destination::String; force=false, [password="", verbose=false])
- 
-Stage, populate, and optionally compress an application bundle for distribution.
- 
-`config` is a format-specific configuration object — [`MSIX`](@ref) (Windows), [`DMG`](@ref)
-(macOS), [`Snap`](@ref) (Linux), or [`AppImage`](@ref) (Linux) — and `destination` is the path
-of the final artifact (e.g. `"MyApp.msix"`, `"MyApp.dmg"`, `"MyApp.snap"`, `"MyApp.AppImage"`)
-or of an uncompressed staging directory.
- 
-The function follows three steps:
- 
-1. **Stage** — writes platform metadata and directory structure into a staging area via
-   [`stage`](@ref). For DMG the staging area is the `.app` bundle directory.
-2. **Setup** — calls `setup(staging_dir)`, where you copy or compile the application
-   files that should be included in the bundle.
-3. **Pack** — when `config.compress` is `true` (set by the `compress` preference or keyword,
-   independent of the extension of `destination`), compresses the staging area into the final
-   artifact. When `config.compress` is `false`, `destination` itself is used as the staging
-   directory and left uncompressed.
- 
-If `destination` already exists an error is thrown, unless `force = true`, in which case it is
-removed first.
-
-## Format-specific behavior
-
-- **MSIX** — after setup, the staging area is checked for Windows compatibility (path length,
-  symlinks, non-ASCII paths) according to the `skip_*` settings in the configuration.
-- **DMG** — `"<APP_DISPLAY_NAME> Installer"` is used as the volume title and must not exceed
-  32 characters. AppleDouble `._*` files are removed from the staging area before signing.
- 
-## Code signing
- 
-MSIX packages are signed during the pack step; DMG bundles are always signed, also when left
-uncompressed. Pass the certificate password via the `password` keyword argument (defaults to
-`""`). When `config.selfsign` is `true`, a temporary self-signed certificate is generated
-instead of using `config.pfx_cert`. DMG entitlements are rendered from the template stored in
-the configuration. Snap packages are not signed locally; they are verified by the Snap Store
-after upload. AppImages are not signed. `password` and `verbose` are accepted for MSIX and
-DMG; `verbose` is also accepted for Snap.
- 
-# Examples
-```julia
-bundle(MSIX(app_dir), "MyApp.msix") do staging_dir
-    # copy or compile application files into staging_dir
-end
- 
-bundle(DMG(app_dir), "MyApp.dmg") do staging_dir
-    # copy or compile application files into staging_dir
-end
- 
-bundle(Snap(app_dir), "MyApp.snap") do staging_dir
-    # copy or compile application files into staging_dir
-end
-
-bundle(AppImage(app_dir), "MyApp.AppImage") do staging_dir
-    # copy or compile application files into staging_dir
-end
-```
-"""
 function bundle(setup::Function, dmg::DMG, destination::String; compress = true, force = false, signer = nothing, verbose = false, parameters = parameters(dmg)) 
 
     if ispath(destination)
@@ -577,64 +646,9 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress = true,
     return
 end
 
-function bundle(setup::Function, msix::MSIX, destination::String; compress = true, signer = nothing, force = false, verbose = false, parameters = parameters(msix))
-
-    if ispath(destination)
-        if force
-            rm(destination; force=true, recursive=true)
-        else
-            error("Destination $destination already exists. Use `force = true` argument.")
-        end
-    end
-    app_stage = compress ? mktempdir() : destination
-
-    @info "Initializing MSIX staging layout..."
-    stage(msix, app_stage; parameters)
-    @info "Installing app into staging area..."
-    #setup(app_stage)
-
-    (; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths) = msix
-    MsixPack.ensure_windows_compatability(app_stage; path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths)
-    
-    if compress
-        publisher = isnothing(signer) ? msix.publisher : signer.publisher
-        MsixPack.pack(app_stage, destination; publisher)
-        if !isnothing(signer)
-            MsixPack.sign(destination, signer)
-        end
-    end
-
-    return
-end
-
-function bundle(setup::Function, snap::Snap, destination::String; compress = true, force = false, verbose = false, parameters = parameters(snap))
-
-    if ispath(destination)
-        if force
-            rm(destination; force=true, recursive=true)
-        else
-            error("Destination $destination already exists. Use `force = true` argument.")
-        end
-    end
-
-    app_stage = compress ? mktempdir() : destination
-
-    @info "Initializing Snap staging layout..."
-    stage(snap, app_stage; parameters)    
-    @info "Installing app into staging area..."
-    setup(app_stage)
-
-    if compress
-        @info "Packaging staging area into Snap..."
-        SnapPack.pack(app_stage, destination)
-    end
-
-    return
-end
-
 
 """
-    AppImage([project]; arch, compress, compression, runtime, kwargs...)
+    AppImage([project]; kwargs...)
 
 Create an AppImage configuration object for Linux application packaging.
 
@@ -647,28 +661,23 @@ running the runtime at all.
 The staged AppDir contains only the `AppRun` entry point and the application payload; no desktop
 entry, icon or AppStream metadata is included, so the AppImage does not integrate with desktop menus.
 
-When `project` is provided, configuration files are searched in `project`, then `project/meta`,
-then the built-in recipes directory. Application parameters are read from `project/Project.toml`,
-and packaging defaults from `project/LocalPreferences.toml`. Without `project`, only the built-in
-recipes and the active project's `LocalPreferences.toml` are used.
+The `AppRun` template is resolved from `project/meta/appimage/`, falling back to the built-in
+recipes. Defaults are read from the `AppBundler` section of the project's preferences, or of the
+active project's preferences when `project` is omitted.
 
 # Arguments
-- `project`: Path to a project directory containing `Project.toml`, optional `LocalPreferences.toml`, and optional `meta/appimage/` overrides
+- `project`: Path to a project directory with optional `meta/appimage/` overrides
 
 # Keyword Arguments
-- `prefix = joinpath(dirname(@__DIR__), "recipes")`: Base directory or array of directories to search for configuration files in sequential order
-- `preferences`: Dictionary of packaging preferences used for the defaults below; read from `project` when given, otherwise from the active project
-- `apprun`: Path to the `AppRun` template; resolved as `appimage/AppRun.sh` from prefix using the bundler predicate
-- `command::Cmd`: Command launching the application; defaults to `appimage.command` preference. Its POSIX-escaped form is exposed to the templates as `COMMAND`
+- `preferences = project_preferences(project)`: Preferences dictionary used for the defaults below
+- `apprun`: Path to the `AppRun` template; resolved from `meta/appimage/AppRun.sh`
+- `command::Cmd`: Command launching the application; defaults to `appimage.command` preference
 - `compression`: squashfs compressor, one of `:zstd`, `:gzip` or `:xz`; defaults to the
   `appimage.compression` preference, or `:zstd` when that is unset
-- `runtime = AppImageRuntime.get_runtime(arch)`: Path to the AppImage runtime prepended to the squashfs payload
-- `windowed`: Exposed to the templates as `WINDOWED`; defaults to `windowed` preference
-- `compress`: If `true`, pack the AppDir into an `.AppImage`; defaults to `compress` preference
-- `arch = Sys.ARCH`: Target CPU architecture
-- `predicate`: Bundler predicate used for hook selection; defaults to `bundler` preference
-- `parameters`: Dictionary of parameters for Mustache template rendering. Always contains `WINDOWED`
-  and `COMMAND`; when `project` is provided, it is further populated from `Project.toml` and preferences
+
+Remaining keywords (`predicate`, `arch`, `app_name`, …) are forwarded to [`AppInfo`](@ref).
+
+Templates are rendered with the [`AppInfo`](@ref) parameters plus `COMMAND`, the POSIX-escaped command.
 
 # Examples
 ```julia
