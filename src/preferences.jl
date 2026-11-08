@@ -3,7 +3,7 @@ struct ColorString end
 const HEX_COLOR_RE = r"^#(?:[0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})\z"
 is_hex_color(s::AbstractString) = occursin(HEX_COLOR_RE, s)
 
-ArgTools.coerce(::ColorString, value) = is_hex_color(value) ? value : throw(ArgTools.CoercionError("expects color hex, got '$v'")) # 
+ArgTools.coerce(::ColorString, value) = is_hex_color(value) ? value : throw(ArgTools.CoercionError("expects color hex, got '$value'")) # 
 PrefTools.isallowed(::ColorString, value) = is_hex_color(value)
 
 const LOCAL_PREFERENCES_SCHEMA = Dict{String, Any}(

@@ -160,7 +160,7 @@ if Sys.isunix()
 
         @test hash_stage() do dest
             stage(snap, dest)
-        end == "79d28b74682ec6949fd9297fd504eaa77c1d621ee6c3ead1bc0e12ed41e575db"
+        end == "f91660362d2695baeb1ec13bfbd4a451739d4a866c748638c5493baf22199329"
 
         @test hash_stage() do stage_dir
 
@@ -171,7 +171,7 @@ if Sys.isunix()
             
             AppBundler.SnapPack.unpack(dest, stage_dir)    
 
-        end == "79d28b74682ec6949fd9297fd504eaa77c1d621ee6c3ead1bc0e12ed41e575db"
+        end == "f91660362d2695baeb1ec13bfbd4a451739d4a866c748638c5493baf22199329"
     end
 
     # -------------------- AppImage -----------------

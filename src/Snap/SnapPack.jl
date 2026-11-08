@@ -29,7 +29,7 @@ function materialize(source::IconSource, destination)
 
     img = IconTools.load(source.path)
     icon_img = IconTools.toicon(img, 512)
-    IconTools.save(destination, img)
+    IconTools.save(destination, icon_img)
 
     return
 end

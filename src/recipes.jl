@@ -29,7 +29,7 @@ cross-platform packaging is not supported.
 
 See also [`stage`](@ref), [`bundle(setup, config, destination)`](@ref).
 """
-function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = false, signer = nothing, verbose = false, parameters = parameters(snap))
+function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = false, signer = nothing, verbose = false, parameters = parameters(dmg))
 
     bundle(dmg, destination; force, signer, parameters) do app_stage
 
@@ -80,7 +80,7 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; signer
         app_name = msix.appinfo.app_exe
         bundle_identifier = msix.appinfo.bundle_identifier
 
-        stage(product, app_stage; platform = Windows(msix.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
+        stage(product, app_stage; platform = Windows(msix.appinfo.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
         mv("$app_stage/libexec/julia/lld.exe", "$app_stage/bin/lld.exe") # julia.exe can't find shared libraries in UWP
 
         # Executables extracted from tar archives carry Unix-style metadata that causes 
@@ -92,7 +92,7 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; signer
 
         install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters, force = true)
 
-        if msix.windowed
+        if msix.appinfo.windowed
             WinSubsystem.change_subsystem_inplace("$app_stage/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
             WinSubsystem.change_subsystem_inplace("$app_stage/bin/lld.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
         end
@@ -107,7 +107,7 @@ function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = fa
         @warn "The build for the DMG will not work as it is not built on macos"
     end
 
-    if dmg.sandboxed_runtime && !dmg.windowed
+    if dmg.sandboxed_runtime && !dmg.appinfo.windowed
         @warn "In hardened runtime mode it is a known bug that GUI terminal won't launch"
     end
 
@@ -190,13 +190,13 @@ end
 
 Package a juliac-compiled executable as a mountable AppImage.
 """
-function bundle(product::JuliaCBundle, appimage::AppImage, destination::String; force = false, verbose = false)
+function bundle(product::JuliaCBundle, appimage::AppImage, destination::String; force = false, verbose = false, parameters = parameters(appimage))
 
     if !Sys.islinux()
         @warn "AppImages only run on Linux and juliac compiles with the host toolchain"
     end
 
-    bundle(appimage, destination; force) do appdir
+    bundle(appimage, destination; force, parameters) do appdir
         app_name = appimage.appinfo.app_exe
         bundle_identifier = appimage.appinfo.bundle_identifier
         stage(product, appdir; runtime_mode = "SANDBOX", app_name, bundle_identifier)

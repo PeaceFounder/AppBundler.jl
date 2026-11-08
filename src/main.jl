@@ -45,11 +45,13 @@ suffix(snap::Snap) = ".snap"
 suffix(appimage::AppImage) = ".AppImage"
 
 function canonical_target_name(spec::Union{MSIX, DMG, Snap, AppImage})
-    version = spec.parameters["APP_VERSION"]
-    app_name = spec.parameters["APP_NAME"]
-    return "$(app_name)-$version-$(spec.arch)"
-end
+    
+    app_name = spec.appinfo.app_name
+    version = spec.appinfo.app_version
+    arch = spec.appinfo.arch
 
+    return "$app_name-$version-$arch"
+end
 
 function main_status(project_dir, raw_args; io = stdout)
 
@@ -202,7 +204,7 @@ function main_build(sources_dir, ARGS)
         if skipsign
             signer = nothing
         elseif selfsign
-            singer = MsixPack.generate_signer(; msix.publisher)
+            signer = MsixPack.generate_signer(; msix.publisher)
         elseif !isnothing(msix.pfx_cert)
             if isnothing(password)
                 print("Type in certificate password:")
@@ -228,7 +230,7 @@ function main_build(sources_dir, ARGS)
         if skipsign
             signer = nothing
         elseif selfsign
-            singer = DmgPack.generate_signer()
+            signer = DmgPack.generate_signer()
         elseif !isnothing(dmg.pfx_cert)
             if isnothing(password)
                 print("Type in certificate password:")

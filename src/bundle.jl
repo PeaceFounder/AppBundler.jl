@@ -50,7 +50,7 @@ function AppInfo(preferences::Dict;
                  app_name = get(preferences, "app_name", "MyApp"),
                  app_exe = get(preferences, "app_exe", lowercase(app_name)),
                  app_display_name = get(preferences, "app_display_name", app_name),
-                 app_version = get(preferences, "app_version", "0.0.1"),
+                 app_version = get(preferences, "version", "0.0.1"),
                  build_number = get(preferences, "build_number", 0),
                  app_summary = get(preferences, "app_summary", "APP_SUMMARY TEXT"),
                  app_description = get(preferences, "app_description", "APP_DESCRIPTION TEXT"),
@@ -67,7 +67,10 @@ function parameters(appinfo::AppInfo)
 
     _parameters = Dict{String, Union{String, Bool, Int}}()
 
-    _parameters[uppercase(appinfo.predicate)] = true
+    if !isnothing(appinfo.predicate)
+        _parameters[uppercase(appinfo.predicate)] = true
+    end
+
     _parameters["WINDOWED"] = appinfo.windowed
 
     # This one looks like a bug nest; need to refactor and test
@@ -118,7 +121,7 @@ function materialize(source::IconSource, destination)
 
     img = IconTools.load(source.path)
     icon_img = IconTools.toicon(img, 512)
-    IconTools.save(destination, img)
+    IconTools.save(destination, icon_img)
 
     return
 end
@@ -579,7 +582,7 @@ function stage_layout(dmg::DMG; full_layout = false, bundle_name = get_bundle_na
             dsstore_toml = render_template(dmg.dsstore.path, parameters)
             dsstore = TOML.parse(dsstore_toml)
         else
-            dsstore = dmg.dsstore.path 
+            dsstore = dmg.dsstore
         end
         applications_link = true
     else
@@ -700,7 +703,6 @@ function AppImage(project = nothing;
                   apprun = resolve(project, "meta/appimage/AppRun.sh"),
                   command = Cmd(preferences["appimage"]["command"]),
                   compression = Symbol(get(preferences["appimage"], "compression", "zstd")),
-                  windowed = preferences["windowed"],
                   kwargs...
                   )
 
