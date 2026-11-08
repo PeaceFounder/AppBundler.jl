@@ -129,7 +129,11 @@ function extract_template_parameters!(parameters::Dict{String, Any}, preferences
     parameters["APP_DESCRIPTION"] = preferences["app_description"]
     parameters["BUNDLE_IDENTIFIER"] = preferences["bundle_identifier"]
     parameters["PUBLISHER_DISPLAY_NAME"] = preferences["publisher_name"]
+    parameters[uppercase(preferences["bundler"])] = true
 
+    #parameters["JULIAC"] = true
+
+    #@show parameters
 
     # can't put here because it's possible to create inconsistent bundle struct here
     # parameters["WINDOWED"] = preferences["windowed"]

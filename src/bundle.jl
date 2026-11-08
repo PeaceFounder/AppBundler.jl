@@ -6,6 +6,73 @@ import IconTools
 import DmgPack
 import MsixPack
 
+
+struct AppInfo
+    predicate::Union{String, Nothing} 
+    arch::Symbol 
+    windowed::Bool
+    app_name::String
+    app_exe::String 
+    #module_name::Union{String, Nothing} # JuliaImg specific. Partially had been remdied with explicit COMMAND
+    app_display_name::String 
+    app_version::String
+    build_number::Int
+    app_summary::String
+    app_description::String 
+    bundle_identifier::String 
+    publisher_name::String 
+end
+
+
+function AppInfo(preferences::Dict; 
+                 predicate = get(preferences, "bundler", nothing),
+                 arch = Sys.ARCH,
+                 windowed =  get(preferences, "windowed", false),
+                 app_name = get(preferences, "app_name", "MyApp"),
+                 app_exe = get(preferences, "app_exe", lowercase(app_name)),
+                 app_display_name = get(preferences, "app_display_name", app_name),
+                 app_version = get(preferences, "app_version", "0.0.1"),
+                 build_number = get(preferences, "build_number", 0),
+                 app_summary = get(preferences, "app_summary", "APP_SUMMARY TEXT"),
+                 app_description = get(preferences, "app_description", "APP_DESCRIPTION TEXT"),
+                 bundle_identifier = get(preferences, "bundle_identifier", "org.appbundler.$app_exe"),
+                 publisher_name = get(preferences, "publisher_name", "AppBundler"),
+                 )
+
+    return AppInfo(predicate, arch, windowed, app_name, app_exe, app_display_name, app_version, build_number, app_summary, app_description, bundle_identifier, publisher_name)
+end
+
+AppInfo(; kwargs...) = AppInfo(Dict(); kwargs...)
+
+function parameters(appinfo::AppInfo)
+
+    _parameters = Dict{String, Union{String, Bool, Int}}()
+
+    _parameters[uppercase(appinfo.predicate)] = true
+    _parameters["WINDOWED"] = appinfo.windowed
+
+    # This one looks like a bug nest; need to refactor and test
+    _parameters["APP_NAME"] = appinfo.app_name
+    _parameters["APP_EXE"] = appinfo.app_exe
+
+    # if haskey(preferences, "module_name")
+    #     parameters["MODULE_NAME"] = preferences["module_name"]
+    # end
+
+    _parameters["APP_DISPLAY_NAME"] = appinfo.app_display_name
+    _parameters["APP_VERSION"] = appinfo.app_version
+    _parameters["BUILD_NUMBER"] = appinfo.build_number
+    _parameters["APP_SUMMARY"] = appinfo.app_summary
+    _parameters["APP_DESCRIPTION"] = appinfo.app_description
+    _parameters["BUNDLE_IDENTIFIER"] = appinfo.bundle_identifier
+    _parameters["PUBLISHER_DISPLAY_NAME"] = appinfo.publisher_name
+
+    return _parameters
+end
+
+
+
+
 function render_template(source, parameters)
     template = Mustache.load(source)
     return Mustache.render(template, parameters)
@@ -47,15 +114,19 @@ function resolve_asset(prefix, finished, sources; dir = false)
     isnothing(path) ? get_path(prefix, sources) : Verbatim(path)
 end
 
-function materialize(process, v::Verbatim, destination)
+function materialize(source::String, destination)
     mkpath(dirname(destination))
-    cp(v.path, destination)
+    cp(source, destination)
     return
 end
 
-function materialize(process, source::AbstractString, destination)
+function materialize(source::IconSource, destination)
     mkpath(dirname(destination))
-    process(source, destination)
+
+    img = IconTools.load(source.path)
+    icon_img = IconTools.toicon(img, 512)
+    IconTools.save(destination, img)
+
     return
 end
 
@@ -109,6 +180,7 @@ MSIX(; prefix = ["custom/", "recipes/"])  # explicit search path
 ```
 """
 struct MSIX
+    appinfo::AppInfo
     icon::Union{String, IconSource} # direcotry reading is something to look into here
     store_icon_plate::String
     appxmanifest::String 
@@ -121,9 +193,9 @@ struct MSIX
     skip_unicode_paths::Bool
     publisher::String
     pfx_cert::Union{String, Nothing} 
-    windowed::Bool # should be in AppInfo
-    arch::Symbol # This belongs more to AppInfo
-    parameters::Dict{String, Any}
+    #windowed::Bool # should be in AppInfo
+    #arch::Symbol # This belongs more to AppInfo
+    #parameters::Dict{String, Any}
 end
 
 function MSIX(project = nothing;
@@ -140,38 +212,55 @@ function MSIX(project = nothing;
               skip_unicode_paths = preferences["msix"]["skip_unicode_paths"],
               publisher = preferences["msix"]["publisher"],
               pfx_cert = resolve(project, "meta/msix/certificate.pfx"),
-              windowed = preferences["windowed"],
-              arch = Sys.ARCH,
-              parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher, "COMMAND_EXE" => first(command), "COMMAND_ARGS" => DmgPack.xml_escape_args(command))
+              kwargs...
+              #windowed = preferences["windowed"],
+              #arch = Sys.ARCH,
+              #parameters = Dict("WINDOWED" => windowed, "PUBLISHER" => publisher, "COMMAND_EXE" => first(command), "COMMAND_ARGS" => DmgPack.xml_escape_args(command))
               )
     
-    get_bundle_parameters!(parameters, preferences)
+    appinfo = AppInfo(preferences; kwargs...)
+
+    #get_bundle_parameters!(parameters, preferences)
 
 
-    return MSIX(icon, store_icon_plate, appxmanifest, command, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, publisher, pfx_cert, windowed, arch, parameters)
+    #return MSIX(icon, store_icon_plate, appxmanifest, command, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, publisher, pfx_cert, windowed, arch, parameters)
+    return MSIX(appinfo, icon, store_icon_plate, appxmanifest, command, msixinstallerdata, resources_pri, path_length_threshold, skip_long_paths, skip_symlinks, skip_unicode_paths, publisher, pfx_cert)
+end
+
+function parameters(msix::MSIX)
+    
+    _parameters = parameters(msix.appinfo)
+    
+    _parameters["COMMAND_EXE"] = first(msix.command)
+    _parameters["COMMAND_ARGS"] = MsixPack.xml_escape_args(msix.command)
+    _parameters["PUBLISHER"] = msix.publisher
+    
+    return _parameters
 end
 
 
-function stage_layout(msix::MSIX)
+function stage_layout(msix::MSIX; parameters = parameters(msix))
 
-    manifest = render_template(msix.appxmanifest, msix.parameters)
+
+    manifest = render_template(msix.appxmanifest, parameters)
     assets = msix.icon isa IconSource ? MsixPack.IconSource(msix.icon.path, msix.store_icon_plate) : msix.icon
     resources_pri = msix.resources_pri
-    installer_data = render_template(msix.msixinstallerdata, msix.parameters)
+    installer_data = render_template(msix.msixinstallerdata, parameters)
+
+    #@infiltrate
 
     return MsixPack.MSIXLayout(
         manifest, assets, resources_pri, installer_data
     )
 end
 
-function stage(msix, destination)
+function stage(msix, destination; kwargs...)
 
-    layout = stage_layout(msix)
+    layout = stage_layout(msix; kwargs...)
     MsixPack.stage(layout, destination)
 
     return
 end
-
 
 
 
@@ -223,31 +312,23 @@ Snap(; prefix = ["custom/", "recipes/"]) # explicit search path
 ```
 """
 struct Snap # by extensions files could have multiple modes that are set via stage command
-    icon::Union{String, Verbatim}
+    appinfo::AppInfo
+    icon::Union{String, IconSource}
     snap_config::String
     command::Cmd
     desktop_launcher::String
     configure_hook::Union{String, Nothing} # needs to be enabled when staging
-    windowed::Bool
-    compress::Bool
-    arch::Symbol
-    predicate::String
-    parameters::Dict{String, Any}
 end
 
-function Snap(;
-              prefix = joinpath(dirname(@__DIR__), "recipes"),
-              preferences = preferences(),
-              predicate = preferences["bundler"],
-              icon = resolve_asset(prefix, "snap/icon.png", ["icon.svg", "icon.png"]),
-              snap_config = get_path(prefix, "snap/snap.yaml"),
+function Snap(project = nothing;
+              preferences = project_preferences(project),
+              predicate = get(preferences, "bundler", nothing),
+              icon = resolve(project, "meta/snap/icon.png"),
+              snap_config = resolve(project, "meta/snap/snap.yaml"),
               command = Cmd(preferences["snap"]["command"]),
-              desktop_launcher = get_path(prefix, "snap/main.desktop"),
-              configure_hook = get_path(prefix, hook("snap/configure.sh", predicate); warn = false),
-              windowed = preferences["windowed"],
-              compress = preferences["compress"],
-              arch = Sys.ARCH,
-              parameters = Dict("WINDOWED" => windowed, "COMMAND" => Base.shell_escape_posixly(command))
+              desktop_launcher = resolve(project, "meta/snap/main.desktop"),
+              configure_hook = resolve(project, "meta/snap/configure.sh"; predicate),
+              kwargs...
               )
 
     # Instead of an error one can create a wrapper and then link to it
@@ -255,17 +336,33 @@ function Snap(;
         error(raw"command contains illegal characters (legal: '^[A-Za-z0-9/. _#:$-]*$')")
     end
 
-    return Snap(icon, snap_config, command, desktop_launcher, configure_hook, windowed, compress, arch, predicate, parameters)
+    appinfo = AppInfo(preferences; predicate, kwargs...)
+
+    return Snap(appinfo, icon, snap_config, command, desktop_launcher, configure_hook)
 end
 
-function Snap(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
 
-    prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
-    snap = Snap(; prefix, preferences, kwargs...)
-    parameters = get_bundle_parameters!(snap.parameters, preferences)
+#Snap(project, predicate) = ...
+#Snap(project = nothing) = 
 
-    return snap
+
+function parameters(snap::Snap)
+
+    _parameters = parameters(snap.appinfo)
+    _parameters["COMMAND"] = Base.shell_escape_posixly(snap.command)
+
+    return _parameters
 end
+
+
+# function Snap(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
+
+#     prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+#     snap = Snap(; prefix, preferences, kwargs...)
+#     parameters = get_bundle_parameters!(snap.parameters, preferences)
+
+#     return snap
+# end
 
 
 # TODO: mention that application needs to be notarized by Apple. That can be done outside the build process by stapling already signed DMG archive. 
@@ -319,6 +416,7 @@ DMG(; prefix = ["custom/", "recipes/"]) # explicit search path
 ```
 """
 struct DMG
+    appinfo::AppInfo
     icon::Union{String, IconSource}
     info_config::String
     command::Cmd
@@ -331,12 +429,12 @@ struct DMG
     sandboxed_runtime::Bool
     main_launcher::Union{String, Nothing}
     backend::DmgPack.ImageBackend
-    windowed::Bool # In app info
+    #windowed::Bool # In app info
     #compress::Bool # dropped
     compression::Symbol 
-    arch::Symbol
+    #arch::Symbol
     #predicate::String # dropped
-    parameters::Dict{String, Any}
+    #parameters::Dict{String, Any}
 end
 
 
@@ -368,15 +466,18 @@ function DMG(project = nothing;
              sandboxed_runtime = preferences["dmg"]["sandboxed_runtime"],
              main_launcher = resolve(project, "meta/dmg/main.sh"),
              backend = dmg_backend(preferences),
-             windowed = preferences["windowed"],
+             #windowed = preferences["windowed"],
              compression = preferences["dmg"]["compression"] |> Symbol,
-             arch = Sys.ARCH,
-             parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => string(sandboxed_runtime), "COMMAND"=>Base.shell_escape_posixly(command))
+             kwargs...
+             #arch = Sys.ARCH,
+             #parameters = Dict("WINDOWED" => windowed, "SANDBOXED_RUNTIME" => string(sandboxed_runtime), "COMMAND"=>Base.shell_escape_posixly(command))
              )
 
-    get_bundle_parameters!(parameters, preferences)
+    appinfo = AppInfo(preferences; kwargs...)
+    #get_bundle_parameters!(parameters, preferences)
 
-    return DMG(icon, info_config, command, entitlements, dsstore, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, backend, windowed, compression, arch, parameters)
+    #return DMG(icon, info_config, command, entitlements, dsstore, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, backend, windowed, compression, arch, parameters)
+    return DMG(appinfo, icon, info_config, command, entitlements, dsstore, pfx_cert, shallow_signing, hardened_runtime, sandboxed_runtime, main_launcher, backend, compression)
 end
 
 # function DMG(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
@@ -388,22 +489,35 @@ end
 #     return dmg
 # end
 
-function get_bundle_name(dmg::DMG)
-    appname = dmg.parameters["APP_DISPLAY_NAME"]
-    return "$appname.app"
+function parameters(dmg::DMG)
+
+    _parameters = parameters(dmg.appinfo)
+
+    _parameters["SANDBOXED_RUNTIME"] = string(dmg.sandboxed_runtime)
+    _parameters["COMMAND"] = Base.shell_escape_posixly(dmg.command)
+
+    return _parameters
 end
 
 
-function stage_layout(dmg::DMG; full_layout = false, bundle_name = get_bundle_name(dmg))
+function get_bundle_name(dmg::DMG)
+    #appname = dmg.parameters["APP_DISPLAY_NAME"]
+    app_name = dmg.appinfo.app_name
+    #return "$appname.app"
+    return "$app_name.app"
+end
 
-    info_plist = render_template(dmg.info_config, dmg.parameters)
+
+function stage_layout(dmg::DMG; full_layout = false, bundle_name = get_bundle_name(dmg), parameters = parameters(dmg))
+
+    info_plist = render_template(dmg.info_config, parameters)
     #icon = dmg.icon isa Verbatim ? dmg.icon.path : DmgPack.IconSource(dmg.icon)
     icon = dmg.icon isa IconSource ? DmgPack.IconSource(dmg.icon.path) : dmg.icon
-    launcher = DmgPack.launcher_stub(dmg.arch)
+    launcher = DmgPack.launcher_stub(dmg.appinfo.arch)
     
     if full_layout
         if dmg.dsstore isa DSStoreTOML
-            dsstore_toml = render_template(dmg.dsstore.path, dmg.parameters)
+            dsstore_toml = render_template(dmg.dsstore.path, parameters)
             dsstore = TOML.parse(dsstore_toml)
         else
             dsstore = dmg.dsstore.path 
@@ -414,16 +528,25 @@ function stage_layout(dmg::DMG; full_layout = false, bundle_name = get_bundle_na
         applications_link = false
     end
 
+    #@infiltrate
+
     return DmgPack.DMGLayout(bundle_name, info_plist, icon, launcher, dsstore, applications_link)
 end
 
 
-function stage(dmg::DMG, destination; full_layout = false, bundle_name = get_bundle_name(dmg))
+function stage(dmg::DMG, destination; bundle_name = get_bundle_name(dmg), kwargs...)
 
-    layout = stage_layout(dmg; full_layout, bundle_name)
+    layout = stage_layout(dmg; bundle_name, kwargs...)
     DmgPack.stage(layout, destination)
 
-    install(dmg.main_launcher, joinpath(destination, bundle_name, "Contents/Libraries/main"); parameters = dmg.parameters, executable = true)
+    # ToDo: refactor without install method
+    #install(dmg.main_launcher, joinpath(destination, bundle_name, "Contents/Libraries/main"); parameters = parameters(dmg), executable = true)
+
+    main_launcher = render_template(dmg.main_launcher, parameters(dmg))
+    main_path = joinpath(destination, bundle_name, "Contents/Libraries/main")
+    mkpath(dirname(main_path))
+    write(main_path, main_launcher)
+    chmod(main_path, 0o755)
 
     return
 end
@@ -595,27 +718,50 @@ end
 
 # It is also possible to directly install svg icon in the snap. 
 # this requires templating myapp.desktop, hence not done at the moment
-function stage(snap::Snap, destination::String)
 
-    (; predicate, parameters) = snap
-    app_exe = parameters["APP_EXE"]
 
-    materialize(snap.icon, joinpath(destination, "meta/icon.png")) do src, dest
-        img = IconTools.load(src)
-        icon_img = IconTools.toicon(img, 512)
-        IconTools.save(dest, icon_img)
-    end
-
-    install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters, predicate)
-    install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_exe.desktop"); parameters, predicate)
-    
-    if !isnothing(snap.configure_hook)
-        install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters, executable = true, predicate)
-    end
-
-    return
+function stage(snap::Snap, destination::String; kwargs...)
+    layout = stage_layout(snap; kwargs...)
+    SnapPack.stage(layout, destination)
 end
 
+
+function stage_layout(snap::Snap; parameters = parameters(snap))
+
+    #app_exe = snap.parameters["APP_EXE"] # It would be preferable not be so explicit here
+    app_exe = snap.appinfo.app_exe
+
+    snap_config = render_template(snap.snap_config, parameters)
+    desktop_launcher = render_template(snap.desktop_launcher, parameters)
+    configure_hook = isnothing(snap.configure_hook) ? nothing : render_template(snap.configure_hook, parameters)
+    
+    icon = snap.icon isa IconSource ? SnapPack.IconSource(snap.icon.path) : snap.icon
+
+    return SnapPack.SnapLayout(app_exe, icon, snap_config, desktop_launcher, configure_hook)
+end
+
+# function stage(snap::Snap, destination::String)
+
+#     (; parameters) = snap
+#     app_exe = parameters["APP_EXE"]
+
+#     materialize(snap.icon, joinpath(destination, "meta/icon.png")) 
+
+#     # do src, dest
+#     #         img = IconTools.load(src)
+#     #         icon_img = IconTools.toicon(img, 512)
+#     #         IconTools.save(dest, icon_img)
+#     #     end
+
+#     install(snap.snap_config, joinpath(destination, "meta/snap.yaml"); parameters, predicate = snap.appinfo.predicate)
+#     install(snap.desktop_launcher, joinpath(destination, "meta/gui/$app_exe.desktop"); parameters)
+    
+#     if !isnothing(snap.configure_hook)
+#         install(snap.configure_hook, joinpath(destination, "meta/hooks/configure"); parameters, executable = true)
+#     end
+
+#     return
+# end
 
 """
     bundle(setup::Function, config, destination::String; force=false, [password="", verbose=false])
@@ -677,10 +823,8 @@ bundle(AppImage(app_dir), "MyApp.AppImage") do staging_dir
 end
 ```
 """
-function bundle(setup::Function, dmg::DMG, destination::String; compress = true, force = false, signer = nothing, verbose = false) 
+function bundle(setup::Function, dmg::DMG, destination::String; compress = true, force = false, signer = nothing, verbose = false, parameters = parameters(dmg)) 
 
-    (; parameters) = dmg
-    
     # if length(installer_title) > 32
     #     error("Installer title \"$installer_title\" exceeds the maximum 32 characters allowed by xorriso (current length: $(length(installer_title))). Please shorten APP_DISPLAY_NAME to $(32 - length(" Installer")) characters or less.")
     # end
@@ -708,13 +852,12 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress = true,
         full_layout = false
         #stage_app(dmg, app_stage) #; dsstore = false)
     end
-    stage(dmg, dirname(app_stage); full_layout, bundle_name = basename(app_stage))
+    stage(dmg, dirname(app_stage); full_layout, bundle_name = basename(app_stage), parameters)
     
     @info "Installing app into staging area..."
     setup(app_stage)
 
     DmgPack.clean_app_stage(app_stage)
-
 
     if !isnothing(signer)
         @info "Codesigning app..."
@@ -740,7 +883,8 @@ function bundle(setup::Function, dmg::DMG, destination::String; compress = true,
     if compress
 
         @info "Packaging staging area into DMG..."
-        installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
+        #installer_title = join([parameters["APP_DISPLAY_NAME"], "Installer"], " ")
+        installer_title = join([dmg.appinfo.app_display_name, "Installer"], " ")
         DmgPack.pack(dirname(app_stage), destination; installer_title, dmg.compression, dmg.backend, verbose)
 
     end
@@ -812,7 +956,7 @@ end
 
 #function bundle(setup::Function, msix::MSIX, destination::String; force = false, password = "", verbose = false)
 
-function bundle(setup::Function, msix::MSIX, destination::String; compress = true, signer = nothing, force = false, verbose = false)
+function bundle(setup::Function, msix::MSIX, destination::String; compress = true, signer = nothing, force = false, verbose = false, parameters = parameters(msix))
 
     if ispath(destination)
         if force
@@ -824,7 +968,7 @@ function bundle(setup::Function, msix::MSIX, destination::String; compress = tru
     app_stage = compress ? mktempdir() : destination
 
     @info "Initializing MSIX staging layout..."
-    stage(msix, app_stage)
+    stage(msix, app_stage; parameters)
     @info "Installing app into staging area..."
     #setup(app_stage)
 
@@ -890,7 +1034,7 @@ end
 
 
 
-function bundle(setup::Function, snap::Snap, destination::String; force = false, verbose = false)
+function bundle(setup::Function, snap::Snap, destination::String; compress = true, force = false, verbose = false, parameters = parameters(snap))
 
     if ispath(destination)
         if force
@@ -900,14 +1044,14 @@ function bundle(setup::Function, snap::Snap, destination::String; force = false,
         end
     end
 
-    app_stage = snap.compress ? mktempdir() : destination
+    app_stage = compress ? mktempdir() : destination
 
     @info "Initializing Snap staging layout..."
-    stage(snap, app_stage)    
+    stage(snap, app_stage; parameters)    
     @info "Installing app into staging area..."
     setup(app_stage)
 
-    if snap.compress
+    if compress
         @info "Packaging staging area into Snap..."
         SnapPack.pack(app_stage, destination)
     end
@@ -963,56 +1107,87 @@ end
 ```
 """
 struct AppImage
+    appinfo::AppInfo
     apprun::String # It is always AppRun.sh. 
     command::Cmd
     compression::Symbol
-    compress::Bool
-    arch::Symbol
-    runtime::String
-    predicate::String
-    parameters::Dict{String, Any}
+    #compress::Bool
+    #arch::Symbol
+    #runtime::String
+    #predicate::String
+    #parameters::Dict{String, Any}
 end
 
-function AppImage(;
-                  prefix = joinpath(dirname(@__DIR__), "recipes"),
-                  preferences = preferences(),
-                  predicate = preferences["bundler"],
-                  apprun = get_path(prefix, hook("appimage/AppRun.sh", predicate); warn = false),
+function AppImage(project = nothing;
+                  preferences = project_preferences(project),
+                  apprun = resolve(project, "meta/appimage/AppRun.sh"),
                   command = Cmd(preferences["appimage"]["command"]),
                   compression = Symbol(get(preferences["appimage"], "compression", "zstd")),
                   windowed = preferences["windowed"],
-                  compress = preferences["compress"],
-                  arch = Sys.ARCH,
-                  runtime = AppImageRuntime.get_runtime(arch),
-                  parameters = Dict{String, Any}("WINDOWED" => windowed, "COMMAND" => Base.shell_escape_posixly(command))
+                  #compress = preferences["compress"],
+                  #arch = Sys.ARCH,
+                  #runtime = AppImageRuntime.get_runtime(arch),
+                  #parameters = Dict{String, Any}("WINDOWED" => windowed, "COMMAND" => Base.shell_escape_posixly(command))
+                  kwargs...
                   )
 
     compression in AppImagePack.COMPRESSORS ||
         error("`appimage.compression` must be one of: " *
               join(AppImagePack.COMPRESSORS, ", ") * ". Got `$compression`.")
 
-    return AppImage(apprun, command, compression, compress, arch, runtime, predicate, parameters)
+    #get_bundle_parameters!(parameters, preferences)
+
+    appinfo = AppInfo(preferences; kwargs...)
+
+    #return AppImage(apprun, command, compression, arch, parameters)
+    return AppImage(appinfo, apprun, command, compression)
 end
 
-function AppImage(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
 
-    prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
-    appimage = AppImage(; prefix, preferences, kwargs...)
-    get_bundle_parameters!(appimage.parameters, preferences)
+function parameters(appimage::AppImage)
 
-    return appimage
+    _parameters = parameters(appimage.appinfo)
+    _parameters["COMMAND"] = Base.shell_escape_posixly(appimage.command)
+
+    return _parameters
 end
 
-function stage(appimage::AppImage, destination::String)
 
-    (; predicate, parameters) = appimage
+# function AppImage(project; preferences = load_preferences(project)["AppBundler"], kwargs...)
 
-    install(appimage.apprun, joinpath(destination, "AppRun"); parameters, executable = true, predicate)
+#     prefix = [project, joinpath(project, "meta"), joinpath(dirname(@__DIR__), "recipes")]
+#     appimage = AppImage(; prefix, preferences, kwargs...)
+#     get_bundle_parameters!(appimage.parameters, preferences)
+
+#     return appimage
+# end
+
+function stage_layout(appimage::AppImage; parameters = parameters(appimage))
+    
+    apprun = render_template(appimage.apprun, parameters)
+    return AppImagePack.AppImageLayout(apprun)
+end
+
+
+function stage(appimage::AppImage, destination::String; kwargs...)
+
+    layout = stage_layout(appimage; kwargs...)
+    AppImagePack.stage(layout, destination)
 
     return
 end
 
-function bundle(setup::Function, appimage::AppImage, destination::String; force = false)
+
+# function stage(appimage::AppImage, destination::String)
+
+#     (; predicate, parameters) = appimage
+
+#     install(appimage.apprun, joinpath(destination, "AppRun"); parameters, executable = true, predicate)
+
+#     return
+# end
+
+function bundle(setup::Function, appimage::AppImage, destination::String; compress = true, force = false, parameters = parameters(appimage))
 
     if ispath(destination)
         if force
@@ -1022,17 +1197,17 @@ function bundle(setup::Function, appimage::AppImage, destination::String; force 
         end
     end
 
-    appdir = appimage.compress ? mktempdir() : destination
+    appdir = compress ? mktempdir() : destination
 
     @info "Initializing AppDir staging layout..."
-    stage(appimage, appdir)
+    stage(appimage, appdir; parameters)
 
     @info "Installing app into staging area..."
     setup(appdir)
 
-    if appimage.compress
+    if compress
         @info "Packaging AppDir into AppImage..."
-        AppImagePack.pack(appdir, destination; compression = appimage.compression, runtime = appimage.runtime)
+        AppImagePack.pack(appdir, destination; compression = appimage.compression)
     end
 
     return

@@ -117,8 +117,10 @@ end
 # locate / resolve
 # ─────────────────────────────────────────────────────────────────────────────
 
+
+
 """
-    locate(project, target; skip_own = false)
+    locate(project, target; skip_own = false, predicate = nothing)
         -> (; value, origin, from) | nothing
 
 - `value`:  what `resolve` returns: a path `String`, or `IconSource`/`DSStoreTOML`
@@ -126,25 +128,89 @@ end
 - `from`:   the target the file belongs to; differs from `target` when generated
 
 `skip_own` ignores the project's own file for `target` (what `inline` needs).
+
+With a `predicate` (e.g. the bundler, `"juliac"`), a variant named
+`dirname(path)/<predicate>_basename(path)` is preferred over `path` wherever a
+file is looked up: in the project, in derived targets and in the default.
+The project still wins over the default, so a project's own `meta/dmg/main.sh`
+beats a built-in `dmg/juliac_main.sh`.
 """
-function locate(project::AbstractString, target::AbstractString; skip_own::Bool = false)
+function locate(project::AbstractString, target::AbstractString;
+                skip_own::Bool = false, predicate = nothing)
     r = rule(target)
 
     if !skip_own
-        path = joinpath(project, target)
-        ispath(path) && return (; value = r.format(path), origin = :project, from = target)
+        path = with_predicate(joinpath(project, target), predicate)
+        isnothing(path) || return (; value = r.format(path), origin = :project, from = target)
     end
 
     if !isnothing(r.derive)
-        found = locate(project, r.derive)
+        found = locate(project, r.derive; predicate)
         isnothing(found) || return found
     end
 
     isnothing(r.default) && return nothing
-    path = r.default()
-    ispath(path) || error("Built-in default for $target is missing: $path. This is a packaging bug.")
+    default = r.default()
+    path = with_predicate(default, predicate)
+    isnothing(path) && error("Built-in default for $target is missing: $default. This is a packaging bug.")
     return (; value = r.format(path), origin = :default, from = target)
 end
+
+"""
+    predicate_path(path, predicate) -> String
+
+`dirname(path)/<predicate>_basename(path)`, e.g. `dmg/main.sh` → `dmg/juliac_main.sh`.
+"""
+predicate_path(path::AbstractString, predicate) =
+    joinpath(dirname(path), "$(lowercase(string(predicate)))_$(basename(path))")
+
+"""
+    with_predicate(path, predicate) -> String | nothing
+
+The predicate variant of `path` if it exists, otherwise `path` if it exists,
+otherwise `nothing`.
+"""
+function with_predicate(path::AbstractString, predicate)
+    if !isnothing(predicate) && !isempty(string(predicate))
+        variant = predicate_path(path, predicate)
+        ispath(variant) && return variant
+    end
+    return ispath(path) ? path : nothing
+end
+
+
+
+
+
+
+# """
+#     locate(project, target; skip_own = false)
+#         -> (; value, origin, from) | nothing
+
+# - `value`:  what `resolve` returns: a path `String`, or `IconSource`/`DSStoreTOML`
+# - `origin`: `:project` or `:default`
+# - `from`:   the target the file belongs to; differs from `target` when generated
+
+# `skip_own` ignores the project's own file for `target` (what `inline` needs).
+# """
+# function locate(project::AbstractString, target::AbstractString; skip_own::Bool = false, predicate = nothing)
+#     r = rule(target)
+
+#     if !skip_own
+#         path = joinpath(project, target)
+#         ispath(path) && return (; value = r.format(path), origin = :project, from = target)
+#     end
+
+#     if !isnothing(r.derive)
+#         found = locate(project, r.derive)
+#         isnothing(found) || return found
+#     end
+
+#     isnothing(r.default) && return nothing
+#     path = r.default()
+#     ispath(path) || error("Built-in default for $target is missing: $path. This is a packaging bug.")
+#     return (; value = r.format(path), origin = :default, from = target)
+# end
 
 """
     resolve(project, target) -> String | IconSource | DSStoreTOML | nothing
@@ -152,28 +218,50 @@ end
 `nothing` only for targets with neither a default nor a resolvable `derive`
 (certificates, configure.sh, icon.svg).
 """
-function resolve(project::AbstractString, target::AbstractString)
-    found = locate(project, target)
+function resolve(project::AbstractString, target::AbstractString; predicate = nothing)
+    found = locate(project, target; predicate)
     return isnothing(found) ? nothing : found.value
 end
 
 
 
-function resolve(target::AbstractString)
-    
+"""
+    resolve(target; predicate = nothing) -> String
+
+Path of the built-in default for `target`, ignoring any project. A target without
+its own default resolves to the default of the target it is derived from. With a
+`predicate`, `dirname(path)/<predicate>_basename(path)` is preferred when it exists.
+"""
+function resolve(target::AbstractString; predicate = nothing)
     r = rule(target)
-    if isnothing(r.default)
-        if !isnothing(r.derive)
-            resolve(r.derive)
-        else
-            error("Can't resolve $target")
-        end
+
+    if !isnothing(r.default)
+        default = r.default()
+        path = with_predicate(default, predicate)
+        isnothing(path) && error("Built-in default for $target is missing: $default. This is a packaging bug.")
+        return path
+    elseif !isnothing(r.derive)
+        return resolve(r.derive; predicate)
     else
-        return r.default()
+        error("$target has no built-in default")
     end
 end
 
-resolve(::Nothing, target::AbstractString) = resolve(target)
+# function resolve(target::AbstractString)
+    
+#     r = rule(target)
+#     if isnothing(r.default)
+#         if !isnothing(r.derive)
+#             resolve(r.derive)
+#         else
+#             error("Can't resolve $target")
+#         end
+#     else
+#         return r.default()
+#     end
+# end
+
+resolve(::Nothing, target::AbstractString; predicate = nothing) = resolve(target; predicate)
 
 
 # "Like `resolve`, but for targets the bundle cannot be built without."
@@ -283,11 +371,13 @@ function get_template_parameters(project_dir, target; defines = [])
 
     preferences = load_preferences(project_dir; defines)["AppBundler"]
 
-    startswith(target, "meta/msix/")     && return MSIX(project_dir; preferences).parameters 
-    startswith(target, "meta/snap/")     && return Snap(project_dir; preferences).parameters
-    startswith(target, "meta/dmg/")      && return DMG(project_dir; preferences).parameters
-    startswith(target, "meta/appimage/") && return AppImage(project_dir; preferences).parameters
-    return get_bundle_parameters(preferences)
+    startswith(target, "meta/msix/")     && return MSIX(project_dir; preferences) |> parameters 
+    startswith(target, "meta/snap/")     && return Snap(project_dir; preferences) |> parameters
+    startswith(target, "meta/dmg/")      && return DMG(project_dir; preferences) |> parameters
+    startswith(target, "meta/appimage/") && return AppImage(project_dir; preferences) |> parameters
+
+    appinfo = AppInfo(preferences)
+    return parameters(appinfo)
 end
 
 

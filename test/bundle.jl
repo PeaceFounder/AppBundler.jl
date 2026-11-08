@@ -1,7 +1,6 @@
 using Test
 
-#import AppBundler: stage, bundle, MSIX, DMG, Snap, MSIXPack, AppImage, DMGPack
-import AppBundler: stage, bundle, MSIX, DMG, Snap, AppImage, MsixPack
+import AppBundler: stage, bundle, MSIX, DMG, Snap, AppImage, MsixPack, AppInfo
 import AppBundler
 import DmgPack
 
@@ -89,7 +88,6 @@ predicate = "juliaimg"
 
     @test hash_stage() do dest
         stage(msix, dest)
-        #@infiltrate
     end == "bc797abd16f8f67c8f149577f5a5bbf11e3ea5522046f1b6517572c72d0e0d17"
 
     @test hash_stage() do stage_dir
@@ -132,15 +130,15 @@ if Sys.isunix()
             #stage(gtkapp_dmg(DmgPack.XorrisoBackend(true)), joinpath(dest, "GtkApp.app"); dsstore = true)
             stage(gtkapp_dmg(DmgPack.XorrisoBackend(true)), dest; full_layout = true)
 
-            #@infiltrate
             normalize_app!(dest; signed = false)
             rm(joinpath(dest, "Applications"))
-        end == "2342003fda87535b2ab5066441de1f4203008f0683c240a7089a28f727a206c2"
+
+        end == "be9e263c0a8b678bd1b1f7c270e4e5d2745faf4f222844f8f89ecedb39f6b898"
 
         backends = [DmgPack.XorrisoBackend(; hfsplus = true), DmgPack.HFSPlusBackend(; uuid = UInt64(23))]
 
         @testset "$backend" for backend in backends
-
+            
             dmg = gtkapp_dmg(backend)
             dmg_path = build_dmg(dmg, signer)
 
@@ -150,7 +148,7 @@ if Sys.isunix()
                 AppBundler.DmgPack.unpack(dmg_path, stage_dir; verbose = true)
                 Sys.isapple() && verify_codesign(joinpath(stage_dir, "GtkApp.app"); strict = true)
                 normalize_app!(stage_dir)
-            end == "2342003fda87535b2ab5066441de1f4203008f0683c240a7089a28f727a206c2"
+            end == "be9e263c0a8b678bd1b1f7c270e4e5d2745faf4f222844f8f89ecedb39f6b898"
         end
     end
 
@@ -162,7 +160,7 @@ if Sys.isunix()
 
         @test hash_stage() do dest
             stage(snap, dest)
-        end == "0be8e07a963d3af69afd8f0f74d92556040cd09891a8604efcd646135c1eef9f"
+        end == "79d28b74682ec6949fd9297fd504eaa77c1d621ee6c3ead1bc0e12ed41e575db"
 
         @test hash_stage() do stage_dir
 
@@ -173,14 +171,12 @@ if Sys.isunix()
             
             AppBundler.SnapPack.unpack(dest, stage_dir)    
 
-        end == "0be8e07a963d3af69afd8f0f74d92556040cd09891a8604efcd646135c1eef9f"
+        end == "79d28b74682ec6949fd9297fd504eaa77c1d621ee6c3ead1bc0e12ed41e575db"
     end
-
 
     # -------------------- AppImage -----------------
 
-    appimage = AppImage(APP_DIR; predicate, windowed = false, arch = Sys.ARCH)
-
+    appimage = AppImage(APP_DIR; windowed = false, arch = Sys.ARCH)
 
     @test hash_stage() do stage_dir
 

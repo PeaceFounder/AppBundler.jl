@@ -172,9 +172,9 @@ function install(source, destination; parameters = Dict(), force = false, execut
 
     total_parameters = copy(parameters)
 
-    if !isnothing(predicate)
-        total_parameters[uppercase(predicate)] = true
-    end
+    # if !isnothing(predicate)
+    #     total_parameters[uppercase(predicate)] = true
+    # end
 
     # Need to test that it is what I was intended
     if !isempty(total_parameters)

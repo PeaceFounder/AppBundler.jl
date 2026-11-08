@@ -17,6 +17,25 @@ export pack, unpack
 
 const COMPRESSORS = [:zstd, :gzip]
 
+
+
+struct AppImageLayout
+    apprun::String
+end
+
+
+function stage(appimage::AppImageLayout, destination)
+
+    mkpath(destination)
+    apprun_path = joinpath(destination, "AppRun")
+    write(apprun_path, appimage.apprun)
+    chmod(apprun_path, 0o755)
+
+    return
+end
+
+
+
 # ------------------------------------------------------------------ offset --
 
 """

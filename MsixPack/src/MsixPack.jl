@@ -24,13 +24,11 @@ struct PfxSigner <: Signer
     password::String 
 end
 
-
 normalize_publisher(p) = join(strip.(split(p, ",")), ", ")
 
 function subject(signer::Signer)
     return normalize_publisher(signer.publisher)
 end
-
 
 function generate_self_signed_certificate(pfx_path; password = "", publisher = "CN=AppBundler, C=XX, O=PeaceFounder", validity_days = 365)
     
@@ -157,7 +155,6 @@ end
 
 # One could also load the MSIXLayout from existing packaging
 
-
 function stage(msix::MSIXLayout, destination)
 
     if !isdir(destination)
@@ -180,7 +177,6 @@ function stage(msix::MSIXLayout, destination)
 
     return
 end
-
 
 function update_publisher_in_manifest(appxmanifest_path, publisher)
 
