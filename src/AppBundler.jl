@@ -3,6 +3,7 @@ module AppBundler
 using Scratch
 import Pkg.BinaryPlatforms: Linux, MacOS, Windows
 import Pkg
+import Knobs
 
 DOWNLOAD_CACHE = ""
 
@@ -39,10 +40,8 @@ using .JuliaImg.Resources: merge_directories
 include("bundle.jl") # every asset needs now to be called out as resolve(project, target) 
 include("recipes.jl") # little change in this module 
 
-include("ArgTools.jl")
-include("PrefTools.jl")
-
 include("preferences.jl")
+include("inline_preferences.jl")
 
 
 include("resolve.jl") # better would be called rules.jl

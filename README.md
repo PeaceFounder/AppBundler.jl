@@ -92,7 +92,7 @@ These extra steps are only needed for self-signed builds. Purchasing Windows and
 
 ## AI Policy
 
-AI-assisted development is welcome in this project. Several modules were written largely with AI assistance, for example `src/DMG/HFSTools.jl`, `src/DMG/HFSImg.jl`, `src/ArgTools.jl` and `src/MSIX/WinSubsystem.jl`. What they have in common is that their functionality sits behind a narrow module boundary exposing only a few functions, so it can be verified thoroughly with automated tests. This is the kind of AI use we encourage.
+AI-assisted development is welcome in this project. Several modules were written largely with AI assistance, for example `src/DMG/HFSTools.jl`, `src/DMG/HFSImg.jl`, `Knobs/src/Knobs.jl` and `src/MSIX/WinSubsystem.jl`. What they have in common is that their functionality sits behind a narrow module boundary exposing only a few functions, so it can be verified thoroughly with automated tests. This is the kind of AI use we encourage.
 
 AI use is discouraged for code that affects how bundles install, launch or integrate with the host system, since its correctness can only be established by manual testing. Such code mostly arrives with new bundling recipes and other scope-expanding changes, which the maintainer decides on deliberately. Each new user-facing feature adds a long-term burden of making sure bundles keep working on end-user systems. Please open an issue to discuss such changes before writing code.
 

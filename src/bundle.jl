@@ -92,9 +92,6 @@ function render_template(source, parameters)
     return Mustache.render(template, parameters)
 end
 
-function project_preferences(project)
-    return load_preferences(project)["AppBundler"]    
-end
 
 project_preferences(::Nothing) = preferences()
 
@@ -254,7 +251,7 @@ end
 function MSIX(project = nothing;
               preferences = project_preferences(project),
               icon = resolve(project, "meta/msix/Assets"),
-              store_icon_plate = ArgTools.coerce(ColorString(), preferences["msix"]["store_icon_plate"]), 
+              store_icon_plate = Knobs.coerce(preferences["msix"]["store_icon_plate"], HexColor()), 
               appxmanifest = resolve(project, "meta/msix/AppxManifest.xml"),
               command = Cmd(preferences["msix"]["command"]),
               resources_pri = resolve(project, "meta/msix/resources.pri"),

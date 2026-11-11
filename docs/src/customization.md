@@ -39,14 +39,7 @@ AppBundler.print_help() # hide
 
 ## Preferences
 
-Parameters are read from `LocalPreferences.toml` and from `Project.toml` (for the module name and application version; `LocalPreferences.toml` can override these). The full list of available parameters is in `joinpath(pkgdir(AppBundler), "LocalPreferences.toml")`.
-
-To enable AppBundler preferences, add the following to your application's `Project.toml`; otherwise the preferences for `AppBundler` will not be registered:
-
-```toml
-[extras]
-AppBundler = "40eb83ae-c93a-480c-8f39-f018b568f472"
-```
+Parameters are read from `LocalPreferences.toml` and from `Project.toml` (for the module name and application version; `LocalPreferences.toml` can override these). The full list of available parameters and their defaults is in `joinpath(pkgdir(AppBundler), "LocalPreferences.toml")`. AppBundler reads the `[AppBundler]` section of `LocalPreferences.toml` directly, so the application's `Project.toml` does not need to list AppBundler. Run `appbundler status .` to see every parameter with its value and where it came from.
 
 A typical `LocalPreferences.toml` is short:
 

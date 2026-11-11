@@ -1,7 +1,7 @@
 using SafeTestsets
 
-@time @safetestset "ArgTools parser" begin
-    include("argtools.jl")
+@time @safetestset "Build arguments" begin
+    include("buildargs.jl")
 end
 
 @time @safetestset "Status API tests" begin

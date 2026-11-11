@@ -315,7 +315,7 @@ const GENERATORS = Dict{String, Function}(
 # need to make a pure function here
 function get_template_parameters(project_dir, target; defines = [])
 
-    preferences = load_preferences(project_dir; defines)["AppBundler"]
+    preferences = project_preferences(project_dir; defines)
 
     startswith(target, "meta/msix/")     && return MSIX(project_dir; preferences) |> parameters 
     startswith(target, "meta/snap/")     && return Snap(project_dir; preferences) |> parameters
@@ -346,10 +346,10 @@ Errors if `destination` exists, unless `force = true`.
 function inline(project_dir, target; force = false, render = false, defines = Pair[], verbose = false,
                 destination = joinpath(project_dir, target))
 
-    defines = ArgTools.coerce(defines, LOCAL_PREFERENCES_SCHEMA)
+    defines = Knobs.coerce(defines, LOCAL_PREFERENCES_SCHEMA)
 
     if target == "LocalPreferences.toml"
-        PrefTools.inline_preferences(destination, defines; section = "AppBundler")
+        inline_preferences(destination, defines; section = "AppBundler")
         return destination
     end
 
@@ -368,7 +368,7 @@ function inline(project_dir, target; force = false, render = false, defines = Pa
 
     # Parameters are needed to render a template, or to generate from one (DS_Store.toml)
     needs_parameters = derived ? !isnothing(found) && rule(found.from).template : render && r.template
-    preferences = load_preferences(project_dir; defines)["AppBundler"]
+    preferences = project_preferences(project_dir; defines)
     parameters  = needs_parameters ? get_template_parameters(project_dir, target; defines) : nothing
 
     if verbose && !isnothing(parameters)

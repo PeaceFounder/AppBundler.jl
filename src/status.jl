@@ -1,4 +1,34 @@
-import .PrefTools: PreferenceStatus, PreferenceEntry
+module PreferenceStatus
+    @enum T ERROR EXPLICIT INFERRED DEFAULT
+end
+
+const PreferenceEntry = @NamedTuple{key::String, value::Any, status::PreferenceStatus.T, from::Tuple{Vararg{String}}}
+
+"""How a resolved preference is shown: set by the user, a shipped default, or inferred from the project."""
+function preference_status(entry)
+    !isnothing(entry.problem) && return PreferenceStatus.ERROR
+    entry.origin == "inferred" && return PreferenceStatus.INFERRED
+    entry.origin in ("defaults", nothing) && return PreferenceStatus.DEFAULT
+    return PreferenceStatus.EXPLICIT
+end
+
+"""
+    preferences_status(project; defines = []) -> Vector{PreferenceEntry}
+
+Every preference with its final value and where it came from, as `appbundler status`
+shows them: `EXPLICIT` when the project's `LocalPreferences.toml` or the command line
+set it, `DEFAULT` from AppBundler's own `LocalPreferences.toml`, `INFERRED` from the project, and
+`ERROR` when it is unknown, invalid or could not be inferred. Never throws.
+"""
+function preferences_status(project; defines = Pair{String, Any}[], schema = LOCAL_PREFERENCES_SCHEMA,
+                            layers = preference_layers(project; defines))
+
+    entries = PreferenceEntry[(key = e.key, value = e.value, status = preference_status(e), from = e.from)
+                              for e in Knobs.status(schema, layers)]
+
+    return sort!(entries; by = e -> (e.status, e.key))
+end
+
 
 format_value(v::AbstractVector) = "[" * join(map(format_value, v), ", ") * "]"
 format_value(v) = repr(v)
@@ -21,6 +51,8 @@ function print_preferences(io::IO, entries::AbstractVector{PreferenceEntry})
         else
             printstyled(io, line; color = :light_black)
         end
+        # Which preferences an inferred value was computed from
+        isempty(e.from) || printstyled(io, "  (from ", join(e.from, ", "), ")"; color = :light_black)
         println(io)
     end
 
@@ -48,11 +80,6 @@ function print_wrapped(io::IO, words; indent = 0, color = :normal)
     printstyled(io, line, '\n'; color)
 end
 
-
-print_preferences(io::IO, preferences::Dict; kwargs...) =
-    print_preferences(io, preferences_status(preferences; kwargs...))
-
-print_preferences(preferences::Dict; kwargs...) = print_preferences(stdout, preferences; kwargs...)
 
 function print_preferences(io::IO, project_dir; defines = Pair{String, Any}[])
 

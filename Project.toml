@@ -15,6 +15,7 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 DmgPack = "6e7a0f3b-cf71-4857-a6ad-67c765e2dd4a"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 IconTools = "16dc48d6-ba94-4448-aa2d-4d14f88e6f7d"
+Knobs = "5307f300-821c-43d7-b7ab-2df2e1e0154a"
 LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 MsixPack = "fb5169a5-ac7d-46ee-b29c-4250b9f3d1ce"
@@ -38,6 +39,7 @@ squashfs_tools_jll = "eed32e3e-a7c5-5bf9-9121-5cf3ab653887"
 [sources]
 DmgPack = {path = "DmgPack"}
 IconTools = {path = "IconTools"}
+Knobs = {path = "Knobs"}
 MsixPack = {path = "MsixPack"}
 
 [compat]
