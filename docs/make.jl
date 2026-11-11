@@ -32,7 +32,7 @@ makedocs(
     warnonly = true,
     checkdocs = :public,
     modules = [AppBundler],
-    checkdocs_ignored_modules = [AppBundler.DSStore, AppBundler.HFSTools, AppBundler.HFSImg],
+    #checkdocs_ignored_modules = [AppBundler.DSStore, AppBundler.HFSTools, AppBundler.HFSImg],
     pages = [
         "Overview" => "index.md",
         "Customization" => "customization.md",

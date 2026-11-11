@@ -39,38 +39,41 @@ function (@main)(ARGS)
     return 0
 end
 
-suffix(msix::MSIX) = msix.compress ? ".msix" : ""
-suffix(dmg::DMG) = dmg.compress ? ".dmg" : ""
-suffix(snap::Snap) = snap.compress ? ".snap" : ""
-suffix(appimage::AppImage) = appimage.compress ? ".AppImage" : ""
+suffix(msix::MSIX) = ".msix"
+suffix(dmg::DMG) = ".dmg" 
+suffix(snap::Snap) = ".snap"
+suffix(appimage::AppImage) = ".AppImage"
 
 function canonical_target_name(spec::Union{MSIX, DMG, Snap, AppImage})
-    version = spec.parameters["APP_VERSION"]
-    app_name = spec.parameters["APP_NAME"]
-    return "$(app_name)-$version-$(spec.arch)"
-end
+    
+    app_name = spec.appinfo.app_name
+    version = spec.appinfo.app_version
+    arch = spec.appinfo.arch
 
+    return "$app_name-$version-$arch"
+end
 
 function main_status(project_dir, raw_args; io = stdout)
 
-    args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
-
-    @assert isempty(defines) "Nonempty defins not supported"
+    args, defines = Knobs.parse_options(raw_args; short_options = SHORT_OPTIONS)
+    defines = Knobs.coerce(defines, LOCAL_PREFERENCES_SCHEMA)
 
     show_preferences = true
     show_files = true
     
-    for (key, value) in args
+    for (option, raw) in args
     
-        if key == "--help"
+        if option == "--help"
             print_help()
             exit(0)
-        elseif key == "--preferences"
+        elseif option == "--preferences"
+            Knobs.flag(option, raw)
             show_files = false
-        elseif key == "--files"
+        elseif option == "--files"
+            Knobs.flag(option, raw)
             show_preferences = false
         else
-            @warn "Unknown argument: $key"
+            @warn "Unknown argument: $option"
         end
     end
 
@@ -80,7 +83,7 @@ function main_status(project_dir, raw_args; io = stdout)
 
     if show_preferences
         println(io, "LocalPreferences.toml:") # may need to look into the case when there are no overrides
-        print_preferences(io, project_dir)
+        print_preferences(io, project_dir; defines)
     end
 
     if show_files 
@@ -93,21 +96,24 @@ end
 
 function main_inline(project_dir, target, raw_args::AbstractVector{<:AbstractString})
 
-    args, defines = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
+    args, defines = Knobs.parse_options(raw_args; short_options = SHORT_OPTIONS)
 
     force = false
     render = false
     verbose = false
 
-    for (option, value) in args
+    for (option, raw) in args
         if option == "--help"
             print_help()
             exit(0)
         elseif option == "--force"
+            Knobs.flag(option, raw)
             force = true
         elseif option == "--render"
+            Knobs.flag(option, raw)
             render = true
         elseif option == "--verbose"
+            Knobs.flag(option, raw)
             verbose = true
         else
             @warn "Unknown argument: $option"
@@ -121,8 +127,7 @@ end
 function main_build(sources_dir, ARGS)
 
     config, defines = parse_build_args(ARGS)
-    extended_preferences = load_preferences(sources_dir; defines)
-    preferences = extended_preferences["AppBundler"]
+    preferences = project_preferences(sources_dir; defines)
 
     if config[:build_dir] == "@temp"
         build_dir = mktempdir()
@@ -145,6 +150,7 @@ function main_build(sources_dir, ARGS)
     # Theese could be substituted with preferences
     selfsign = preferences["selfsign"]
     skipsign = preferences["skipsign"]
+    compress = preferences["compress"]
     overwrite_target = preferences["overwrite_target"]
     msix2exe = preferences["msix"]["bootstrapper"]
     verbose = preferences["verbose"]
@@ -155,7 +161,7 @@ function main_build(sources_dir, ARGS)
 
         if preferences["juliaimg"]["selective_assets"]
             remove_sources = true
-            asset_spec = Resources.extract_asset_spec(sources_dir; project_preferences=extended_preferences) 
+            asset_spec = Resources.extract_asset_spec(sources_dir) 
         else
             remove_sources = false
             asset_spec = Dict{Symbol, Vector{String}}()
@@ -171,42 +177,52 @@ function main_build(sources_dir, ARGS)
         
     elseif bundler == "juliac"
 
-        asset_spec = Resources.extract_asset_spec(sources_dir; project_preferences=extended_preferences)
+        asset_spec = Resources.extract_asset_spec(sources_dir)
         spec = JuliaCBundle(sources_dir; trim = preferences["juliac"]["trim"], asset_spec) 
 
     else
         error("Got unsupported bundler type $bundler")
     end
 
-    function target_path(spec)
+    function target_path(spec, compress)
         if !isnothing(config[:target_name])
             name = config[:target_name]
         else
             name = canonical_target_name(spec)
         end
-        joinpath(build_dir, name * suffix(spec))
+        
+        target = joinpath(build_dir, name)
+        if compress
+            return target * suffix(spec)
+        else
+            return target
+        end
     end
 
     if :msix == target_bundle
 
         msix = MSIX(sources_dir; arch = target_arch, preferences)
+        target = target_path(msix, compress)
 
-        if selfsign || skipsign
-            password = ""
-        elseif isnothing(msix.pfx_cert)
-            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
-        elseif isnothing(password)
-            print("Type in certificate password:")
-            password = readline() |> strip
+        if skipsign
+            signer = nothing
+        elseif selfsign
+            signer = MsixPack.generate_signer(; msix.publisher)
+        elseif !isnothing(msix.pfx_cert)
+            if isnothing(password)
+                print("Type in certificate password:")
+                password = readline() |> strip
+            end
+            signer = MsixPack.PfxSigner(msix.pfx_cert, msix.publisher, password)            
+        else
+            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign`, skip signing with `--skipsign` or generate pfx certificates")
         end
-        
-        target = target_path(msix)
-        bundle(spec, msix, target; force = overwrite_target, password)
+            
+        bundle(spec, msix, target; signer, force = overwrite_target)
 
         if msix2exe # false by default because depends on external resources
             
-            exespec = MSIX2EXE(sources_dir; preferences)
-            repack(target, exespec, join((first(splitext(target)), ".exe")); force = overwrite_target)
+            MsixPack.msix2exe(target, join((first(splitext(target)), ".exe")); bootstrap = resolve(sources_dir, "meta/msix/bootstrap.ps1"), force = overwrite_target, windowed = preferences["msix"]["bootstrapper_windowed"])
 
         end
 
@@ -214,26 +230,31 @@ function main_build(sources_dir, ARGS)
         
         dmg = DMG(sources_dir; arch = target_arch, preferences)
 
-        if selfsign || skipsign
-            password = ""
-        elseif isnothing(dmg.pfx_cert)
-            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign` or generate pfx certificates")
-        elseif isnothing(password)
-            print("Type in certificate password:")
-            password = readline() |> strip
+        if skipsign
+            signer = nothing
+        elseif selfsign
+            signer = DmgPack.generate_signer()
+        elseif !isnothing(dmg.pfx_cert)
+            if isnothing(password)
+                print("Type in certificate password:")
+                password = readline() |> strip
+            end
+            signer = DmgPack.PfxSigner(dmg.pfx_cert, password)
+        else
+            error("No pfx certificate found and selfsign is disabled. Enable self signing with `--selfsign`, skip signing with `--skipsign` or generate pfx certificates")
         end
 
-        bundle(spec, dmg, target_path(dmg); force = overwrite_target, password, verbose)
+        bundle(spec, dmg, target_path(dmg, compress); force = overwrite_target, signer, verbose)
 
     elseif :snap == target_bundle
 
         snap = Snap(sources_dir; arch = target_arch, preferences)
-        bundle(spec, snap, target_path(snap); force = overwrite_target)
+        bundle(spec, snap, target_path(snap, compress); force = overwrite_target)
 
     elseif :appimage == target_bundle
         
         appimage = AppImage(sources_dir; arch = target_arch, preferences)
-        bundle(spec, appimage, target_path(appimage); force = overwrite_target)
+        bundle(spec, appimage, target_path(appimage, compress); force = overwrite_target)
 
     else
         error("Got unsupported bundle type $target_bundle")
@@ -247,14 +268,18 @@ end
 # single dash is otherwise a value: `--password -secret` must keep -secret.
 const SHORT_OPTIONS = Dict("-h" => "--help")
 
-require(option, value) = value === nothing ? error("$option requires a value") : value
-forbid(option, value)  = value === nothing || error("$option does not take a value, got '$value'")
+"""
+    parse_build_args(raw_args) -> (config, defines)
 
+Split `appbundler build` arguments into the build `config` (output location, target,
+password) and the preference `defines`: the `-D` overrides plus the preferences that
+flags imply, coerced against [`LOCAL_PREFERENCES_SCHEMA`](@ref). Flag-implied values
+are placed first, so an explicit `-D` for the same key wins whatever the order:
+`--debug -Dcompress=true` keeps compression.
+"""
 function parse_build_args(raw_args::Vector{<:AbstractString}) 
 
-    args, defines_raw = ArgTools.parse_options(raw_args; short_options = SHORT_OPTIONS)
-    defines = ArgTools.coerce(defines_raw, LOCAL_PREFERENCES_SCHEMA)
-    reverse!(defines)
+    args, defines = Knobs.parse_options(raw_args; short_options = SHORT_OPTIONS)
     
     # Default values
     config = Dict(
@@ -265,43 +290,38 @@ function parse_build_args(raw_args::Vector{<:AbstractString})
         :password => nothing
     )
 
-    for (option, value) in args
+    for (option, raw) in args
         if option == "--help"
             print_help()
             exit(0)
         elseif option == "--build-dir"
-            config[:build_dir] = require(option, value)
+            config[:build_dir] = Knobs.value(option, raw)
         elseif option == "--target-name"
-            config[:target_name] = require(option, value)
+            config[:target_name] = Knobs.value(option, raw)
         elseif option == "--password"
-            config[:password] = strip(require(option, value))
+            config[:password] = strip(Knobs.value(option, raw))
         elseif option == "--target-arch"
-            config[:target_arch] = Symbol(require(option, value))
+            config[:target_arch] = Knobs.value(option, raw, Symbol)
         elseif option == "--target-bundle"
-            config[:target_bundle] = Symbol(require(option, value))
+            config[:target_bundle] = Knobs.value(option, raw, Symbol)
         elseif option == "--force"
-            forbid(option, value)
-            push!(defines, "overwrite_target" => true)
+            Knobs.flag(option, raw)
+            pushfirst!(defines, "overwrite_target" => true)
         elseif option == "--selfsign"
-            forbid(option, value)
-            push!(defines, "selfsign" => true)
+            Knobs.flag(option, raw)
+            pushfirst!(defines, "selfsign" => true)
         elseif option == "--skipsign"
-            forbid(option, value)
-            push!(defines, "skipsign" => true)
+            Knobs.flag(option, raw)
+            pushfirst!(defines, "skipsign" => true)
         elseif option == "--debug"
-            forbid(option, value)
-            push!(defines, "compress" => false)
-            push!(defines, "selfsign" => true)
-            push!(defines, "windowed" => false)
+            Knobs.flag(option, raw)
+            pushfirst!(defines, "compress" => false, "selfsign" => true, "windowed" => false)
         else
             @warn "Unknown argument: $option"
         end
     end
 
-    # This is propper as long as we don't consider lists
-    unique!(first, defines)
-
-    return config, defines
+    return config, Knobs.coerce(defines, LOCAL_PREFERENCES_SCHEMA)
 end
 
 
@@ -355,7 +375,7 @@ Status options:
 
 Common options:
   -DKEY=VALUE                       Override a LocalPreferences.toml entry
-                                    (build, inline); nested keys use dots,
+                                    (build, inline, status); nested keys use dots,
                                     e.g. -Djuliac.trim=true
   -h, --help                        Show this help message
 

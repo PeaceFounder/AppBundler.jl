@@ -29,35 +29,35 @@ cross-platform packaging is not supported.
 
 See also [`stage`](@ref), [`bundle(setup, config, destination)`](@ref).
 """
-function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = false, password = "", verbose = false)
+function bundle(product::JuliaImgBundle, dmg::DMG, destination::String; force = false, signer = nothing, verbose = false, parameters = parameters(dmg))
 
-    bundle(dmg, destination; force, password) do app_stage
+    bundle(dmg, destination; force, signer, parameters) do app_stage
 
-        app_name = dmg.parameters["APP_EXE"]
-        bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
+        app_name = dmg.appinfo.app_exe
+        bundle_identifier = dmg.appinfo.bundle_identifier
 
-        stage(product, joinpath(app_stage, "Contents/Libraries"); platform = MacOS(dmg.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
+        stage(product, joinpath(app_stage, "Contents/Libraries"); platform = MacOS(dmg.appinfo.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
 
-        install(product.startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters = dmg.parameters, force = true)
+        install(product.startup_file, joinpath(app_stage, "Contents/Libraries/etc/julia/startup.jl"); parameters, force = true)
 
     end
 
     return
 end
 
-function bundle(product::JuliaImgBundle, snap::Snap, destination::String; force = false, verbose = false)
+function bundle(product::JuliaImgBundle, snap::Snap, destination::String; force = false, verbose = false, parameters = parameters(snap))
 
     configure_compiled_modules = JuliaImg.get_project_deps(product.source)
-    snap.parameters["PROJECT_DEPS"] = join(configure_compiled_modules, ",")
+    parameters["PROJECT_DEPS"] = join(configure_compiled_modules, ",")
 
-    bundle(snap, destination; force) do app_stage
+    bundle(snap, destination; force, parameters) do app_stage
 
-        app_name = snap.parameters["APP_EXE"]
-        bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
+        app_name = snap.appinfo.app_exe
+        bundle_identifier = snap.appinfo.bundle_identifier
         
-        stage(product, app_stage; platform = Linux(snap.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
+        stage(product, app_stage; platform = Linux(snap.appinfo.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
         
-        install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = snap.parameters, force = true)
+        install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters, force = true)
 
     end
 
@@ -73,15 +73,14 @@ function normalize_executable(path::String)
     return
 end
 
-function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; force = false, password = "", verbose = false)
+function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; signer = nothing, force = false, verbose = false, parameters = parameters(msix))
 
-    bundle(msix, destination; force, password) do app_stage
+    bundle(msix, destination; signer, force, parameters) do app_stage
         
-        #app_name = msix.parameters["APP_NAME"]
-        app_name = msix.parameters["APP_EXE"]
-        bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
+        app_name = msix.appinfo.app_exe
+        bundle_identifier = msix.appinfo.bundle_identifier
 
-        stage(product, app_stage; platform = Windows(msix.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
+        stage(product, app_stage; platform = Windows(msix.appinfo.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
         mv("$app_stage/libexec/julia/lld.exe", "$app_stage/bin/lld.exe") # julia.exe can't find shared libraries in UWP
 
         # Executables extracted from tar archives carry Unix-style metadata that causes 
@@ -91,9 +90,9 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; force 
         
         touch("$app_stage/bin/julia.exe") # updating timestamp to avoid Invalid Parameter error
 
-        install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters = msix.parameters, force = true)
+        install(product.startup_file, joinpath(app_stage, "etc/julia/startup.jl"); parameters, force = true)
 
-        if msix.windowed
+        if msix.appinfo.windowed
             WinSubsystem.change_subsystem_inplace("$app_stage/bin/julia.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
             WinSubsystem.change_subsystem_inplace("$app_stage/bin/lld.exe"; subsystem_flag = WinSubsystem.SUBSYSTEM_WINDOWS_GUI)
         end
@@ -102,51 +101,50 @@ function bundle(product::JuliaImgBundle, msix::MSIX, destination::String; force 
     return
 end
 
-function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = false, password = "", verbose = false)
+function bundle(product::JuliaCBundle, dmg::DMG, destination::String; force = false, signer = nothing, verbose = false, parameters = parameters(dmg))
 
     if !Sys.isapple()
         @warn "The build for the DMG will not work as it is not built on macos"
     end
 
-    if dmg.sandboxed_runtime && !dmg.windowed
+    if dmg.sandboxed_runtime && !dmg.appinfo.windowed
         @warn "In hardened runtime mode it is a known bug that GUI terminal won't launch"
     end
 
-    bundle(dmg, destination; force, password) do app_stage
-
-        app_name = dmg.parameters["APP_EXE"]
-        bundle_identifier = dmg.parameters["BUNDLE_IDENTIFIER"]
+    bundle(dmg, destination; force, signer, parameters) do app_stage
+        app_name = dmg.appinfo.app_exe
+        bundle_identifier = dmg.appinfo.bundle_identifier
         stage(product, joinpath(app_stage, "Contents/Libraries"); runtime_mode = "SANDBOX", app_name, bundle_identifier)
     end
 
     return
 end
 
-function bundle(product::JuliaCBundle, snap::Snap, destination::String; force = false, verbose = false)
+function bundle(product::JuliaCBundle, snap::Snap, destination::String; force = false, verbose = false, parameters = parameters(snap))
 
     if !Sys.islinux()
         @warn "The build for the snap will not work as it is not built on linux"
     end
 
-    bundle(snap, destination; force) do app_stage
-        app_name = snap.parameters["APP_EXE"]
-        bundle_identifier = snap.parameters["BUNDLE_IDENTIFIER"]
+    bundle(snap, destination; force, parameters) do app_stage
+        app_name = snap.appinfo.app_exe
+        bundle_identifier = snap.appinfo.bundle_identifier
         stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)
     end
 
     return
 end
 
-function bundle(product::JuliaCBundle, msix::MSIX, destination::String; password = "", force = false, verbose = false)
+function bundle(product::JuliaCBundle, msix::MSIX, destination::String; signer = nothing, force = false, verbose = false, parameters = parameters(msix))
 
     if !Sys.iswindows()
         @warn "The build for MSIX will not work as it is not built on Windows"
     end
     # I need to pass down the arguments here somehow for the template
-    bundle(msix, destination; password, force) do app_stage
+    bundle(msix, destination; signer, force, parameters) do app_stage
 
-        app_name = msix.parameters["APP_EXE"]
-        bundle_identifier = msix.parameters["BUNDLE_IDENTIFIER"]
+        app_name = msix.appinfo.app_exe
+        bundle_identifier = msix.appinfo.bundle_identifier
         stage(product, app_stage; runtime_mode = "SANDBOX", app_name, bundle_identifier)        
 
         if msix.windowed
@@ -167,21 +165,21 @@ Snap target stages it, and `AppRun` execs `bin/julia` from the mount point. Beca
 filesystem is read-only and vanishes when the application exits, the depot is redirected to a
 per-user directory; see the `depot` field of [`AppImage`](@ref).
 """
-function bundle(product::JuliaImgBundle, appimage::AppImage, destination::String; force = false, verbose = false)
+function bundle(product::JuliaImgBundle, appimage::AppImage, destination::String; force = false, verbose = false, parameters = parameters(appimage))
 
     if !Sys.islinux()
         @warn "AppImages only run on Linux and the payload is staged for the host platform"
     end
 
-    bundle(appimage, destination; force) do appdir
+    bundle(appimage, destination; force, parameters) do appdir
 
-        app_name = appimage.parameters["APP_EXE"]
-        bundle_identifier = appimage.parameters["BUNDLE_IDENTIFIER"]
+        app_name = appimage.appinfo.app_exe
+        bundle_identifier = appimage.appinfo.bundle_identifier
 
-        stage(product, appdir; platform = Linux(appimage.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
+        stage(product, appdir; platform = Linux(appimage.appinfo.arch), runtime_mode = "SANDBOX", app_name, bundle_identifier)
 
         install(product.startup_file, joinpath(appdir, "etc/julia/startup.jl");
-                parameters = appimage.parameters, force = true)
+                parameters, force = true)
     end
 
     return
@@ -192,15 +190,15 @@ end
 
 Package a juliac-compiled executable as a mountable AppImage.
 """
-function bundle(product::JuliaCBundle, appimage::AppImage, destination::String; force = false, verbose = false)
+function bundle(product::JuliaCBundle, appimage::AppImage, destination::String; force = false, verbose = false, parameters = parameters(appimage))
 
     if !Sys.islinux()
         @warn "AppImages only run on Linux and juliac compiles with the host toolchain"
     end
 
-    bundle(appimage, destination; force) do appdir
-        app_name = appimage.parameters["APP_EXE"]
-        bundle_identifier = appimage.parameters["BUNDLE_IDENTIFIER"]
+    bundle(appimage, destination; force, parameters) do appdir
+        app_name = appimage.appinfo.app_exe
+        bundle_identifier = appimage.appinfo.bundle_identifier
         stage(product, appdir; runtime_mode = "SANDBOX", app_name, bundle_identifier)
     end
 

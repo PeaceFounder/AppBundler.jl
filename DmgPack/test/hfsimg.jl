@@ -9,7 +9,7 @@
 # Usage:  julia test/hfsplus.jl   (or include it from runtests.jl)
 
 using Test
-import AppBundler: HFSImg
+import DmgPack: HFSImg
 import .HFSImg: build_hfs
 import libdmg_hfsplus_jll: hfsplus
 using Unicode: normalize

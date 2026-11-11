@@ -1,9 +1,9 @@
-
 module AppBundler
 
 using Scratch
 import Pkg.BinaryPlatforms: Linux, MacOS, Windows
 import Pkg
+import Knobs
 
 DOWNLOAD_CACHE = ""
 
@@ -23,19 +23,10 @@ abstract type BuildSpec end
 
 function stage end
 
-include("DMG/DSStore.jl")
-include("DMG/HFSTools.jl")
-include("DMG/HFSImg.jl")
-include("DMG/DMGPack.jl")
-
 include("Snap/SnapPack.jl")
 
 include("AppImage/AppImageRuntime.jl")
 include("AppImage/AppImagePack.jl")
-
-include("MSIX/MSIXPack.jl")
-include("MSIX/WinSubsystem.jl")
-include("MSIX/MSIX2EXEPack.jl")
 
 # JuliaC needs assets and pkgorigins_index which is shared between JuliaImg and JuliaC
 include("bundlers/Resources.jl") 
@@ -45,17 +36,18 @@ include("bundlers/JuliaC.jl")
 using .JuliaImg: install
 using .JuliaImg.Resources: merge_directories
 
-include("utils.jl")
-include("bundle.jl")
-include("recipes.jl") 
-
-include("ArgTools.jl")
-include("PrefTools.jl")
+#include("utils.jl") # get_path will be replaced with rules.jl which may make this part redundant
+include("bundle.jl") # every asset needs now to be called out as resolve(project, target) 
+include("recipes.jl") # little change in this module 
 
 include("preferences.jl")
+include("inline_preferences.jl")
+
+
+include("resolve.jl") # better would be called rules.jl
+
 
 include("status.jl")
-include("inline.jl")
 include("main.jl")
 
 function __init__()
@@ -66,7 +58,7 @@ function __init__()
         global DOWNLOAD_CACHE = get_scratch!(@__MODULE__, "AppBundler")
     end
 
-    DSStore.__init__()
+    #DSStore.__init__()
 
 end
 

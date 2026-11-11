@@ -1,8 +1,37 @@
-import .PrefTools: PreferenceStatus, PreferenceEntry
+module PreferenceStatus
+    @enum T ERROR EXPLICIT INFERRED DEFAULT
+end
+
+const PreferenceEntry = @NamedTuple{key::String, value::Any, status::PreferenceStatus.T, from::Tuple{Vararg{String}}}
+
+"""How a resolved preference is shown: set by the user, a shipped default, or inferred from the project."""
+function preference_status(entry)
+    !isnothing(entry.problem) && return PreferenceStatus.ERROR
+    entry.origin == "inferred" && return PreferenceStatus.INFERRED
+    entry.origin in ("defaults", nothing) && return PreferenceStatus.DEFAULT
+    return PreferenceStatus.EXPLICIT
+end
+
+"""
+    preferences_status(project; defines = []) -> Vector{PreferenceEntry}
+
+Every preference with its final value and where it came from, as `appbundler status`
+shows them: `EXPLICIT` when the project's `LocalPreferences.toml` or the command line
+set it, `DEFAULT` from AppBundler's own `LocalPreferences.toml`, `INFERRED` from the project, and
+`ERROR` when it is unknown, invalid or could not be inferred. Never throws.
+"""
+function preferences_status(project; defines = Pair{String, Any}[], schema = LOCAL_PREFERENCES_SCHEMA,
+                            layers = preference_layers(project; defines))
+
+    entries = PreferenceEntry[(key = e.key, value = e.value, status = preference_status(e), from = e.from)
+                              for e in Knobs.status(schema, layers)]
+
+    return sort!(entries; by = e -> (e.status, e.key))
+end
+
 
 format_value(v::AbstractVector) = "[" * join(map(format_value, v), ", ") * "]"
 format_value(v) = repr(v)
-
 
 function print_preferences(io::IO, entries::AbstractVector{PreferenceEntry})
     missing_entries = filter(e -> e.status == PreferenceStatus.ERROR && isnothing(e.value), entries)
@@ -22,6 +51,8 @@ function print_preferences(io::IO, entries::AbstractVector{PreferenceEntry})
         else
             printstyled(io, line; color = :light_black)
         end
+        # Which preferences an inferred value was computed from
+        isempty(e.from) || printstyled(io, "  (from ", join(e.from, ", "), ")"; color = :light_black)
         println(io)
     end
 
@@ -50,11 +81,6 @@ function print_wrapped(io::IO, words; indent = 0, color = :normal)
 end
 
 
-print_preferences(io::IO, preferences::Dict; kwargs...) =
-    print_preferences(io, preferences_status(preferences; kwargs...))
-
-print_preferences(preferences::Dict; kwargs...) = print_preferences(stdout, preferences; kwargs...)
-
 function print_preferences(io::IO, project_dir; defines = Pair{String, Any}[])
 
     entries = preferences_status(project_dir; defines)
@@ -64,80 +90,6 @@ function print_preferences(io::IO, project_dir; defines = Pair{String, Any}[])
 end
 
 print_preferences(project_dir) = print_preferences(stdout, project_dir)
-
-const DEFAULT_DIR = joinpath(dirname(@__DIR__), "recipes")
-
-function issubpath(path, parent)
-    p = splitpath(abspath(path))
-    q = splitpath(abspath(parent))
-    return length(p) >= length(q) && p[1:length(q)] == q
-end
-
-isoverride(path) = !isnothing(path) && !issubpath(path, DEFAULT_DIR)
-isoverride(path::Verbatim) = isoverride(path.path)
-
-isgenerated_asset(path) = true  #basename(path) in ("icon.png", "icon.svg")
-isgenerated_asset(::Verbatim) = false
-
-
-"""
-    override_status(project_dir)
-
-Return a nested tuple of `name => status` pairs where status is
-- `true`   : overridden by the project
-- `false`  : default from recipes
-- `String` : generated from the named source (empty string = generated, no source shown)
-- `Tuple`  : a nested directory
-"""
-function override_status(project_dir)
-    # SVG takes precedence
-    icon_path = get_path([joinpath(project_dir, "meta"), DEFAULT_DIR], ["icon.svg", "icon.png"])
-    icon_override = isoverride(icon_path)
-    is_svg = basename(icon_path) == "icon.svg"
-
-    # It is harder to break this one
-    preferences = get(TOML.parsefile(joinpath(pkgdir(@__MODULE__), "LocalPreferences.toml")), "AppBundler", Dict{String,Any}())
-    apply_defaults!(preferences, project_dir)
-
-    msix = MSIX(project_dir; preferences)
-    dmg = DMG(project_dir; preferences)
-    snap = Snap(project_dir; preferences)
-    appimage = AppImage(project_dir; preferences)
-
-    return (
-        "meta" => (
-            "icon.svg" => icon_override && is_svg,
-            "icon.png" => icon_override && !is_svg,
-            "startup.jl" => isfile(joinpath(project_dir, "meta", "startup.jl")),
-            "msix" => (
-                "Assets" => isgenerated_asset(msix.icon) ? basename(msix.icon) : isoverride(msix.icon),
-                "AppxManifest.xml" => isoverride(msix.appxmanifest),
-                "resources.pri" => isoverride(msix.resources_pri),
-                "MSIXAppInstallerData.xml" => isoverride(msix.msixinstallerdata),
-                "certificate.pfx" => isnothing(msix.pfx_cert) ? "" : isoverride(msix.pfx_cert),
-            ),
-            "dmg" => (
-                "icon.icns" => isgenerated_asset(dmg.icon) ? basename(dmg.icon) : isoverride(dmg.icon),
-                "Info.plist" => isoverride(dmg.info_config),
-                "Entitlements.plist" => isoverride(dmg.entitlements),
-                "DS_Store.toml" => isoverride(dmg.dsstore) && !isgenerated_asset(dmg.dsstore),
-                "DS_Store" => isgenerated_asset(dmg.dsstore) ? basename(dmg.dsstore) : isoverride(dmg.dsstore),
-                "certificate.pfx" => isnothing(dmg.pfx_cert) ? "" : isoverride(dmg.pfx_cert),
-            ),
-            "snap" => (
-                "icon.png" => isgenerated_asset(snap.icon) ? basename(snap.icon) : isoverride(snap.icon),
-                "snap.yaml" => isoverride(snap.snap_config),
-                "main.desktop" => isoverride(snap.desktop_launcher),
-                "configure.sh" => isoverride(snap.configure_hook),
-            ),
-            "appimage" => (
-                "AppRun.sh" => isoverride(appimage.apprun),
-            ),
-        ),
-        ".github/workflows/Release.yml" => isfile(joinpath(project_dir, ".github/workflows/Release.yml")),
-        ".gitlab-ci.yml" => isfile(joinpath(project_dir, ".gitlab-ci.yml"))
-    )
-end
 
 isoverridden(value) = value === true || (value isa Tuple && any(((_, v),) -> isoverridden(v), value))
 
